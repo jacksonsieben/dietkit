@@ -8,6 +8,24 @@
     "titleTemplate": "%s · DietKit",
     "description": "Calculadora de dieta local-first: seus dados corporais viram metas de energia e uma dieta montada com a tabela TACO, sem sair do seu aparelho."
   },
+  "Manifest": {
+    "name": "DietKit — calculadora de dieta",
+    "shortName": "DietKit"
+  },
+  "Install": {
+    "title": "Instalar o DietKit",
+    "body": "Abre direto da tela de início e funciona sem conexão.",
+    "action": "Instalar",
+    "iosBody": "No Safari, toque em Compartilhar e escolha \"Adicionar à Tela de Início\".",
+    "dismiss": "Dispensar"
+  },
+  "Offline": {
+    "heading": "Você está sem conexão",
+    "body": "Esta tela ainda não tinha sido aberta neste aparelho, então não havia uma cópia guardada para mostrar agora.",
+    "reassurance": "O resto do DietKit continua funcionando sem internet: seus dados ficam no aparelho, não em um servidor. Só a busca de alimentos precisa de conexão, porque a tabela TACO fica no servidor.",
+    "retry": "Tentar de novo",
+    "backHome": "Voltar ao início"
+  },
   "Home": {
     "heading": "DietKit",
     "underConstruction": "Em construção.",
