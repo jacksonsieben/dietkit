@@ -1,0 +1,21 @@
+{
+  "App": {
+    "name": "DietKit",
+    "tagline": "Seus dados corporais viram metas de energia, e a dieta é montada com a tabela TACO — tudo no seu aparelho."
+  },
+  "Metadata": {
+    "titleDefault": "DietKit",
+    "titleTemplate": "%s · DietKit",
+    "description": "Calculadora de dieta local-first: seus dados corporais viram metas de energia e uma dieta montada com a tabela TACO, sem sair do seu aparelho."
+  },
+  "Home": {
+    "heading": "DietKit",
+    "underConstruction": "Em construção.",
+    "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho."
+  },
+  "NotFound": {
+    "heading": "Página não encontrada",
+    "body": "O endereço que você abriu não existe.",
+    "backHome": "Voltar ao início"
+  }
+}

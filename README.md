@@ -61,6 +61,18 @@ npm run dev          # http://localhost:3000
 | `npm run typecheck` | Generate route types, then `tsc --noEmit` |
 | `npm test` | Vitest, single run |
 
+### Strings
+
+Every user-facing string lives in `messages/pt-BR.json` — none in components.
+Two things enforce that rather than trusting discipline:
+
+- `react/jsx-no-literals` fails the lint on any literal text in JSX.
+- `AppConfig["Messages"]` is typed from the catalogue, so `t("Home.hedaing")`
+  fails `tsc`.
+
+pt-BR is the only shipped locale and serves from unprefixed URLs. Adding one
+means an entry in `src/i18n/routing.ts` and a file in `messages/` — nothing else.
+
 `GET /api/health` is the deploy health check — it reports the running commit and
 environment, and is deliberately uncached so a green response proves the deployed
 function actually ran.
