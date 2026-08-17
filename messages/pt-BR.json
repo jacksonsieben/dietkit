@@ -17,5 +17,30 @@
     "heading": "Página não encontrada",
     "body": "O endereço que você abriu não existe.",
     "backHome": "Voltar ao início"
+  },
+  "Attribution": {
+    "credit": "Composição dos alimentos: tabela TACO, {publisher}, {edition}, {year}.",
+    "moreLink": "Fontes e créditos"
+  },
+  "Sources": {
+    "title": "Fontes e créditos",
+    "lead": "Os valores de composição dos alimentos usados pelo DietKit vêm da Tabela Brasileira de Composição de Alimentos (TACO), publicada pelo Núcleo de Estudos e Pesquisas em Alimentação (NEPA) da UNICAMP. São {foodCount} alimentos, com valores por 100 g de parte comestível.",
+    "referenceHeading": "Como citar a fonte",
+    "downloadLink": "Baixar a tabela original em PDF",
+    "permissionHeading": "Autorização de uso",
+    "permissionIntro": "A própria publicação autoriza a reprodução, com uma condição — citar a fonte. Nas palavras do NEPA:",
+    "changesHeading": "O que o DietKit mudou nos dados",
+    "changesIntro": "Só o formato. Nenhum valor publicado foi alterado:",
+    "changesNoRecalculation": "Nenhum número é recalculado, convertido ou arredondado. A TACO já publica por 100 g de parte comestível, que é a base que o DietKit usa.",
+    "changesPreservesGaps": "\"NA\" (não analisado) e \"Tr\" (traços) são mantidos como são, e não trocados por zero. São resultados de análise, não lacunas para preencher.",
+    "changesContainerOnly": "O que mudou é a embalagem: nomes de colunas viram nomes de campos, cada alimento ganha um identificador e uma cópia do nome sem acentos para a busca funcionar.",
+    "calculationsHeading": "O que é cálculo do DietKit",
+    "calculationsBody": "Totais de uma refeição, uma porção ajustada para 173 g, metas de energia e de macronutrientes: tudo isso é aritmética do DietKit sobre os valores por 100 g da TACO. Se um número desses estiver errado, o erro é do DietKit.",
+    "affiliationHeading": "Sem vínculo",
+    "affiliationBody": "O NEPA e a UNICAMP publicaram a tabela. Não revisaram, não aprovaram e não têm qualquer envolvimento com o DietKit. Citar a fonte não significa endosso.",
+    "licenceHeading": "Licenças",
+    "licenceCode": "O código do DietKit é aberto, sob licença MIT.",
+    "licenceData": "Os dados da TACO não são cobertos por essa licença: © 2011 NEPA/UNICAMP, reproduzidos sob a autorização acima. A licença do código não os relicencia.",
+    "backHome": "Voltar ao início"
   }
 }

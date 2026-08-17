@@ -1,3 +1,28 @@
+The MIT license below covers the SOFTWARE in this repository. It does not
+cover the food composition data, which belongs to someone else.
+
+    Third-party data: TACO
+    ----------------------
+    Food composition values come from the Tabela Brasileira de Composicao de
+    Alimentos (TACO), 4a edicao revisada e ampliada, Campinas: NEPA-UNICAMP,
+    2011 -- https://nepa.unicamp.br/publicacoes/tabela-taco-pdf/
+
+    (c) 2011 Nucleo de Estudos e Pesquisas em Alimentacao (NEPA), Universidade
+    Estadual de Campinas (UNICAMP). Reproduced under the permission granted in
+    the publication itself: "E permitida a reproducao total ou parcial do
+    material, desde que seja citada a fonte" -- reproduction in whole or in
+    part is permitted provided the source is cited.
+
+    That condition travels with the data. If you copy the food data out of
+    this repository, the MIT license does not release you from citing
+    NEPA/UNICAMP, and it is not ours to relicense on their behalf.
+
+    NEPA and UNICAMP published the table. They did not review, approve or
+    endorse DietKit.
+
+    Full terms, provenance and the rules DietKit holds itself to:
+    docs/TACO-LICENSING.md
+
 MIT License
 
 Copyright (c) 2026 Jackson Sieben
