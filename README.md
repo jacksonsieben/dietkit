@@ -98,6 +98,27 @@ unique indexes.
 without a rewrite. `getRepository()` throws on the server rather than returning
 an empty store — a server-side read of personal data is a bug, not a fallback.
 
+### Solver
+
+`src/lib/solver` balances protein, carbs and fat at once instead of one macro at
+a time:
+
+```ts
+const solution = solveMacros(foods, { proteinG: 45, carbG: 75, fatG: 20 });
+```
+
+It is a bounded least-squares fit — quantities stay inside each food's portion
+bounds — with no dependency, because at a few dozen variables there is nothing a
+linear-algebra library would win. A meal is underdetermined (three macros, many
+foods), so the fit is anchored at the plan's current quantities: that makes the
+answer unique, continuous in the inputs, and the one closest to what the user
+already wrote. Unreachable targets come back as a signed per-macro `residual`
+plus the `limiting` foods stuck at a bound, never as a quietly wrong plan.
+
+15 foods solve in about 0.1 ms, so the builder can solve on every keystroke.
+Full findings, including the two algorithms that were tried and rejected:
+[docs/SPIKE-MACRO-SOLVER.md](docs/SPIKE-MACRO-SOLVER.md).
+
 ## Documentation
 
 - [docs/SCOPE.md](docs/SCOPE.md) — goals, phases P0–P3, launch blockers, open risks
@@ -105,6 +126,8 @@ an empty store — a server-side read of personal data is a bug, not a fallback.
 - [docs/MACRO-RECONCILIATION.md](docs/MACRO-RECONCILIATION.md) — prior art from the
   predecessor app: how per-meal macro targets were reconciled, what broke, and the
   joint-solve approach that should replace it here
+- [docs/SPIKE-MACRO-SOLVER.md](docs/SPIKE-MACRO-SOLVER.md) — the joint solver spike:
+  measurements, the algorithms that did not work, and what it means for the builder
 
 ## Predecessor
 

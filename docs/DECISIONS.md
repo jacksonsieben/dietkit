@@ -114,3 +114,23 @@ decides.
 
 **Why:** in Brazil, prescribing individualised diets is restricted to registered
 nutritionists (CFN). Positioning is not cosmetic here.
+
+---
+
+### D11 — Macros are solved jointly, anchored at the current plan
+
+One bounded least-squares solve over all three macros at once, regularised
+toward the quantities the plan already holds. Hand-written, no dependency. See
+[SPIKE-MACRO-SOLVER.md](SPIKE-MACRO-SOLVER.md) for the measurements.
+
+**Why:** solving one macro at a time is what left the predecessor's protein
+14 g over target while fat landed exact — cross-macro carry-over cannot be
+credited by a scaler that only looks at its own macro. The anchor exists because
+a meal is underdetermined (three equations, 5–15 foods): without it the solver
+returns an arbitrary member of the solution family, and portions jump around as
+the user types.
+
+**Consequence:** the fat vehicle is not a concept in the data model, only a food
+whose composition happens to be (0, 0, 1). `quantityG` on a food is load-bearing
+input, not display state. An unreachable target is a normal UI state that shows
+a per-macro residual and names the foods stuck at a bound.
