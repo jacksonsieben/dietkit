@@ -128,6 +128,8 @@ Full findings, including the two algorithms that were tried and rejected:
   joint-solve approach that should replace it here
 - [docs/SPIKE-MACRO-SOLVER.md](docs/SPIKE-MACRO-SOLVER.md) — the joint solver spike:
   measurements, the algorithms that did not work, and what it means for the builder
+- [docs/TACO-LICENSING.md](docs/TACO-LICENSING.md) — TACO's terms, the provenance of
+  the file we ingest, the required attribution, and why TBCA was rejected
 
 ## Predecessor
 
@@ -142,7 +144,30 @@ DietKit is a **calculator and self-tracking tool**, not a prescription tool. In
 Brazil, prescribing individualised diets is restricted to registered nutritionists
 (CFN). The product copy and disclaimers reflect that deliberately.
 
+## Data source
+
+Food composition values come from the **TACO** table, published by NEPA/UNICAMP:
+
+> NÚCLEO DE ESTUDOS E PESQUISAS EM ALIMENTAÇÃO (NEPA). Tabela brasileira de
+> composição de alimentos — TACO. 4. ed. rev. e ampl. Campinas: NEPA-UNICAMP,
+> 2011. Disponível em: https://nepa.unicamp.br/publicacoes/tabela-taco-pdf/
+
+NEPA permits reproduction in whole or in part *"desde que seja citada a fonte"* —
+provided the source is cited. So the credit is not decoration: it is the licence
+condition, it appears in the footer of every page and in full at `/fontes`, and
+the citation is defined once in `src/lib/attribution.ts` with a test that fails if
+it drifts from the wording agreed in the docs.
+
+DietKit copies the published values and never recalculates them — `NA` and `Tr`
+included. NEPA and UNICAMP published the table; they did not review, approve or
+endorse this app.
+
+Full terms, provenance (including the pinned file hash), why TBCA was rejected,
+and the rules we hold ourselves to:
+[docs/TACO-LICENSING.md](docs/TACO-LICENSING.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE). The TACO food-composition data is **not** covered by
-this license; its terms are being cleared separately (see the P0 licensing issue).
+that license: it is © 2011 NEPA/UNICAMP, reproduced under the permission quoted
+above, and citing the source is required whether or not you took the code.

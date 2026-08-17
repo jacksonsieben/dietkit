@@ -134,3 +134,26 @@ the user types.
 whose composition happens to be (0, 0, 1). `quantityG` on a food is load-bearing
 input, not display state. An unreachable target is a normal UI state that shows
 a per-macro residual and names the foods stuck at a bound.
+
+---
+
+### D12 — Food data is TACO 4th edition, cited on every screen
+
+TACO (NEPA/UNICAMP, 2011), reproduced under the permission printed in the
+publication: *"É permitida a reprodução total ou parcial do material, desde que
+seja citada a fonte."* Full analysis in
+[TACO-LICENSING.md](TACO-LICENSING.md).
+
+**Why:** it is the only Brazilian food composition table whose own terms permit
+redistribution inside a public product. The obvious alternative, TBCA
+(USP/FoRC), is CC BY-NC-ND — no derivatives, non-commercial — which a database
+copy cannot satisfy. The trade is 2011 data in exchange for the right to ship
+it; laboratory measurements of Brazilian foods do not go stale the way software
+does.
+
+**Consequence:** attribution is a licence condition, not a courtesy. It sits in
+the layout footer so it covers screens nobody has written yet, and the citation
+has one definition (`src/lib/attribution.ts`) with a test tying it to the docs.
+The ingest copies published values verbatim — no unit conversion, no recomputed
+energy, `NA` and `Tr` preserved — because NEPA granted reproduction and said
+nothing about adaptation.
