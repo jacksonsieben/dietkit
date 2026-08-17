@@ -11,7 +11,7 @@
  * Profile, weight log, diets, custom foods and settings live in IndexedDB behind
  * `src/lib/storage` and never leave the device.
  */
-export * from "./exercises";
-export * from "./foods";
-export * from "./presets";
-export * from "./provenance";
+export * from "./exercises.ts";
+export * from "./foods.ts";
+export * from "./presets.ts";
+export * from "./provenance.ts";

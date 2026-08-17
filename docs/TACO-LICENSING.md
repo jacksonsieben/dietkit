@@ -1,7 +1,7 @@
 # TACO — licensing, provenance and attribution
 
-> Resolves the P0 launch blocker (#4). Read this before touching the ingest
-> pipeline (#3).
+> Resolves the P0 launch blocker (#4), and states the terms the ingest (#3)
+> implements. Read this before touching `scripts/taco/`.
 >
 > This is an engineering summary of a published permission notice, written so
 > the constraints are actionable. It is not legal advice.
@@ -45,22 +45,25 @@ and no permission request to file. The single obligation is attribution.
 **The notice is silent on:** adaptation. Brazilian copyright law treats
 reproduction (Lei 9.610/98 Art. 29 I) and adaptation into a derivative work
 (Art. 29 III) as separate rights, and NEPA granted the first in as many words.
-Our ingest (#3) therefore deliberately stays on the reproduction side of that
-line:
+Our ingest therefore deliberately stays on the reproduction side of that line:
 
 - **Values are copied, never recomputed.** No unit conversion, no rounding, no
   4/4/9 recalculation of energy, no filling of gaps by estimate. TACO's numbers
   are already per 100 g of edible portion — the basis DietKit uses — so there is
-  nothing to convert.
-- **`NA` and `Tr` are preserved as themselves**, not silently coerced to zero.
-  "Not analysed" and "trace" are findings, and flattening them would be
-  editing the table's content rather than reproducing it.
+  nothing to convert. Both energy columns are stored as printed; the parser uses
+  kJ ≈ kcal × 4,184 only to *check* itself, never to derive a missing figure.
+- **`NA`, `Tr` and `*` are preserved as themselves**, not silently coerced to
+  zero. "Not applicable", "trace" and "withdrawn pending re-analysis" are
+  findings, and flattening them would be editing the table's content rather than
+  reproducing it. A cell TACO leaves blank stays blank for the same reason.
 - What we change is the *container*: column names become field names, the food
-  name gets an accent-folded copy alongside it for search, and rows get an id.
-  None of that alters a reported value.
+  name gets an accent-folded copy alongside it for search, and group names get a
+  slug. Food ids are TACO's own numbering, not ours. None of that alters a
+  reported value.
 
 That interpretation is deliberately conservative and it is not free —
-it is the reason #3 has no "clean up the data" step. See **Open item** below.
+it is the reason the ingest has no "clean up the data" step. See **Open item**
+below.
 
 ## Provenance of the copy we use
 
@@ -78,8 +81,11 @@ it is the reason #3 has no "clean up the data" step. See **Open item** below.
 
 The copy mirrored by the CFN (`cfn.org.br`) is **byte-identical** to the one
 served by NEPA — same SHA-256 — so a reader can verify provenance from either
-host. #3 pins this hash: if the file it ingests is not this file, the ingest
-fails rather than quietly seeding something else.
+host. The hash is pinned in `src/lib/attribution.ts`: `taco:extract` refuses a
+PDF that is not this file, `db:seed` refuses a `data/taco-4ed.json` that does not
+claim it, and the row it writes to `dataset_versions` carries the hash, the byte
+count, the source URL, the retrieval date and the citation — so a value in the
+database can always be traced back to the document this table describes.
 
 The 4th edition (2011) is the last one NEPA published. There is no newer TACO.
 
@@ -135,6 +141,8 @@ ABNT form, matching the *ficha catalográfica* printed in the publication.
 | README | Full reference, in a Data sources section |
 | `LICENSE` | The MIT/data split — MIT covers the code and does not extend to TACO |
 | Every food record in the API (#16) | Its source, so a value can never be shown detached from where it came from |
+| `dataset_versions`, one row per ingest | The citation stored beside the hash, edition and retrieval date of the file the values came from |
+| `npm run db:seed` output | The reference, printed where whoever runs the ingest sees it |
 
 The user-facing rule, in one line: **no screen shows a TACO number without a
 route to the credit.** Footer on every page satisfies that with no per-screen
@@ -164,8 +172,9 @@ prefers a specific citation format for software.
 
 It is not a launch blocker. Reproduction in whole is expressly permitted, no
 reported value is altered, and the citation is present everywhere the data is —
-so the conservative reading is already satisfied. A reply would let #3 drop its
-"copy values verbatim" constraint, which would be a convenience, not a fix.
+so the conservative reading is already satisfied. A reply would let the ingest
+drop its "copy values verbatim" constraint, which would be a convenience, not a
+fix.
 
 ## Licence split
 

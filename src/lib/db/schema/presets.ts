@@ -9,8 +9,8 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
-import { exercises } from "./exercises";
-import { foods } from "./foods";
+import { exercises } from "./exercises.ts";
+import { foods } from "./foods.ts";
 
 /**
  * Starting templates. A preset is a skeleton the client copies into a local diet

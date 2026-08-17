@@ -18,13 +18,23 @@ export type NutrientUnit = "g" | "mg" | "µg" | "kcal" | "kJ" | "%";
  * - `NA` — *não aplicável*: the nutrient does not apply to this food.
  * - `Tr` — *traço*: present in traces. NEPA's own definition (PDF p. 25) is a
  *   value that rounds to between 0 and 0,05, or one below the detection limit.
+ * - `*` — NEPA withdrew the figure: *"as análises estão sendo reavaliadas"*.
+ *   It replaces the number rather than annotating one, and it can take out most
+ *   of a row — food 450, "Iogurte, sabor abacaxi", prints it in ten of its
+ *   eleven left-hand cells.
  *
- * Both are stored as a NULL value plus a sentinel rather than as `0`, because
- * neither is a measured zero and the table never claims they are. A cell that
- * is simply blank in the publication is NULL with no sentinel — that is a third
- * state, and collapsing it into either of these would invent data.
+ * All three are stored as a NULL value plus a sentinel rather than as `0`,
+ * because none is a measured zero and the table never claims they are. A cell
+ * that is simply blank in the publication is NULL with no sentinel — a fourth
+ * state, and collapsing it into any of these would invent data.
+ *
+ * `*` is the one a caller has to think about. `NA` and `Tr` are honest zeroes
+ * for arithmetic; `*` is a missing measurement, so a food carrying it on a
+ * macro has no usable energy or macro figures at all and must not be offered as
+ * one that adds nothing to a plan. Because the value is NULL either way, that
+ * is a `protein_g IS NOT NULL` filter at the query, not a special case here.
  */
-export type NutrientSentinel = "NA" | "Tr";
+export type NutrientSentinel = "NA" | "Tr" | "*";
 
 /** Sparse by design: most foods have a sentinel in only a few cells. */
 export type NutrientSentinels = Partial<Record<NutrientKey, NutrientSentinel>>;
@@ -133,9 +143,14 @@ export function readCell<TKey extends NutrientKey>(
 /**
  * The same cell as a number, for summing.
  *
- * `Tr` and `NA` both come back as 0: a trace rounds to zero at the gram
- * precision a diet is built in, and a nutrient that does not apply contributes
- * nothing. This is the only place that collapse is allowed to happen.
+ * `Tr` and `NA` come back as 0: a trace rounds to zero at the gram precision a
+ * diet is built in, and a nutrient that does not apply contributes nothing.
+ * This is the only place that collapse is allowed to happen.
+ *
+ * `*` and a blank cell also come back as 0, and there the 0 is an assumption
+ * rather than a fact — the measurement is missing, not small. Summing a food
+ * with withheld macros understates the total silently, so callers building a
+ * plan filter those foods out first instead of relying on this to be safe.
  */
 export function numericValue<TKey extends NutrientKey>(
   food: NutrientCarrier & Partial<Record<TKey, number | null>>,

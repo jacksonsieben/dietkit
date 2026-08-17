@@ -1,8 +1,8 @@
 import { relations } from "drizzle-orm";
 import { index, integer, jsonb, numeric, pgTable, text } from "drizzle-orm/pg-core";
 
-import type { NutrientSentinels } from "../nutrients";
-import { datasetVersions } from "./provenance";
+import type { NutrientSentinels } from "../nutrients.ts";
+import { datasetVersions } from "./provenance.ts";
 
 /**
  * TACO's fifteen food categories, as headings in the printed table.
