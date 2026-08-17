@@ -54,14 +54,24 @@ const eslintConfig = defineConfig([
               message:
                 "Use getRepository() from @/lib/storage rather than reaching for the IndexedDB adapter.",
             },
+            // The other half of the same boundary (#2). Personal data may not
+            // leave the device, and reference data may not leave the server —
+            // one `drizzle-orm` import in a client component is how a database
+            // driver ends up in the browser bundle and how a query for
+            // somebody's diet ends up looking reasonable.
+            {
+              group: ["drizzle-orm", "drizzle-orm/*", "@neondatabase/serverless"],
+              message:
+                "Query from src/lib/db/ and pass plain data outward. The database is reference data only — see docs/DECISIONS.md § D1.",
+            },
           ],
         },
       ],
     },
   },
   {
-    // ...except the adapter itself, which is the one file allowed to.
-    files: ["src/lib/storage/dexie/**/*.ts"],
+    // ...except the two adapters themselves, which are the files allowed to.
+    files: ["src/lib/storage/dexie/**/*.ts", "src/lib/db/**/*.ts"],
     rules: { "no-restricted-imports": "off" },
   },
 

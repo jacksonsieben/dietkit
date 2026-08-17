@@ -98,6 +98,42 @@ unique indexes.
 without a rewrite. `getRepository()` throws on the server rather than returning
 an empty store — a server-side read of personal data is a bug, not a fallback.
 
+### Reference database
+
+The other side of that boundary. Neon Postgres holds ten tables — food
+composition, food groups, the exercise catalogue, diet and training presets, and
+one provenance row per ingested dataset — reached through Drizzle in
+`src/lib/db`:
+
+```ts
+const rows = await db().select().from(foods).where(eq(foods.groupSlug, slug));
+```
+
+**No table in it describes a person**, and that is a test rather than a promise.
+`boundary.test.ts` applies the checked-in migrations to a real Postgres — PGlite,
+Postgres compiled to WebAssembly — and then asks `information_schema` what
+exists: the table names must equal an exact allowlist, and no column name may
+contain a segment like `weight`, `email` or `profile`. It needs no credentials,
+so it runs in `npm test` on every change.
+
+Published values are stored as `numeric`, because § D12 treats them as
+quotations and `70.1` has to come back as `70.1`. TACO prints three kinds of
+non-value — `NA` (*não aplicável*), `Tr` (*traço*) and a genuinely blank cell —
+so a nullable column carries the number and a sparse `sentinels` map carries the
+reason it is missing. `readCell` keeps them apart for display; `numericValue` is
+the only place they become 0.
+
+Migrations are checked in as SQL under `drizzle/` and reviewed in the diff:
+
+```bash
+npm run db:generate   # after editing src/lib/db/schema
+npm run db:migrate    # apply, using DATABASE_URL_UNPOOLED
+```
+
+Copy `.env.example` to `.env` for the two connection strings — pooled for the
+app's reads, direct for DDL — and note which is which; the app also runs fine
+against a read-only Neon role, since it never writes.
+
 ### Solver
 
 `src/lib/solver` balances protein, carbs and fat at once instead of one macro at
