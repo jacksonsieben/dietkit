@@ -157,3 +157,31 @@ has one definition (`src/lib/attribution.ts`) with a test tying it to the docs.
 The ingest copies published values verbatim — no unit conversion, no recomputed
 energy, `NA` and `Tr` preserved — because NEPA granted reproduction and said
 nothing about adaptation.
+
+### D13 — The server database holds reference data and is checked, not trusted
+
+Neon holds ten tables: food composition, food groups, the exercise catalogue,
+diet and training presets, and one provenance table. No table describes a
+person. That is enforced by `src/lib/db/boundary.test.ts`, which applies the
+checked-in migrations to a real Postgres (PGlite, Postgres compiled to WASM) and
+then interrogates `information_schema` — an exact allowlist of table names plus a
+per-segment denylist of words like `weight`, `email` and `profile` that also
+catches an `owner_email` growing inside an allowed table.
+
+**Why:** § D1 makes "the server never receives personal data" a product promise,
+and a promise held only by intention is held until the first convenient
+exception. The check runs in `npm test` with no database credentials, so it is
+cheap enough to leave on forever. Both halves have been shown to fail on purpose:
+adding a `weight_kg` column trips the schema-drift test before it is migrated and
+the column denylist after.
+
+**Consequence:** published values are stored as `numeric`, not `double
+precision`, because § D12 calls them quotations — `70.1` must come back as `70.1`.
+The table's three cell states are kept apart by a nullable numeric column plus one
+sparse `sentinels` JSONB map, so `NA` (*não aplicável*), `Tr` (*traço*) and a blank
+cell stay distinguishable from a measured zero; `readCell` preserves them for
+display and `numericValue` is the single place they collapse to 0 for arithmetic.
+Presets are relational rather than one JSONB blob so that a preset referencing a
+food that does not exist fails at seed time, and referencing somebody's custom
+food is structurally impossible. There is deliberately no column for a load in
+kilograms anywhere in this database.
