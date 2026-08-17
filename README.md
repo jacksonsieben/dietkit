@@ -2,9 +2,8 @@
 
 **A local-first PWA that turns your body data into energy targets, builds a diet from real Brazilian food-composition data, and tracks your weight so every new plan starts from your current numbers.**
 
-> **Status: planning.** No application code yet. This repository currently holds
-> the scope, architecture and decision record. See [docs/SCOPE.md](docs/SCOPE.md)
-> to understand what is being built and in what order.
+> **Status: P0 — foundation.** The app skeleton is up; features are not built yet.
+> See [docs/SCOPE.md](docs/SCOPE.md) for what is being built and in what order.
 
 ## The idea in one paragraph
 
@@ -43,6 +42,28 @@ plan, and it is why backup/restore is a launch blocker rather than a nicety.
 | Charts | Recharts |
 | i18n | pt-BR only at launch, library wired from day one |
 | Hosting | Vercel |
+
+## Running locally
+
+Requires Node 20.19+ (Vercel builds on Node 24).
+
+```bash
+npm install
+npm run dev          # http://localhost:3000
+```
+
+| Script | Does |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | Generate route types, then `tsc --noEmit` |
+| `npm test` | Vitest, single run |
+
+`GET /api/health` is the deploy health check — it reports the running commit and
+environment, and is deliberately uncached so a green response proves the deployed
+function actually ran.
 
 ## Documentation
 
