@@ -40,3 +40,7 @@ test-results/
 
 # local data dumps (TACO working files)
 /data/raw/
+
+# Serwist — public/sw.js is built from src/sw.ts by `serwist build`
+public/sw.js
+public/sw.js.map

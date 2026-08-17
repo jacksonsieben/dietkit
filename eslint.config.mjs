@@ -82,6 +82,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output, like `.next/**` — `serwist build` compiles src/sw.ts into
+    // it. Linting a bundle only ever reports on somebody else's minified code.
+    "public/sw.js",
+    "public/sw.js.map",
   ]),
 ]);
 
