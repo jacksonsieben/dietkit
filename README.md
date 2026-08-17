@@ -61,9 +61,99 @@ npm run dev          # http://localhost:3000
 | `npm run typecheck` | Generate route types, then `tsc --noEmit` |
 | `npm test` | Vitest, single run |
 
+### Strings
+
+Every user-facing string lives in `messages/pt-BR.json` — none in components.
+Two things enforce that rather than trusting discipline:
+
+- `react/jsx-no-literals` fails the lint on any literal text in JSX.
+- `AppConfig["Messages"]` is typed from the catalogue, so `t("Home.hedaing")`
+  fails `tsc`.
+
+pt-BR is the only shipped locale and serves from unprefixed URLs. Adding one
+means an entry in `src/i18n/routing.ts` and a file in `messages/` — nothing else.
+
 `GET /api/health` is the deploy health check — it reports the running commit and
 environment, and is deliberately uncached so a green response proves the deployed
 function actually ran.
+
+### Storage
+
+Everything personal lives in IndexedDB behind `src/lib/storage`. Components call
+`getRepository()` and never see Dexie:
+
+```ts
+const repo = getRepository();
+const latest = await repo.weight.latest();
+```
+
+Two adapters implement the same `Repository` interface — Dexie/IndexedDB for the
+app, in-memory for tests — and a single contract suite runs against both, so
+"swappable" is checked rather than asserted. The Dexie adapter is exercised
+through `fake-indexeddb`, meaning the tests hit real transactions and real
+unique indexes.
+
+`no-restricted-imports` fails the lint on any `dexie` import outside
+`src/lib/storage/dexie/`, which is what keeps opt-in sync reachable later
+without a rewrite. `getRepository()` throws on the server rather than returning
+an empty store — a server-side read of personal data is a bug, not a fallback.
+
+### Reference database
+
+The other side of that boundary. Neon Postgres holds ten tables — food
+composition, food groups, the exercise catalogue, diet and training presets, and
+one provenance row per ingested dataset — reached through Drizzle in
+`src/lib/db`:
+
+```ts
+const rows = await db().select().from(foods).where(eq(foods.groupSlug, slug));
+```
+
+**No table in it describes a person**, and that is a test rather than a promise.
+`boundary.test.ts` applies the checked-in migrations to a real Postgres — PGlite,
+Postgres compiled to WebAssembly — and then asks `information_schema` what
+exists: the table names must equal an exact allowlist, and no column name may
+contain a segment like `weight`, `email` or `profile`. It needs no credentials,
+so it runs in `npm test` on every change.
+
+Published values are stored as `numeric`, because § D12 treats them as
+quotations and `70.1` has to come back as `70.1`. TACO prints three kinds of
+non-value — `NA` (*não aplicável*), `Tr` (*traço*) and a genuinely blank cell —
+so a nullable column carries the number and a sparse `sentinels` map carries the
+reason it is missing. `readCell` keeps them apart for display; `numericValue` is
+the only place they become 0.
+
+Migrations are checked in as SQL under `drizzle/` and reviewed in the diff:
+
+```bash
+npm run db:generate   # after editing src/lib/db/schema
+npm run db:migrate    # apply, using DATABASE_URL_UNPOOLED
+```
+
+Copy `.env.example` to `.env` for the two connection strings — pooled for the
+app's reads, direct for DDL — and note which is which; the app also runs fine
+against a read-only Neon role, since it never writes.
+
+### Solver
+
+`src/lib/solver` balances protein, carbs and fat at once instead of one macro at
+a time:
+
+```ts
+const solution = solveMacros(foods, { proteinG: 45, carbG: 75, fatG: 20 });
+```
+
+It is a bounded least-squares fit — quantities stay inside each food's portion
+bounds — with no dependency, because at a few dozen variables there is nothing a
+linear-algebra library would win. A meal is underdetermined (three macros, many
+foods), so the fit is anchored at the plan's current quantities: that makes the
+answer unique, continuous in the inputs, and the one closest to what the user
+already wrote. Unreachable targets come back as a signed per-macro `residual`
+plus the `limiting` foods stuck at a bound, never as a quietly wrong plan.
+
+15 foods solve in about 0.1 ms, so the builder can solve on every keystroke.
+Full findings, including the two algorithms that were tried and rejected:
+[docs/SPIKE-MACRO-SOLVER.md](docs/SPIKE-MACRO-SOLVER.md).
 
 ## Documentation
 
@@ -72,6 +162,10 @@ function actually ran.
 - [docs/MACRO-RECONCILIATION.md](docs/MACRO-RECONCILIATION.md) — prior art from the
   predecessor app: how per-meal macro targets were reconciled, what broke, and the
   joint-solve approach that should replace it here
+- [docs/SPIKE-MACRO-SOLVER.md](docs/SPIKE-MACRO-SOLVER.md) — the joint solver spike:
+  measurements, the algorithms that did not work, and what it means for the builder
+- [docs/TACO-LICENSING.md](docs/TACO-LICENSING.md) — TACO's terms, the provenance of
+  the file we ingest, the required attribution, and why TBCA was rejected
 
 ## Predecessor
 
@@ -86,7 +180,30 @@ DietKit is a **calculator and self-tracking tool**, not a prescription tool. In
 Brazil, prescribing individualised diets is restricted to registered nutritionists
 (CFN). The product copy and disclaimers reflect that deliberately.
 
+## Data source
+
+Food composition values come from the **TACO** table, published by NEPA/UNICAMP:
+
+> NÚCLEO DE ESTUDOS E PESQUISAS EM ALIMENTAÇÃO (NEPA). Tabela brasileira de
+> composição de alimentos — TACO. 4. ed. rev. e ampl. Campinas: NEPA-UNICAMP,
+> 2011. Disponível em: https://nepa.unicamp.br/publicacoes/tabela-taco-pdf/
+
+NEPA permits reproduction in whole or in part *"desde que seja citada a fonte"* —
+provided the source is cited. So the credit is not decoration: it is the licence
+condition, it appears in the footer of every page and in full at `/fontes`, and
+the citation is defined once in `src/lib/attribution.ts` with a test that fails if
+it drifts from the wording agreed in the docs.
+
+DietKit copies the published values and never recalculates them — `NA` and `Tr`
+included. NEPA and UNICAMP published the table; they did not review, approve or
+endorse this app.
+
+Full terms, provenance (including the pinned file hash), why TBCA was rejected,
+and the rules we hold ourselves to:
+[docs/TACO-LICENSING.md](docs/TACO-LICENSING.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE). The TACO food-composition data is **not** covered by
-this license; its terms are being cleared separately (see the P0 licensing issue).
+that license: it is © 2011 NEPA/UNICAMP, reproduced under the permission quoted
+above, and citing the source is required whether or not you took the code.

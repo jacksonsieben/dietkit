@@ -1,0 +1,177 @@
+import type {
+  CustomFood,
+  Diet,
+  Id,
+  IsoDate,
+  Profile,
+  Settings,
+  Snapshot,
+  WeightEntry,
+} from "./types";
+import type { Repository } from "./repository";
+import { SNAPSHOT_SCHEMA_VERSION } from "./types";
+import { DEFAULT_SETTINGS, clone, foldForSearch } from "./shared";
+
+interface MemoryState {
+  profile?: Profile;
+  weight: Map<Id, WeightEntry>;
+  diets: Map<Id, Diet>;
+  customFoods: Map<Id, CustomFood>;
+  settings: Settings;
+}
+
+function emptyState(): MemoryState {
+  return {
+    profile: undefined,
+    weight: new Map(),
+    diets: new Map(),
+    customFoods: new Map(),
+    settings: { ...DEFAULT_SETTINGS },
+  };
+}
+
+/**
+ * The proof that the `Repository` seam is real.
+ *
+ * Issue #5 asks for a swappable adapter "demonstrated with an in-memory
+ * implementation used by tests", and this is it — but it is not test-only
+ * scaffolding. It is the second implementation that makes the shared contract
+ * suite meaningful, and it is what a future sync adapter gets written against.
+ *
+ * Deliberately has no persistence: it exists to prove nothing above this layer
+ * depends on IndexedDB.
+ */
+export function createMemoryRepository(): Repository {
+  let state = emptyState();
+
+  return {
+    profile: {
+      async get() {
+        return state.profile ? clone(state.profile) : undefined;
+      },
+      async save(profile) {
+        state.profile = clone(profile);
+      },
+      async clear() {
+        state.profile = undefined;
+      },
+    },
+
+    weight: {
+      async list() {
+        return [...state.weight.values()]
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map(clone);
+      },
+      async getByDate(date: IsoDate) {
+        const found = [...state.weight.values()].find(
+          (entry) => entry.date === date,
+        );
+        return found ? clone(found) : undefined;
+      },
+      async latest() {
+        const sorted = [...state.weight.values()].sort((a, b) =>
+          a.date.localeCompare(b.date),
+        );
+        const last = sorted.at(-1);
+        return last ? clone(last) : undefined;
+      },
+      async put(entry) {
+        // Keyed on the day, not the id: re-logging a date replaces it.
+        for (const existing of state.weight.values()) {
+          if (existing.date === entry.date && existing.id !== entry.id) {
+            state.weight.delete(existing.id);
+          }
+        }
+        state.weight.set(entry.id, clone(entry));
+      },
+      async remove(id) {
+        state.weight.delete(id);
+      },
+    },
+
+    diets: {
+      async list() {
+        return [...state.diets.values()]
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .map(clone);
+      },
+      async get(id) {
+        const found = state.diets.get(id);
+        return found ? clone(found) : undefined;
+      },
+      async put(diet) {
+        state.diets.set(diet.id, clone(diet));
+      },
+      async remove(id) {
+        state.diets.delete(id);
+      },
+    },
+
+    customFoods: {
+      async list() {
+        return [...state.customFoods.values()]
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+          .map(clone);
+      },
+      async get(id) {
+        const found = state.customFoods.get(id);
+        return found ? clone(found) : undefined;
+      },
+      async search(term) {
+        const needle = foldForSearch(term);
+        if (needle === "") return [];
+        return [...state.customFoods.values()]
+          .filter((food) => foldForSearch(food.name).includes(needle))
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+          .map(clone);
+      },
+      async put(food) {
+        state.customFoods.set(food.id, clone(food));
+      },
+      async remove(id) {
+        state.customFoods.delete(id);
+      },
+    },
+
+    settings: {
+      async get() {
+        return clone(state.settings);
+      },
+      async patch(changes) {
+        state.settings = { ...state.settings, ...clone(changes) };
+        return clone(state.settings);
+      },
+    },
+
+    async exportAll(): Promise<Snapshot> {
+      return {
+        schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        profile: state.profile ? clone(state.profile) : undefined,
+        weight: [...state.weight.values()]
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map(clone),
+        diets: [...state.diets.values()].map(clone),
+        customFoods: [...state.customFoods.values()].map(clone),
+        settings: clone(state.settings),
+      };
+    },
+
+    async importAll(snapshot) {
+      const next = emptyState();
+      next.profile = snapshot.profile ? clone(snapshot.profile) : undefined;
+      for (const entry of snapshot.weight) next.weight.set(entry.id, clone(entry));
+      for (const diet of snapshot.diets) next.diets.set(diet.id, clone(diet));
+      for (const food of snapshot.customFoods) {
+        next.customFoods.set(food.id, clone(food));
+      }
+      next.settings = { ...DEFAULT_SETTINGS, ...clone(snapshot.settings) };
+      state = next;
+    },
+
+    async clearAll() {
+      state = emptyState();
+    },
+  };
+}
