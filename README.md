@@ -77,6 +77,27 @@ means an entry in `src/i18n/routing.ts` and a file in `messages/` — nothing el
 environment, and is deliberately uncached so a green response proves the deployed
 function actually ran.
 
+### Storage
+
+Everything personal lives in IndexedDB behind `src/lib/storage`. Components call
+`getRepository()` and never see Dexie:
+
+```ts
+const repo = getRepository();
+const latest = await repo.weight.latest();
+```
+
+Two adapters implement the same `Repository` interface — Dexie/IndexedDB for the
+app, in-memory for tests — and a single contract suite runs against both, so
+"swappable" is checked rather than asserted. The Dexie adapter is exercised
+through `fake-indexeddb`, meaning the tests hit real transactions and real
+unique indexes.
+
+`no-restricted-imports` fails the lint on any `dexie` import outside
+`src/lib/storage/dexie/`, which is what keeps opt-in sync reachable later
+without a rewrite. `getRepository()` throws on the server rather than returning
+an empty store — a server-side read of personal data is a bug, not a fallback.
+
 ## Documentation
 
 - [docs/SCOPE.md](docs/SCOPE.md) — goals, phases P0–P3, launch blockers, open risks

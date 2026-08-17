@@ -23,6 +23,48 @@ const eslintConfig = defineConfig([
     },
   },
 
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      // `const { id: _id, ...rest } = row` is how you omit a field in TS.
+      // Without this the deliberately-discarded key reads as a dead variable.
+      "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }],
+    },
+  },
+
+  {
+    // The storage seam (#5). Nothing above `src/lib/storage` may know which
+    // engine is underneath, or the "swap in a sync backend later" plan quietly
+    // stops being true — one `db.table.get()` in a component is all it takes.
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "dexie",
+              message:
+                "Import from @/lib/storage instead. Dexie is confined to src/lib/storage/dexie/.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/lib/storage/dexie", "@/lib/storage/dexie/*"],
+              message:
+                "Use getRepository() from @/lib/storage rather than reaching for the IndexedDB adapter.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // ...except the adapter itself, which is the one file allowed to.
+    files: ["src/lib/storage/dexie/**/*.ts"],
+    rules: { "no-restricted-imports": "off" },
+  },
+
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
