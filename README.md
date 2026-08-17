@@ -60,6 +60,8 @@ npm run dev          # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Generate route types, then `tsc --noEmit` |
 | `npm test` | Vitest, single run |
+| `npm run taco:extract` | Re-extract `data/taco-4ed.json` from the TACO PDF |
+| `npm run db:seed` | Load `data/taco-4ed.json` into the reference database |
 
 ### Strings
 
@@ -118,10 +120,11 @@ so it runs in `npm test` on every change.
 
 Published values are stored as `numeric`, because § D12 treats them as
 quotations and `70.1` has to come back as `70.1`. TACO prints three kinds of
-non-value — `NA` (*não aplicável*), `Tr` (*traço*) and a genuinely blank cell —
-so a nullable column carries the number and a sparse `sentinels` map carries the
-reason it is missing. `readCell` keeps them apart for display; `numericValue` is
-the only place they become 0.
+non-value — `NA` (*não aplicável*), `Tr` (*traço*) and `*` (a figure NEPA
+withdrew pending re-analysis) — plus genuinely blank cells, so a nullable column
+carries the number and a sparse `sentinels` map carries the reason it is missing.
+`readCell` keeps all four apart for display; `numericValue` is the only place
+they become 0.
 
 Migrations are checked in as SQL under `drizzle/` and reviewed in the diff:
 
@@ -133,6 +136,37 @@ npm run db:migrate    # apply, using DATABASE_URL_UNPOOLED
 Copy `.env.example` to `.env` for the two connection strings — pooled for the
 app's reads, direct for DDL — and note which is which; the app also runs fine
 against a read-only Neon role, since it never writes.
+
+### Food data
+
+The 597 foods come from TACO's PDF, and the extraction is a separate step from
+the seed:
+
+```bash
+npm run taco:extract -- ~/Downloads/taco_4_edicao_ampliada_e_revisada.pdf
+npm run db:seed
+```
+
+`taco:extract` runs once per edition of the source and writes
+`data/taco-4ed.json`, which is checked in — so seeding, testing and CI never
+touch the PDF, and any change to a published number arrives as a reviewable
+diff. It refuses to read a file whose SHA-256 is not the pinned one: a different
+printing under the same title is a different set of numbers, and ingesting it
+would make the citation false.
+
+The numbers are lifted by geometry, not by counting cells. Half the printed rows
+have gaps, so "the fourth number is the fourth column" would file thiamine as a
+retinol equivalent; `scripts/taco/parse.ts` assigns complete rows in order and
+gapped rows by column position, and aborts if a page's headers stop matching the
+nutrient list. `scripts/taco/parse.test.ts` runs it against captured pages of the
+real publication, and `dataset.test.ts` re-checks the shipped file — down to
+kJ ≈ kcal × 4,184, which would catch a slipped column anywhere in the table.
+
+`db:seed` is idempotent: every write is an upsert keyed on TACO's own food
+number, so running it twice leaves what running it once did, and re-extracting
+updates rows in place instead of renumbering them. It needs the direct
+(non-pooler) connection — it is one transaction — and refuses a `-pooler` URL
+rather than half-writing the table.
 
 ### Solver
 
@@ -194,9 +228,9 @@ condition, it appears in the footer of every page and in full at `/fontes`, and
 the citation is defined once in `src/lib/attribution.ts` with a test that fails if
 it drifts from the wording agreed in the docs.
 
-DietKit copies the published values and never recalculates them — `NA` and `Tr`
-included. NEPA and UNICAMP published the table; they did not review, approve or
-endorse this app.
+DietKit copies the published values and never recalculates them — `NA`, `Tr` and
+the withdrawn `*` included. NEPA and UNICAMP published the table; they did not
+review, approve or endorse this app.
 
 Full terms, provenance (including the pinned file hash), why TBCA was rejected,
 and the rules we hold ourselves to:

@@ -158,6 +158,8 @@ The ingest copies published values verbatim — no unit conversion, no recompute
 energy, `NA` and `Tr` preserved — because NEPA granted reproduction and said
 nothing about adaptation.
 
+---
+
 ### D13 — The server database holds reference data and is checked, not trusted
 
 Neon holds ten tables: food composition, food groups, the exercise catalogue,
@@ -177,11 +179,57 @@ the column denylist after.
 
 **Consequence:** published values are stored as `numeric`, not `double
 precision`, because § D12 calls them quotations — `70.1` must come back as `70.1`.
-The table's three cell states are kept apart by a nullable numeric column plus one
-sparse `sentinels` JSONB map, so `NA` (*não aplicável*), `Tr` (*traço*) and a blank
-cell stay distinguishable from a measured zero; `readCell` preserves them for
-display and `numericValue` is the single place they collapse to 0 for arithmetic.
+The table's four cell states are kept apart by a nullable numeric column plus one
+sparse `sentinels` JSONB map, so `NA` (*não aplicável*), `Tr` (*traço*), `*`
+(withdrawn, § D14) and a blank cell stay distinguishable from a measured zero;
+`readCell` preserves them for display and `numericValue` is the single place they
+collapse to 0 for arithmetic.
 Presets are relational rather than one JSONB blob so that a preset referencing a
 food that does not exist fails at seed time, and referencing somebody's custom
 food is structurally impossible. There is deliberately no column for a load in
 kilograms anywhere in this database.
+
+---
+
+### D14 — TACO is extracted from the PDF once per edition, and the result is checked in
+
+`scripts/taco/extract.ts` reads the publication and writes `data/taco-4ed.json`;
+`scripts/taco/seed.ts` loads that file into Neon. Nothing in the app, the tests
+or CI ever opens the PDF.
+
+**Why:** NEPA publishes the 4th edition as a typeset PDF and nothing else — no
+CSV, no API. Parsing it at seed time would make the numbers we ship depend on a
+PDF library version, on a file downloaded at some unrecorded moment, and on a
+run nobody reviewed. Extracting once puts the 597 rows in the diff, where a
+change to a published value has to be read by a human before it reaches a
+database that carries NEPA's citation. The PDF is pinned by SHA-256
+(`TACO_SOURCE.sha256`), so a different printing under the same title stops the
+extract rather than silently replacing the table the attribution names.
+
+**Consequence, on reading the table:** the parser assigns a number to a nutrient
+by geometry, never by counting. Half the printed rows have gaps — 509 of 1194 —
+so "the fourth number is the fourth column" would file thiamine as a retinol
+equivalent. A row that prints every cell is assigned in order (which absorbs the
+misprints where a cell sits ~25pt off its column); a row with gaps is assigned by
+nearest column centre, strictly increasing. A page whose headers do not match
+`NUTRIENTS` unit for unit aborts the extract.
+
+**Consequence, on what the table can say:** `*` is a fourth cell state, not a
+variant of `Tr`. NEPA prints it where a figure was withdrawn pending re-analysis
+— 21 foods carry it, including "Leite, de vaca, integral", whose macros are all
+`*`. It is stored like the other sentinels (NULL plus a mark) and must never be
+read as a small number.
+
+**Consequence, on trusting the extraction:** the 1194 half-rows were re-read
+independently with poppler's `pdftotext -layout` and compared cell by cell, and
+`scripts/taco/dataset.test.ts` re-checks the shipped file on every `npm test` —
+including a kJ ≈ kcal × 4,184 identity that would catch a column slip anywhere in
+the table without knowing anything about the layout.
+
+**Consequence, on seeding:** every write is an upsert keyed on what the
+publication itself calls the row (`foods.id` is TACO's food number, which clients
+already store as `FoodRef.tacoId`), so re-seeding updates in place and a food
+keeps its identity across editions. A blank cell is written as an explicit NULL
+so a re-extraction can clear one. The ingest is one transaction and therefore
+uses the direct Neon host, not the pooler; `db:seed` refuses a `-pooler` URL
+rather than half-writing the table.

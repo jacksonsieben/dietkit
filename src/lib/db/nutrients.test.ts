@@ -96,8 +96,20 @@ describe("reading a cell", () => {
     });
   });
 
+  it("keeps a withdrawn figure distinguishable from a trace", () => {
+    // `*` is not a small number: NEPA removed the measurement pending
+    // re-analysis. Reading it as `Tr` would turn "we do not know" into
+    // "almost none" — see docs/DECISIONS.md § D14.
+    const food = row({ proteinG: null }, { proteinG: "*" });
+
+    expect(readCell(food, "proteinG")).toEqual({
+      kind: "sentinel",
+      sentinel: "*",
+    });
+  });
+
   it("reports a blank cell as absent rather than inventing a reason", () => {
-    // A third state: the publication leaves some cells empty, and calling that
+    // A fourth state: the publication leaves some cells empty, and calling that
     // `NA` would attribute a judgement to NEPA that NEPA did not print.
     expect(readCell(row({ zincMg: null }), "zincMg")).toEqual({
       kind: "absent",
@@ -110,15 +122,14 @@ describe("numeric value", () => {
     expect(numericValue(row({ carbG: 25.8 }), "carbG")).toBe(25.8);
   });
 
-  it("counts Tr, NA and blank as zero for arithmetic", () => {
+  it("counts every non-value cell as zero for arithmetic", () => {
     // Summing a diet cannot stop on a sentinel. This is the only place the
     // collapse is allowed — rendering uses readCell, which keeps them apart.
-    expect(
-      numericValue(row({ fatG: null }, { fatG: "Tr" }), "fatG"),
-    ).toBe(0);
-    expect(
-      numericValue(row({ fatG: null }, { fatG: "NA" }), "fatG"),
-    ).toBe(0);
+    // For `*` the zero is an assumption, which is why a plan filters those
+    // foods out before it sums anything.
+    expect(numericValue(row({ fatG: null }, { fatG: "Tr" }), "fatG")).toBe(0);
+    expect(numericValue(row({ fatG: null }, { fatG: "NA" }), "fatG")).toBe(0);
+    expect(numericValue(row({ fatG: null }, { fatG: "*" }), "fatG")).toBe(0);
     expect(numericValue(row({ fatG: null }), "fatG")).toBe(0);
   });
 });

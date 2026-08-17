@@ -11,6 +11,11 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // For scripts/, which Node runs directly by stripping types (`node
+    // scripts/taco/extract.ts`) and therefore requires to name the real file.
+    // Safe under `noEmit`: nothing here is compiled to JS that would ship a
+    // specifier Node could not resolve.
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
