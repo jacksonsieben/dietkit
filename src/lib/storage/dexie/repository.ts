@@ -3,7 +3,7 @@ import { fold } from "@/lib/text";
 import type { Repository } from "../repository";
 import type { Profile, Settings, Snapshot } from "../types";
 import { SNAPSHOT_SCHEMA_VERSION } from "../types";
-import { DEFAULT_SETTINGS } from "../shared";
+import { DEFAULT_SETTINGS, customFoodHaystack } from "../shared";
 import {
   SINGLETON_KEY,
   createDietKitDatabase,
@@ -93,7 +93,7 @@ export function createDexieRepository(
         // food list is tens of rows, and a derived index column would be one
         // more thing to keep in sync for no measurable gain at that size.
         const matches = await db.customFoods
-          .filter((food) => fold(food.name).includes(needle))
+          .filter((food) => customFoodHaystack(food).includes(needle))
           .toArray();
         return matches.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
       },

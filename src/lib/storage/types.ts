@@ -51,7 +51,20 @@ export interface CustomFood {
   id: Id;
   name: string;
   brand?: string;
+  /**
+   * Per 100 g, like every TACO row, so the two kinds of food are one kind of
+   * number everywhere downstream. The `kcal` in here is *derived* from the
+   * three macros rather than typed — see `deriveKcal` in src/lib/foods/custom.ts
+   * for why a label's own energy figure is not what gets stored.
+   */
   per100g: MacroSet;
+  /**
+   * One portion, in grams, when the food comes in portions: a 30 g scoop, a
+   * 25 g slice. Optional because most foods do not — and because a serving is
+   * a convenience for entering quantities, never a unit anything is stored in.
+   * Grams are the only unit that crosses this boundary (docs/DECISIONS.md § D7).
+   */
+  servingG?: number;
   createdAt: IsoTimestamp;
   updatedAt: IsoTimestamp;
 }

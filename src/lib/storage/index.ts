@@ -26,7 +26,7 @@ export type {
   WeightEntry,
 } from "./types";
 export { SNAPSHOT_SCHEMA_VERSION } from "./types";
-export { DEFAULT_SETTINGS } from "./shared";
+export { DEFAULT_SETTINGS, customFoodHaystack } from "./shared";
 export { createMemoryRepository } from "./memory";
 
 let instance: Repository | undefined;
