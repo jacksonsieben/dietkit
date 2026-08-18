@@ -2,6 +2,42 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+/**
+ * DietKit measures nobody (#11, docs/DECISIONS.md § D9).
+ *
+ * Cookieless is not the bar. A daily hash of IP and user agent is still a
+ * personal datum under the LGPD, so the "cookieless" vendors re-create the
+ * obligations the whole architecture exists to avoid — and one exception is
+ * all it takes for "we collect nothing" to stop being true.
+ *
+ * Applied in every config block below that sets `no-restricted-imports`, since
+ * ESLint replaces a rule's options rather than merging them. The companion
+ * check in src/no-analytics.test.ts catches the half a linter cannot see: a
+ * raw <script> tag, or the dependency arriving in package.json.
+ */
+const noAnalytics = {
+  group: [
+    "@vercel/analytics",
+    "@vercel/analytics/*",
+    "@vercel/speed-insights",
+    "@vercel/speed-insights/*",
+    "next/third-parties",
+    "next/third-parties/*",
+    "posthog-js",
+    "posthog-js/*",
+    "mixpanel-browser",
+    "@amplitude/*",
+    "@segment/*",
+    "analytics",
+    "react-ga",
+    "react-ga4",
+    "plausible-tracker",
+    "@umami/*",
+  ],
+  message:
+    "DietKit ships no analytics of any kind — see docs/DECISIONS.md § D9. This is a launch condition, not a preference.",
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -64,6 +100,7 @@ const eslintConfig = defineConfig([
               message:
                 "Query from src/lib/db/ and pass plain data outward. The database is reference data only — see docs/DECISIONS.md § D1.",
             },
+            noAnalytics,
           ],
         },
       ],
@@ -71,8 +108,13 @@ const eslintConfig = defineConfig([
   },
   {
     // ...except the two adapters themselves, which are the files allowed to.
+    // The analytics ban is not part of that exemption and is restated here:
+    // ESLint replaces a rule's options wholesale rather than merging them, so
+    // a bare "off" would have quietly opened the one hole nothing else covers.
     files: ["src/lib/storage/dexie/**/*.ts", "src/lib/db/**/*.ts"],
-    rules: { "no-restricted-imports": "off" },
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [noAnalytics] }],
+    },
   },
 
   // Override default ignores of eslint-config-next.

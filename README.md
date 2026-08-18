@@ -30,6 +30,14 @@ The cost: **data loss becomes a support problem.** Clearing site data or
 switching phones destroys months of logs. This is the single biggest risk in the
 plan, and it is why backup/restore is a launch blocker rather than a nicety.
 
+There is also **no analytics** — not "cookieless analytics", none. The vendors
+that market themselves as cookieless still identify visitors by hashing IP and
+user agent, which under the LGPD is still personal data; dropping the cookie
+removes the consent banner, not the obligation. The ban is enforced by ESLint
+and by `src/no-analytics.test.ts`, which fails the build on an inline tag or on
+the dependency turning up in `package.json`. See
+[DECISIONS.md § D9](docs/DECISIONS.md).
+
 ## Planned stack
 
 | Concern | Choice |
@@ -55,7 +63,7 @@ npm run dev          # http://localhost:3000
 | Script | Does |
 |---|---|
 | `npm run dev` | Dev server |
-| `npm run build` | Production build |
+| `npm run build` | Production build, then `serwist build` for the service worker |
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Generate route types, then `tsc --noEmit` |
@@ -99,6 +107,20 @@ unique indexes.
 `src/lib/storage/dexie/`, which is what keeps opt-in sync reachable later
 without a rewrite. `getRepository()` throws on the server rather than returning
 an empty store — a server-side read of personal data is a bug, not a fallback.
+
+### Offline and the service worker
+
+`src/sw.ts` is compiled to `public/sw.js` by `serwist build`, run as a second
+step after `next build` rather than through Serwist's webpack plugin — Next 16
+builds with Turbopack, where that plugin silently produces no worker at all.
+`public/sw.js` is build output and is git-ignored.
+
+Offline is not decoration here: the data is already on the device, so an app
+that goes blank without a network is hiding data the user is standing on top of.
+`/` and `/~offline` are precached by commit SHA; any other navigation that fails
+falls back to `/~offline`, which explains that only food search needs a
+connection. Only the TACO table lives on the server. See
+[DECISIONS.md § D15](docs/DECISIONS.md).
 
 ### Reference database
 
