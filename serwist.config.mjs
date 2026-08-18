@@ -28,12 +28,17 @@ export default serwist({
   // The prerendered HTML on disk is named by the locale segment — `/pt-BR`,
   // `/pt-BR/fontes` — but the app is served from unprefixed URLs, because
   // `localePrefix` is `as-needed` (src/i18n/routing.ts). Precaching those files
-  // would fill the cache with URLs no request ever asks for, so the two pages
-  // that have to survive a cold start are named directly instead and fetched
-  // through the proxy, the same way a browser would.
+  // would fill the cache with URLs no request ever asks for, so the pages that
+  // have to survive a cold start are named directly instead and fetched through
+  // the proxy, the same way a browser would.
+  //
+  // `/perfil` is on the list because #12 requires it to work offline, and the
+  // profile is the screen most likely to be opened from a home-screen icon with
+  // no connection — everything it displays already lives on the device.
   precachePrerendered: false,
   additionalPrecacheEntries: [
     { url: "/", revision },
     { url: "/~offline", revision },
+    { url: "/perfil", revision },
   ],
 });
