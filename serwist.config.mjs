@@ -40,5 +40,9 @@ export default serwist({
     { url: "/", revision },
     { url: "/~offline", revision },
     { url: "/perfil", revision },
+    // And `/energia` with it: the calculation runs on the device from data
+    // already on the device, so a screen that needed the network to display it
+    // would be offline-broken for no reason at all (#14).
+    { url: "/energia", revision },
   ],
 });

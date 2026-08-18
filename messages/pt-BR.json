@@ -30,7 +30,8 @@
     "heading": "DietKit",
     "underConstruction": "Em construção.",
     "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho.",
-    "profileLink": "Começar pelo perfil"
+    "profileLink": "Começar pelo perfil",
+    "energyLink": "Ver o gasto de energia"
   },
   "NotFound": {
     "heading": "Página não encontrada",
@@ -194,6 +195,44 @@
       "high": "Muito ativo — exercício intenso 6 a 7 dias por semana",
       "athlete": "Extremamente ativo — trabalho físico pesado ou dois treinos por dia"
     },
-    "activityCustom": "Personalizado — {factor}"
+    "activityOption": "{label} · {factor}",
+    "activityCustomOption": "Personalizado — eu digito o fator",
+    "activityCustomLabel": "Fator personalizado",
+    "activityCustomHint": "Entre {min} e {max}. Se você trouxe esse número de outra calculadora, ele vale tanto quanto os degraus acima.",
+    "energyLink": "Ver seu gasto de energia",
+    "activityLevelShort": {
+      "sedentary": "Sedentário",
+      "light": "Levemente ativo",
+      "moderate": "Moderadamente ativo",
+      "high": "Muito ativo",
+      "athlete": "Extremamente ativo"
+    }
+  },
+  "Energy": {
+    "title": "Seu gasto de energia",
+    "lead": "Quanto seu corpo gasta por dia, e de onde esse número saiu. A conta acontece aqui no aparelho.",
+    "loading": "Lendo o que está salvo neste aparelho…",
+    "loadError": "Não foi possível calcular com o que está salvo. Abra o perfil e confira os valores.",
+    "missingProfile": "Ainda não há um perfil neste aparelho. Preencha altura, data de nascimento, sexo e fator de atividade e o cálculo aparece aqui.",
+    "missingWeight": "Falta uma pesagem. O peso vem do seu histórico, não do perfil — salve o perfil uma vez e ele registra a pesagem de hoje.",
+    "missingLink": "Ir para o perfil",
+    "bmrLabel": "Gasto em repouso",
+    "bmrNote": "Mifflin-St Jeor, com {weight} kg, {height} cm e {age, plural, one {# ano} other {# anos}}.",
+    "factorLabel": "Fator de atividade",
+    "factorCustom": "Personalizado",
+    "tdeeLabel": "Gasto total estimado",
+    "kcalPerDay": "{kcal} kcal por dia",
+    "equation": "{bmr} × {factor} = {tdee} kcal por dia",
+    "weighedOn": "Peso da pesagem de {date}.",
+    "ladderHeading": "O que cada degrau daria, no seu caso",
+    "ladderFactorColumn": "Fator",
+    "ladderResultColumn": "Gasto total",
+    "ladderCurrent": "seu fator agora",
+    "disagreementHeading": "Por que outra calculadora dá outro número",
+    "disagreement": "A escada de fatores é convenção, não medida: nenhum estudo entrega 1,375. Cada calculadora encaixa a mesma semana de treino num degrau diferente, e um degrau vale centenas de quilocalorias — a tabela acima mostra quantas, para o seu corpo. Se outro site deu um resultado diferente, compare os fatores antes de concluir que alguma das contas está errada.",
+    "editLink": "Mudar meu perfil",
+    "disclaimer": "Isto é uma estimativa de equação, não uma medição do seu metabolismo.",
+    "disclaimerLink": "Leia o aviso de saúde",
+    "ladderLevelColumn": "Degrau"
   }
 }

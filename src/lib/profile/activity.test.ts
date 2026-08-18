@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ACTIVITY_LEVELS, activityLevelFor, offLadderActivity } from "./activity";
+import { ACTIVITY_LEVELS, activityLevelFor, isCustomActivity } from "./activity";
 import { toField } from "./persistence";
 import { PROFILE_LIMITS, parseDecimal, validateProfileForm } from "./validation";
 
@@ -82,28 +82,37 @@ describe("activityLevelFor", () => {
   });
 });
 
-describe("offLadderActivity", () => {
-  it("asks for no extra option when nothing is stored", () => {
-    expect(offLadderActivity("")).toBeUndefined();
+describe("isCustomActivity", () => {
+  it("does not open the number box for an empty field", () => {
+    // A blank profile should meet the ladder first. Opening straight into a box
+    // asking for a multiplier would be asking a question nobody can answer.
+    expect(isCustomActivity("")).toBe(false);
   });
 
-  it.each(ACTIVITY_LEVELS)("asks for no extra option for $id", (level) => {
-    // The rung already has an option of its own; a second one carrying the same
-    // value would render the same choice twice.
-    expect(offLadderActivity(toField(level.factor))).toBeUndefined();
+  it.each(ACTIVITY_LEVELS)("keeps $id on the ladder", (level) => {
+    expect(isCustomActivity(toField(level.factor))).toBe(false);
   });
 
-  it("keeps a value sitting between two rungs", () => {
-    // 1,6 is between moderate and high. It can arrive from an import (#26) or,
-    // once #14 lands, from someone typing it deliberately. Either way the
-    // select has to be able to show it as selected.
-    expect(offLadderActivity("1,6")).toBe("1,6");
+  it("opens the box for a value sitting between two rungs", () => {
+    // 1,6 is between moderate and high. It can arrive from an import (#26) or
+    // from someone typing it deliberately. Either way the field has to reopen
+    // in the mode that can show it — a select handed a value none of its
+    // options match renders as though nothing were selected, and then the next
+    // rung the user touches quietly replaces the number they chose.
+    expect(isCustomActivity("1,6")).toBe(true);
   });
 
-  it("keeps a value even when it is one the form would reject", () => {
-    // Deciding whether to display something is not the place to decide whether
-    // it is valid — that is validateProfileForm's job, and it will say so with
-    // a message. Hiding it here would show a blank field with no explanation.
-    expect(offLadderActivity("9")).toBe("9");
+  it("opens the box even for a value the form would reject", () => {
+    // Deciding what to display is not the place to decide what is valid — that
+    // is validateProfileForm's job, and it will say so with a message under the
+    // field. Refusing to show it here would leave a blank box and no reason.
+    expect(isCustomActivity("9")).toBe(true);
+  });
+
+  it("does not mistake a rung written another way for a custom value", () => {
+    // The comparison is on the field string, which is what the options carry.
+    // "1.55" with a dot is not what `toField` produces, so it belongs in the
+    // box, where the user can see and fix it — not silently on a rung.
+    expect(isCustomActivity("1.55")).toBe(true);
   });
 });
