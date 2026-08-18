@@ -6,7 +6,8 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { todayIsoDate } from "@/lib/date";
 import { ageYearsOn } from "@/lib/energy/age";
-import { loadProfileForm, saveProfileForm } from "@/lib/profile/persistence";
+import { ACTIVITY_LEVELS, offLadderActivity } from "@/lib/profile/activity";
+import { loadProfileForm, saveProfileForm, toField } from "@/lib/profile/persistence";
 import {
   PROFILE_LIMITS,
   type ProfileErrorCode,
@@ -138,6 +139,8 @@ export function ProfileForm() {
       ? ageOrUndefined(values.birthDate, today)
       : undefined;
 
+  const offLadder = offLadderActivity(values.activityFactor);
+
   const messageFor = (code: ProfileErrorCode) => t(`errors.${code}`, ERROR_PARAMS[code]);
 
   return (
@@ -222,21 +225,34 @@ export function ProfileForm() {
 
       <Field
         label={t("activityLabel")}
-        // #14 replaces this with a named ladder and an explanation of why two
-        // calculators disagree. The number is the stored value either way, so
-        // the field that captures it can be plain until then.
-        hint={t("activityHint", PROFILE_LIMITS.activityFactor)}
+        // #14 adds the custom override and the explanation of why two
+        // calculators put the same week of training on different rungs. The
+        // rungs themselves live in ./activity.ts so both share one list.
+        hint={t("activityHint")}
         error={errors.activityFactor && messageFor(errors.activityFactor)}
       >
         {(props) => (
-          <input
+          <select
             {...props}
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
             value={values.activityFactor}
             onChange={(event) => update("activityFactor")(event.target.value)}
-          />
+          >
+            <option value="" />
+            {ACTIVITY_LEVELS.map((level) => (
+              <option key={level.id} value={toField(level.factor)}>
+                {t(`activityLevel.${level.id}`)}
+              </option>
+            ))}
+            {offLadder && (
+              // A stored factor that sits between two rungs — an import (#26),
+              // or #14's override once it exists. Without an option carrying it
+              // the select would show nothing selected and quietly replace the
+              // user's number with whichever rung they touched next.
+              <option value={offLadder}>
+                {t("activityCustom", { factor: offLadder })}
+              </option>
+            )}
+          </select>
         )}
       </Field>
 

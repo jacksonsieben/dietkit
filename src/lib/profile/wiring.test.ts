@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import ptBR from "../../../messages/pt-BR.json";
+import { ACTIVITY_LEVELS } from "./activity";
 import { PROFILE_ERROR_CODES, PROFILE_FIELDS } from "./validation";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
@@ -32,6 +33,30 @@ describe("profile form wiring", () => {
     expect(Object.keys(ptBR.Profile.errors).sort()).toEqual(
       [...PROFILE_ERROR_CODES].sort(),
     );
+  });
+
+  it("has a label for every rung of the activity ladder", () => {
+    // TypeScript checks this too, via the literal `id` types and next-intl's
+    // generated Messages type. The test is here because the ladder is the one
+    // list a future contributor is most likely to extend, and a rung with no
+    // label is a dropdown option reading "activityLevel.veryLight".
+    expect(Object.keys(ptBR.Profile.activityLevel).sort()).toEqual(
+      ACTIVITY_LEVELS.map((level) => level.id).sort(),
+    );
+  });
+
+  it("offers the ladder as a choice rather than a number to type", () => {
+    // Nobody knows their own multiplier. 1,55 is not a fact anyone has about
+    // themselves, and a free text field asking for one collects guesses.
+    const form = read("src/components/ProfileForm.tsx");
+    const field = form.slice(form.indexOf('label={t("activityLabel")}'));
+
+    expect(field).toContain("<select");
+    expect(field).toContain("ACTIVITY_LEVELS.map");
+    // The escape hatch for a stored value between two rungs — an import (#26),
+    // or #14's override. Dropping it silently rewrites the user's number.
+    expect(field).toContain("{offLadder && (");
+    expect(field.slice(0, field.indexOf("</Field>"))).not.toContain('inputMode="decimal"');
   });
 
   it("renders and updates every field the validator knows about", () => {
