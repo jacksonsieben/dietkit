@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import ptBR from "../../../messages/pt-BR.json";
+import { GOAL_ERROR_CODES, GOAL_FIELDS, GOAL_MODES } from "@/lib/energy/goal";
 import { ACTIVITY_LEVELS } from "./activity";
 import { PROFILE_ERROR_CODES, PROFILE_FIELDS } from "./validation";
 
@@ -102,8 +103,8 @@ describe("profile form wiring", () => {
     const form = read("src/components/ProfileForm.tsx");
 
     expect(form).toContain('t("activityCustomHint", PROFILE_LIMITS.activityFactor)');
-    expect(ptBR.Profile.activityCustomHint).toContain("{min}");
-    expect(ptBR.Profile.activityCustomHint).toContain("{max}");
+    expect(ptBR.Profile.activityCustomHint).toContain("{min, number}");
+    expect(ptBR.Profile.activityCustomHint).toContain("{max, number}");
   });
 
   it("renders and updates every field the validator knows about", () => {
@@ -153,8 +154,8 @@ describe("profile form wiring", () => {
     // `bg-transparent` looks identical on the closed control, because the body
     // shows through. On the popup it is an author-declared background composited
     // over the browser's own surface, which is where the white came from.
-    const form = read("src/components/ProfileForm.tsx");
-    const controlClass = /^const CONTROL_CLASS =\n?\s*"([^"]*)"/m.exec(form)?.[1];
+    const shared = read("src/components/Field.tsx");
+    const controlClass = /^export const CONTROL_CLASS =\n?\s*"([^"]*)"/m.exec(shared)?.[1];
 
     expect(controlClass).toBeDefined();
     expect(controlClass).not.toContain("bg-transparent");
@@ -247,5 +248,157 @@ describe("energy screen wiring", () => {
 
   it("puts the health notice beside the estimate", () => {
     expect(result()).toContain('href="/saude"');
+  });
+});
+
+/**
+ * #15's done-when, checked where it is actually delivered: the calculation is
+ * covered in `macros.test.ts`, and what is left is whether the screen shows
+ * what the issue asks it to show. The last clause — "any rounding drift is
+ * shown rather than hidden" — is the one a component can quietly fail while
+ * every unit test still passes, by printing the target where the sum of the
+ * grams belongs.
+ */
+describe("macro targets wiring", () => {
+  const macros = () => read("src/components/MacroTargets.tsx");
+
+  it("has a message for every way the goal form can be rejected", () => {
+    for (const code of GOAL_ERROR_CODES) {
+      expect(ptBR.Macros.errors, `no message for ${code}`).toHaveProperty(code);
+    }
+  });
+
+  it("has no message left over for a code nothing can produce", () => {
+    expect(Object.keys(ptBR.Macros.errors).sort()).toEqual([...GOAL_ERROR_CODES].sort());
+  });
+
+  it("has a label for every goal the form offers", () => {
+    // The select is built by mapping GOAL_MODES, so a mode added without a
+    // message ships as an option reading "Macros.mode.recomp".
+    expect(Object.keys(ptBR.Macros.mode).sort()).toEqual([...GOAL_MODES].sort());
+  });
+
+  it("renders and updates every field the validator knows about", () => {
+    const source = macros();
+
+    for (const field of GOAL_FIELDS) {
+      expect(source, `${field} is never displayed`).toContain(`values.${field}`);
+      expect(source, `${field} can never be edited`).toContain(`update("${field}")`);
+      expect(source, `${field} never shows its error`).toContain(`errors.${field}`);
+    }
+  });
+
+  it("asks for the adjustment as a direction plus a size", () => {
+    // The sign lives in the mode, not in the number. A signed field is one
+    // forgotten minus away from turning a cut into a bulk, with nothing on
+    // screen looking wrong — the grams would simply all be larger.
+    const source = macros();
+
+    expect(source).toContain("GOAL_MODES.map");
+    expect(source).toContain("needsMagnitude(mode)");
+    expect(ptBR.Macros.magnitudeHint).toContain("{min, number}");
+    expect(ptBR.Macros.magnitudeHint).toContain("{max, number}");
+  });
+
+  it("quotes the real bounds in the hints and the range messages", () => {
+    const source = macros();
+
+    expect(source).toContain('t("coefficientHint", MACRO_GOAL_LIMITS.proteinGPerKg)');
+    expect(source).toContain('t("coefficientHint", MACRO_GOAL_LIMITS.fatGPerKg)');
+    expect(source).toContain("magnitudeLimits(mode)");
+
+    for (const message of [
+      ptBR.Macros.coefficientHint,
+      ptBR.Macros.errors.kcalRange,
+      ptBR.Macros.errors.percentRange,
+      ptBR.Macros.errors.proteinRange,
+      ptBR.Macros.errors.fatRange,
+    ]) {
+      expect(message).toContain("{min, number}");
+      expect(message).toContain("{max, number}");
+    }
+  });
+
+  it("prices each macro with its own Atwater factor", () => {
+    // Not `4`, `4` and `9` written into the table. The constants are pinned in
+    // macros.test.ts, and a second copy here is a second place for the fat
+    // factor to become a 4 in a screen nobody recomputes by hand.
+    const source = macros();
+
+    expect(source).toContain("ATWATER.proteinKcalPerG");
+    expect(source).toContain("ATWATER.carbKcalPerG");
+    expect(source).toContain("ATWATER.fatKcalPerG");
+  });
+
+  it("shows what the grams add up to next to what was asked for", () => {
+    // The reconciliation. Two numbers, both printed: the sum is computed from
+    // the rounded grams (`plan.targets.kcal`), never copied from the target, so
+    // the line is a check rather than a restatement.
+    const source = macros();
+
+    expect(source).toContain('t("reconcile"');
+    expect(source).toContain("sum: kcal(plan.targets.kcal)");
+    expect(source).toContain("target: kcal(plan.targetKcal)");
+    expect(ptBR.Macros.reconcile).toContain("{sum}");
+    expect(ptBR.Macros.reconcile).toContain("{target}");
+  });
+
+  it("shows the rounding drift rather than hiding it", () => {
+    const source = macros();
+
+    expect(source).toContain("plan.driftKcal");
+    expect(source).toContain('t("drift"');
+    expect(source).toContain('t("driftNone")');
+    expect(ptBR.Macros.drift).toContain("{drift}");
+    // Signed, because a target three kilocalories over and one three under are
+    // different facts and "3 kcal" alone does not say which happened.
+    expect(source).toContain('signDisplay: "always"');
+  });
+
+  it("says so when the coefficients alone overshoot the target", () => {
+    // Carbohydrate floors at zero in `planMacros`, and a plan whose protein and
+    // fat already cost more than the target would otherwise print as a tidy
+    // zero-carb split with no sign that it does not add up.
+    const source = macros();
+
+    expect(source).toContain("plan.carbShortfallKcal > 0");
+    expect(source).toContain('t("shortfall"');
+    expect(ptBR.Macros.shortfall).toContain("{excess}");
+  });
+
+  it("does not blame rounding for a gap rounding cannot explain", () => {
+    // Both messages rendering at once is what this prevents: 4 g/kg of protein
+    // with 2,5 g/kg of fat under a deficit printed "+683 kcal" directly above
+    // "at most 8 kcal", which reads as a broken sum rather than as a goal that
+    // cannot be met.
+    const source = macros();
+
+    expect(source).toContain("plan.carbShortfallKcal > 0 ? (");
+    expect(source).not.toContain("plan.carbShortfallKcal > 0 && (");
+    expect(
+      source.indexOf('t("drift"'),
+      "the rounding note is not the shortfall's alternative branch",
+    ).toBeGreaterThan(source.indexOf("plan.carbShortfallKcal > 0 ? ("));
+  });
+
+  it("stands on the expenditure it was divided from", () => {
+    // Same screen, not a page of its own: grams are meaningless without the
+    // TDEE above them, and the weight the coefficients multiplied is named.
+    expect(read("src/components/EnergyResult.tsx")).toContain(
+      "<MacroTargets summary={summary} />",
+    );
+    expect(macros()).toContain('t("basis"');
+    expect(ptBR.Macros.basis).toContain("{weight}");
+  });
+
+  it("reaches the device store only through the repository seam", () => {
+    // The goal is personal data. It stays on the device for the same reason the
+    // profile does (#5), and there is no server call anywhere in this section.
+    const source = macros();
+
+    expect(source).toContain("getRepository()");
+    expect(source).not.toContain("lib/storage/dexie");
+    expect(source).not.toContain('from "dexie"');
+    expect(source).not.toContain("fetch(");
   });
 });

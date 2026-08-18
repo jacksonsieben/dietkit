@@ -96,6 +96,26 @@ export interface Diet {
   updatedAt: IsoTimestamp;
 }
 
+/**
+ * How the daily targets are derived from expenditure (#15).
+ *
+ * Stored rather than recomputed from scratch each visit because it is a
+ * decision, not a measurement: the coefficients and the deficit are what the
+ * user chose, and bodyweight moving under them is the whole point — the grams
+ * are expected to follow the weight log without anyone retyping anything.
+ */
+export interface MacroGoal {
+  /**
+   * Signed. Negative is a deficit, positive a surplus, zero is maintenance.
+   * `kind` is kept rather than being normalised to kilocalories, because a user
+   * who chose "20%" wants to still be on 20% after they lose five kilograms.
+   */
+  adjustment: { kind: "kcal" | "percent"; value: number };
+  /** Grams per kilogram of bodyweight. Carbohydrate fills what is left. */
+  proteinGPerKg: number;
+  fatGPerKg: number;
+}
+
 export interface Settings {
   locale: AppLocale;
   /** Drives the backup nagging the local-first tradeoff demands (#26). */
@@ -103,6 +123,13 @@ export interface Settings {
   backupRemindedAt?: IsoTimestamp;
   /** When the health disclaimer was acknowledged (#10). */
   disclaimerAcceptedAt?: IsoTimestamp;
+  /**
+   * Absent until the user has set one; the energy screen falls back to
+   * `DEFAULT_MACRO_GOAL`. Optional rather than defaulted in `DEFAULT_SETTINGS`
+   * so that "never chose" stays distinguishable from "chose the defaults" — and
+   * so this file keeps knowing nothing about the arithmetic in lib/energy.
+   */
+  goal?: MacroGoal;
 }
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
