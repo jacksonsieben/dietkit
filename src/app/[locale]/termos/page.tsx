@@ -1,0 +1,82 @@
+import type { Metadata } from "next";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+
+import { LegalPage, LegalSection } from "@/components/LegalPage";
+import { resolveLocale } from "@/i18n/locale";
+import { routing } from "@/i18n/routing";
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/[locale]/termos">): Promise<Metadata> {
+  const locale = resolveLocale((await params).locale);
+  const t = await getTranslations({ locale, namespace: "Terms" });
+
+  return { title: t("title") };
+}
+
+/**
+ * The terms of use (#10).
+ *
+ * Short on purpose. There is no account to suspend, no payment to dispute and
+ * no user content to moderate, so most of what a standard terms document exists
+ * to handle simply does not arise here.
+ *
+ * The liability section is written knowing it cannot do what such sections
+ * usually try to do: the Código de Defesa do Consumidor voids blanket
+ * disclaimers against consumers (art. 51), so claiming immunity would be both
+ * unenforceable and a signal that nobody read the law. It states the real limits
+ * of an estimate and then says outright that consumer law wins where they
+ * conflict.
+ */
+export default async function Terms({ params }: PageProps<"/[locale]/termos">) {
+  const locale = resolveLocale((await params).locale);
+  setRequestLocale(locale);
+
+  const t = await getTranslations("Terms");
+
+  return (
+    <LegalPage current="/termos" title={t("title")}>
+      <p className="opacity-80">{t("lead")}</p>
+
+      <LegalSection heading={t("whatHeading")}>
+        <p className="opacity-80">{t("whatBody")}</p>
+        <p className="opacity-80">{t("whatNot")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("useHeading")}>
+        <p className="opacity-80">{t("useBody")}</p>
+        <p className="opacity-80">{t("useAvailability")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("responsibilityHeading")}>
+        <p className="opacity-80">{t("responsibilityBody")}</p>
+        <p className="opacity-80">{t("responsibilityBackup")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("liabilityHeading")}>
+        <p className="opacity-80">{t("liabilityBody")}</p>
+        <p className="opacity-80">{t("liabilityConsumer")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("dataHeading")}>
+        <p className="opacity-80">{t("dataBody")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("licenceHeading")}>
+        <p className="opacity-80">{t("licenceBody")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("changesHeading")}>
+        <p className="opacity-80">{t("changesBody")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("lawHeading")}>
+        <p className="opacity-80">{t("lawBody")}</p>
+      </LegalSection>
+    </LegalPage>
+  );
+}
