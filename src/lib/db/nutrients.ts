@@ -31,8 +31,13 @@ export type NutrientUnit = "g" | "mg" | "µg" | "kcal" | "kJ" | "%";
  * `*` is the one a caller has to think about. `NA` and `Tr` are honest zeroes
  * for arithmetic; `*` is a missing measurement, so a food carrying it on a
  * macro has no usable energy or macro figures at all and must not be offered as
- * one that adds nothing to a plan. Because the value is NULL either way, that
- * is a `protein_g IS NOT NULL` filter at the query, not a special case here.
+ * one that adds nothing to a plan.
+ *
+ * All three are NULL in the column, so the query cannot tell them apart without
+ * reading the sentinel map — and it has to: 44 of the 597 foods carry `NA` or
+ * `Tr` on a macro, boiled potato and raw pumpkin among them, and a bare
+ * `protein_g IS NOT NULL` filter would drop the lot. `measured()` in
+ * src/lib/db/foods.ts is where that distinction is drawn.
  */
 export type NutrientSentinel = "NA" | "Tr" | "*";
 

@@ -1,0 +1,1 @@
+CREATE INDEX "foods_search_text_idx" ON "foods" USING gin (to_tsvector('simple', "search_text"));

@@ -1,3 +1,5 @@
+import { fold } from "@/lib/text";
+
 import type {
   CustomFood,
   Diet,
@@ -10,7 +12,7 @@ import type {
 } from "./types";
 import type { Repository } from "./repository";
 import { SNAPSHOT_SCHEMA_VERSION } from "./types";
-import { DEFAULT_SETTINGS, clone, foldForSearch } from "./shared";
+import { DEFAULT_SETTINGS, clone } from "./shared";
 
 interface MemoryState {
   profile?: Profile;
@@ -119,10 +121,10 @@ export function createMemoryRepository(): Repository {
         return found ? clone(found) : undefined;
       },
       async search(term) {
-        const needle = foldForSearch(term);
+        const needle = fold(term);
         if (needle === "") return [];
         return [...state.customFoods.values()]
-          .filter((food) => foldForSearch(food.name).includes(needle))
+          .filter((food) => fold(food.name).includes(needle))
           .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
           .map(clone);
       },

@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { index, integer, jsonb, numeric, pgTable, text } from "drizzle-orm/pg-core";
 
 import type { NutrientSentinels } from "../nutrients.ts";
@@ -62,7 +62,7 @@ export const foods = pgTable(
     description: text("description").notNull(),
     /**
      * The description folded to lowercase without accents, for search that
-     * finds "feijao" and "Feijão" alike (#31). Derived for indexing, which is
+     * finds "feijao" and "Feijão" alike (#16). Derived for indexing, which is
      * why it sits beside the published text rather than replacing it.
      */
     searchText: text("search_text").notNull(),
@@ -119,9 +119,26 @@ export const foods = pgTable(
   },
   (table) => [
     // Browsing by category is the one access pattern that filters rather than
-    // searches. At 597 rows the search index is #31's decision to make with
-    // measurements, not a guess to bake into the first migration.
+    // searches.
     index("foods_group_slug_idx").on(table.groupSlug),
+
+    /**
+     * The search index (#16), over the folded text rather than the published
+     * one — which is what makes "feijao" find "Feijão" without an `unaccent`
+     * extension having to exist on the Neon branch, or in the PGlite that runs
+     * this DDL in `boundary.test.ts`.
+     *
+     * `'simple'` is the point, not a default left in place: it lowercases and
+     * splits, and does nothing else. A stemmed configuration would conflate
+     * "cozido" with "cozida" — a helpful guess in prose, a wrong one here,
+     * where TACO's descriptions distinguish "cru" from "cozido" and a diet is
+     * built out of exactly that difference. It is also immutable over already
+     * folded text, which is what lets the expression be indexed at all.
+     */
+    index("foods_search_text_idx").using(
+      "gin",
+      sql`to_tsvector('simple', ${table.searchText})`,
+    ),
   ],
 );
 

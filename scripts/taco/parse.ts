@@ -22,6 +22,7 @@ import {
   type NutrientSentinel,
   type NutrientUnit,
 } from "../../src/lib/db/nutrients.ts";
+import { fold, slugify } from "../../src/lib/text.ts";
 
 /** One run of text, with the page-space position pdfjs reports for it. */
 export interface TextItem {
@@ -289,20 +290,6 @@ function assignCells(page: Page, row: Row, columns: readonly Column[]): Cells {
   }
 
   return { values, sentinels };
-}
-
-/** Accent-folded, lowercase, hyphen-joined — for slugs and for search. */
-export function fold(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
-}
-
-export function slugify(text: string): string {
-  return fold(text)
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
 }
 
 export interface HalfRow {

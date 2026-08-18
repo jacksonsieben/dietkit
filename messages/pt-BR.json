@@ -31,7 +31,8 @@
     "underConstruction": "Em construção.",
     "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho.",
     "profileLink": "Começar pelo perfil",
-    "energyLink": "Ver o gasto de energia"
+    "energyLink": "Ver o gasto de energia",
+    "foodsLink": "Buscar alimentos"
   },
   "NotFound": {
     "heading": "Página não encontrada",
@@ -84,7 +85,7 @@
     "deviceNote": "Nós não temos acesso a nada disso. Não é que a gente prometa não olhar — não existe cópia no servidor para olhar.",
     "serverHeading": "O que o servidor recebe",
     "serverBody": "Pouca coisa, e nada que identifique você. Ainda assim, vale listar de forma honesta:",
-    "serverSearch": "Quando você busca um alimento, o termo digitado vai até o servidor para consultar a tabela TACO. A busca não é gravada nem associada a você, mas ela sai do aparelho — e isso precisa estar escrito aqui.",
+    "serverSearch": "Quando você busca um alimento, o termo digitado vai até o servidor para consultar a tabela TACO. Ele viaja no endereço da requisição e, por isso, aparece nos logs de infraestrutura descritos no item abaixo. Não é gravado em banco de dados nenhum e não é associado a você — mas sai do aparelho, e isso precisa estar escrito aqui.",
     "serverLogs": "Como em qualquer site, a hospedagem (Vercel) registra as requisições em logs de infraestrutura, que incluem endereço IP, identificação do navegador e o endereço acessado. São registros operacionais, mantidos para segurança e diagnóstico, não usados para montar perfis nem cruzados com o que você faz no aplicativo.",
     "serverNote": "Nenhum dado do seu perfil, do seu peso ou das suas dietas acompanha essas requisições.",
     "noneHeading": "O que não existe aqui",
@@ -234,6 +235,33 @@
     "disclaimer": "Isto é uma estimativa de equação, não uma medição do seu metabolismo.",
     "disclaimerLink": "Leia o aviso de saúde",
     "ladderLevelColumn": "Degrau"
+  },
+  "Foods": {
+    "title": "Alimentos",
+    "lead": "Busque na tabela TACO — a Tabela Brasileira de Composição de Alimentos, do NEPA/Unicamp. Os valores são por 100 g de parte comestível, exatamente como a publicação traz.",
+    "searchLabel": "Buscar alimento",
+    "searchHint": "Pode digitar sem acento: “feijao” encontra “Feijão”.",
+    "searchPlaceholder": "arroz integral",
+    "minLength": "Digite pelo menos {min, number} letras para buscar.",
+    "searching": "Buscando…",
+    "empty": "Nenhum alimento encontrado com esses termos. Tente uma palavra a menos.",
+    "failed": "Não foi possível buscar agora. Confira a conexão e tente de novo.",
+    "resultCount": "{count, plural, one {# alimento encontrado} other {# alimentos encontrados}}",
+    "resultLimit": "Mostrando os primeiros {limit, number}. Acrescente uma palavra para restringir.",
+    "per100g": "Por 100 g",
+    "energy": "Energia",
+    "protein": "Proteína",
+    "carb": "Carboidrato",
+    "fat": "Gordura",
+    "fiber": "Fibra",
+    "kcalValue": "{value, number} kcal",
+    "gramsValue": "{value, number} g",
+    "trace": "traço",
+    "notApplicable": "não se aplica",
+    "unavailable": "sem dado",
+    "legend": "“traço” é o que a TACO registra quando a quantidade é pequena demais para medir; “não se aplica” é quando o nutriente não existe naquele alimento. Nenhum dos dois é zero medido, então não viram zero aqui.",
+    "serverNote": "Esta é a única tela que fala com o servidor: só o termo que você digita sai do aparelho, para consultar a tabela. Nada do seu perfil, do seu peso ou das suas dietas acompanha a busca.",
+    "privacyLink": "Como isso aparece nos logs"
   },
   "Macros": {
     "heading": "Metas de macronutrientes",
