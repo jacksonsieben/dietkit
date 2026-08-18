@@ -6,22 +6,6 @@ export const DEFAULT_SETTINGS: Settings = {
   locale: routing.defaultLocale,
 };
 
-/**
- * Lowercase and strip diacritics so "acai" matches "Açaí" and "PROTEINA"
- * matches "Proteína". Brazilian food names are full of accents and nobody types
- * them into a search box on a phone.
- *
- * NFD splits a base letter from its combining mark; the range strip removes the
- * marks and leaves the letter.
- */
-export function foldForSearch(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 export function emptySnapshot(): Snapshot {
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,

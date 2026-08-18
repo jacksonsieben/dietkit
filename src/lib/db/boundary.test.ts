@@ -1,11 +1,9 @@
-import { readFileSync, readdirSync } from "node:fs";
-import path from "node:path";
-
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { createReferenceDatabase, migrationFiles } from "./pglite.fixture";
 import * as schema from "./schema";
 
 /**
@@ -17,8 +15,6 @@ import * as schema from "./schema";
  * has to be true of the database, not of a TypeScript file that may or may not
  * have been migrated.
  */
-
-const migrationsDir = path.resolve(import.meta.dirname, "../../../drizzle");
 
 interface TableColumn {
   table_name: string;
@@ -32,19 +28,9 @@ let columns: TableColumn[];
 let tableNames: string[];
 
 beforeAll(async () => {
-  pg = await PGlite.create();
-
-  const files = readdirSync(migrationsDir)
-    .filter((file) => file.endsWith(".sql"))
-    .sort();
-
-  // A single 0000 today; sorting means this keeps working once there are more,
-  // and applying them in order is the same thing `db:migrate` does.
-  expect(files.length).toBeGreaterThan(0);
-  for (const file of files) {
-    const sql = readFileSync(path.join(migrationsDir, file), "utf8");
-    await pg.exec(sql.replaceAll("--> statement-breakpoint", ""));
-  }
+  // Applying them in order is the same thing `db:migrate` does.
+  expect(migrationFiles().length).toBeGreaterThan(0);
+  ({ pg } = await createReferenceDatabase());
 
   const result = await pg.query<TableColumn>(
     `select table_name, column_name, data_type, is_nullable

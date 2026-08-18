@@ -8,6 +8,13 @@
       "when": 1786969614660,
       "tag": "0000_reference_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787062718220,
+      "tag": "0001_food_search_index",
+      "breakpoints": true
     }
   ]
 }

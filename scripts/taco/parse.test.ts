@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type Page, fold, parsePage, parseTable, slugify } from "./parse.ts";
+import { type Page, parsePage, parseTable } from "./parse.ts";
 import fixture from "./fixtures/pages.json";
 
 const pages = fixture as Page[];
@@ -173,22 +173,6 @@ describe("parsePage", () => {
     const { rows } = parsePage(page(64));
     expect(rows.map((row) => row.id)).toEqual(
       Array.from({ length: 29 }, (_, index) => index + 521),
-    );
-  });
-});
-
-describe("fold and slugify", () => {
-  it("strips the accents that keep a search from matching", () => {
-    expect(fold("Feijão, carioca, cozido")).toBe("feijao, carioca, cozido");
-    expect(fold("Miscelâneas")).toBe("miscelaneas");
-  });
-
-  it("makes a slug that survives a rename of the printed name", () => {
-    expect(slugify("Bebidas (alcoólicas e não alcoólicas)")).toBe(
-      "bebidas-alcoolicas-e-nao-alcoolicas",
-    );
-    expect(slugify("Verduras, hortaliças e derivados")).toBe(
-      "verduras-hortalicas-e-derivados",
     );
   });
 });

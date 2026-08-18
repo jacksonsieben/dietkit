@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import { TACO_SOURCE } from "../../src/lib/attribution.ts";
 import { NUTRIENT_KEYS } from "../../src/lib/db/nutrients.ts";
 import { DATA_FILE, type TacoDataset } from "./dataset.ts";
-import { fold, slugify } from "./parse.ts";
+import { fold, slugify } from "../../src/lib/text.ts";
 
 const dataset = JSON.parse(readFileSync(DATA_FILE, "utf8")) as TacoDataset;
 const { foods, groups } = dataset;
