@@ -96,6 +96,53 @@ export interface Diet {
   updatedAt: IsoTimestamp;
 }
 
+/**
+ * The three things a goal can be, in the words people already use for them.
+ *
+ * The direction lives here rather than in the sign of a number, which is what
+ * makes an unsigned adjustment safe: "cut" and "bulk" are a choice, and a
+ * forgotten minus in front of 500 is not a choice anyone made.
+ */
+export const GOAL_KINDS = ["lose", "maintain", "gain"] as const;
+
+export type GoalKind = (typeof GOAL_KINDS)[number];
+
+/** How an energy figure was expressed: absolute, or as a share of something. */
+export const ENERGY_UNITS = ["kcal", "percent"] as const;
+
+export type EnergyUnit = (typeof ENERGY_UNITS)[number];
+
+/**
+ * How the daily targets are derived from expenditure (#15).
+ *
+ * Stored rather than recomputed from scratch each visit because it is a
+ * decision, not a measurement: the goal and the numbers under it are what the
+ * user chose, and bodyweight moving under them is the whole point — the grams
+ * are expected to follow the weight log without anyone retyping anything.
+ */
+export interface MacroGoal {
+  kind: GoalKind;
+  /**
+   * Unsigned — `kind` says which side of maintenance it falls on — and zero on
+   * maintenance. `unit` is kept rather than being normalised to kilocalories,
+   * because a user who chose "20%" wants to still be on 20% after they lose
+   * five kilograms.
+   */
+  adjustment: { unit: EnergyUnit; value: number };
+  /** Grams per kilogram of bodyweight. Carbohydrate fills what is left. */
+  proteinGPerKg: number;
+  /**
+   * Fat as a share of the energy target, or as an absolute number of
+   * kilocalories — not per kilogram of bodyweight like protein.
+   *
+   * The guidance it exists to express is written that way (ISSN/ACSM put fat at
+   * 20–30% of intake), and it is the form that keeps behaving sensibly when the
+   * target moves: a percentage of a deficit is still a percentage, whereas a
+   * fixed g/kg quietly eats a larger and larger share of a shrinking target.
+   */
+  fat: { unit: EnergyUnit; value: number };
+}
+
 export interface Settings {
   locale: AppLocale;
   /** Drives the backup nagging the local-first tradeoff demands (#26). */
@@ -103,6 +150,13 @@ export interface Settings {
   backupRemindedAt?: IsoTimestamp;
   /** When the health disclaimer was acknowledged (#10). */
   disclaimerAcceptedAt?: IsoTimestamp;
+  /**
+   * Absent until the user has set one; the energy screen falls back to
+   * `DEFAULT_MACRO_GOAL`. Optional rather than defaulted in `DEFAULT_SETTINGS`
+   * so that "never chose" stays distinguishable from "chose the defaults" — and
+   * so this file keeps knowing nothing about the arithmetic in lib/energy.
+   */
+  goal?: MacroGoal;
 }
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;

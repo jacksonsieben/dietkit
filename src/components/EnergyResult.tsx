@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { MacroTargets } from "@/components/MacroTargets";
 import { Link } from "@/i18n/navigation";
 import { todayIsoDate } from "@/lib/date";
 import { loadEnergySummary, type EnergyState } from "@/lib/energy/summary";
@@ -184,6 +185,12 @@ export function EnergyResult() {
         <h2 className="text-sm font-medium opacity-70">{t("disagreementHeading")}</h2>
         <p className="text-sm opacity-80">{t("disagreement")}</p>
       </section>
+
+      {/* The expenditure is the input to the split, so the split lives here
+          rather than on a page of its own: the grams below are only meaningful
+          next to the number they were divided from, and a separate screen would
+          let someone change the goal without seeing what it was applied to. */}
+      <MacroTargets summary={summary} />
 
       <div className="flex flex-col gap-4">
         <ProfileLink label={t("editLink")} />

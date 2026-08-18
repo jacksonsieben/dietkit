@@ -180,12 +180,12 @@
     "errors": {
       "required": "Preencha este campo.",
       "notANumber": "Use apenas números — 82 ou 82,4.",
-      "weightRange": "O peso precisa estar entre {min} e {max} kg.",
-      "heightRange": "A altura precisa estar entre {min} e {max} cm.",
-      "activityRange": "O fator precisa estar entre {min} e {max}.",
+      "weightRange": "O peso precisa estar entre {min, number} e {max, number} kg.",
+      "heightRange": "A altura precisa estar entre {min, number} e {max, number} cm.",
+      "activityRange": "O fator precisa estar entre {min, number} e {max, number}.",
       "notADate": "Use uma data válida.",
       "future": "A data de nascimento não pode estar no futuro.",
-      "implausibleAge": "Confira o ano — essa data indica mais de {max} anos.",
+      "implausibleAge": "Confira o ano — essa data indica mais de {max, number} anos.",
       "invalidSex": "Escolha uma das opções."
     },
     "activityLevel": {
@@ -198,7 +198,7 @@
     "activityOption": "{label} · {factor}",
     "activityCustomOption": "Personalizado — eu digito o fator",
     "activityCustomLabel": "Fator personalizado",
-    "activityCustomHint": "Entre {min} e {max}. Se você trouxe esse número de outra calculadora, ele vale tanto quanto os degraus acima.",
+    "activityCustomHint": "Entre {min, number} e {max, number}. Se você trouxe esse número de outra calculadora, ele vale tanto quanto os degraus acima.",
     "energyLink": "Ver seu gasto de energia",
     "activityLevelShort": {
       "sedentary": "Sedentário",
@@ -234,5 +234,75 @@
     "disclaimer": "Isto é uma estimativa de equação, não uma medição do seu metabolismo.",
     "disclaimerLink": "Leia o aviso de saúde",
     "ladderLevelColumn": "Degrau"
+  },
+  "Macros": {
+    "heading": "Metas de macronutrientes",
+    "lead": "As metas saem do gasto acima: o objetivo escolhido define o ajuste de energia, a proteína por quilo de peso e a fatia de gordura, e o carboidrato fica com a energia que sobrar.",
+    "loading": "Lendo o que está salvo neste aparelho…",
+    "loadError": "Não foi possível ler suas metas neste aparelho.",
+    "goalLabel": "Objetivo",
+    "goalHint": "Escolha um objetivo e o resto vem preenchido. Se quiser, dá para mudar cada número no ajuste fino.",
+    "goal": {
+      "lose": "Emagrecer",
+      "maintain": "Manter peso",
+      "gain": "Hipertrofia"
+    },
+    "advancedLabel": "Ajuste fino",
+    "advancedHint": "Os números por trás do objetivo escolhido. Trocar de objetivo acima refaz todos eles.",
+    "adjustmentLabel": "Tamanho do ajuste",
+    "adjustmentHint": {
+      "kcal": "De {min, number} a {max, number} kcal por dia, sem sinal — o objetivo acima já diz para que lado.",
+      "percent": "De {min, number} a {max, number}% do gasto, sem sinal — o objetivo acima já diz para que lado."
+    },
+    "proteinLabel": "Proteína (g por kg de peso)",
+    "coefficientHint": "De {min, number} a {max, number} g por kg de peso.",
+    "fatLabel": "Gordura",
+    "fatHint": {
+      "percent": "De {min, number} a {max, number}% da meta de energia.",
+      "kcal": "De {min, number} a {max, number} kcal por dia."
+    },
+    "unitLabel": "Unidade",
+    "unit": {
+      "kcal": "kcal",
+      "percent": "%"
+    },
+    "carbNote": "O carboidrato não tem número próprio: ele fica com toda a energia que sobra depois da proteína e da gordura.",
+    "save": "Salvar metas",
+    "saving": "Salvando…",
+    "saved": "Metas salvas neste aparelho.",
+    "saveError": "Não foi possível salvar. Tente de novo.",
+    "targetLabel": "Meta de energia",
+    "kcalPerDay": "{kcal} kcal por dia",
+    "targetEquation": "{tdee} {adjustment} = {target} kcal por dia",
+    "targetSame": "Sem ajuste: a meta é o próprio gasto.",
+    "basis": "Proteína calculada sobre {weight} kg, sua pesagem mais recente.",
+    "macroColumn": "Macro",
+    "gramsColumn": "Meta do dia",
+    "kcalColumn": "kcal",
+    "shareColumn": "% da energia",
+    "gramsValue": "{grams} g",
+    "macro": {
+      "protein": "Proteína",
+      "carb": "Carboidrato",
+      "fat": "Gordura"
+    },
+    "fatFloor": "A gordura ficou em {share} da meta de energia, abaixo do piso de {floor, number}% que a literatura recomenda para hormônios e para absorver vitaminas lipossolúveis.",
+    "reconcileHeading": "Conferência",
+    "reconcile": "As gramas acima somam {sum} kcal, contra a meta de {target} kcal.",
+    "driftNone": "Fecha exatamente: nesse caso as gramas inteiras deram a conta certa.",
+    "drift": "Diferença de {drift} kcal. É o arredondamento para gramas inteiras, não um erro de conta — arredondar três números custa no máximo 8 kcal, e preferimos mostrar isso a esconder.",
+    "shortfall": "Só a proteína e a gordura já custam {excess} kcal a mais que a meta, então o carboidrato ficou em zero. Diminua a proteína, a gordura ou o tamanho do ajuste.",
+    "noPlan": "Escolha um objetivo para ver as metas.",
+    "errors": {
+      "required": "Preencha este campo.",
+      "notANumber": "Use apenas números — 500 ou 1,8.",
+      "kcalRange": "O ajuste precisa estar entre {min, number} e {max, number} kcal.",
+      "percentRange": "O ajuste precisa estar entre {min, number} e {max, number}%.",
+      "proteinRange": "A proteína precisa estar entre {min, number} e {max, number} g por kg.",
+      "fatPercentRange": "A gordura precisa estar entre {min, number} e {max, number}% da meta de energia.",
+      "fatKcalRange": "A gordura precisa estar entre {min, number} e {max, number} kcal.",
+      "invalidGoal": "Escolha um objetivo da lista.",
+      "invalidUnit": "Escolha kcal ou % na lista ao lado do campo."
+    }
   }
 }
