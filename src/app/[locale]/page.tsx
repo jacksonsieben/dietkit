@@ -24,12 +24,18 @@ export default async function Home({ params }: PageProps<"/[locale]">) {
         <p className="text-lg text-balance opacity-80">{app("tagline")}</p>
       </div>
 
-      <Link
-        href="/perfil"
-        className="self-start rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-      >
-        {t("profileLink")}
-      </Link>
+      <div className="flex flex-wrap items-center gap-4">
+        <Link
+          href="/perfil"
+          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+        >
+          {t("profileLink")}
+        </Link>
+
+        <Link href="/energia" className="text-sm underline underline-offset-4">
+          {t("energyLink")}
+        </Link>
+      </div>
 
       <p className="text-sm opacity-60">
         {t("underConstruction")} {t("privacyReassurance")}

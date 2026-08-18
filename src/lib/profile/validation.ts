@@ -1,4 +1,5 @@
 import { ageYearsOn, parseIsoDate } from "@/lib/energy/age";
+import { ACTIVITY_FACTOR_RANGE } from "@/lib/energy/tdee";
 import type { IsoDate, Sex } from "@/lib/storage/types";
 
 /**
@@ -24,8 +25,12 @@ import type { IsoDate, Sex } from "@/lib/storage/types";
 export const PROFILE_LIMITS = {
   weightKg: { min: 20, max: 400 },
   heightCm: { min: 100, max: 250 },
-  /** The range `Profile.activityFactor` documents, and #14's override bound. */
-  activityFactor: { min: 1, max: 2.5 },
+  /**
+   * Not restated here. The bound belongs to the calculation that uses the
+   * factor, and a second copy of "1 to 2.5" living next to the form is how a
+   * range gets widened in one place and enforced in the other.
+   */
+  activityFactor: ACTIVITY_FACTOR_RANGE,
   ageYears: { min: 0, max: 120 },
 } as const;
 

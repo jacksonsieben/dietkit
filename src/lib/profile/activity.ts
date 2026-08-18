@@ -37,22 +37,26 @@ export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
 export type ActivityLevelId = ActivityLevel["id"];
 
 /**
- * Which value, if any, the select has to carry an extra option for.
+ * The value the select can offer as a rung, or `undefined` for one it cannot.
  *
- * Lives here rather than in the component because it is the rule that keeps a
- * number the user chose: a `<select>` handed a value none of its options match
- * renders as though nothing were selected, and the next thing the user touches
- * writes a rung over it. Nobody sees that happen — the field simply reads
- * "Moderadamente ativo" one day, and the target moves.
+ * #14 lets a factor be typed by hand, so the field has two modes and something
+ * has to decide which one a stored value opens in. Anything that is not one of
+ * the rungs is the custom mode's business: a hand-typed 1,6, a value carried in
+ * by an import (#26), or a rung this app removes in some later version.
+ *
+ * The rule lives here rather than in the component because of what it prevents.
+ * A `<select>` handed a value none of its options match renders as though
+ * nothing were selected, and the next thing the user touches writes a rung over
+ * it. Nobody sees that happen — the field simply reads "Moderadamente ativo"
+ * one day, and the target has moved.
  *
  * Takes the field string rather than a number because that is what the options
  * are matched on and what the form actually holds.
  */
-export function offLadderActivity(field: string): string | undefined {
-  if (field === "") return undefined;
+export function isCustomActivity(field: string): boolean {
+  if (field === "") return false;
 
-  const onLadder = ACTIVITY_LEVELS.some((level) => toField(level.factor) === field);
-  return onLadder ? undefined : field;
+  return !ACTIVITY_LEVELS.some((level) => toField(level.factor) === field);
 }
 
 /**

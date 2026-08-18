@@ -6,7 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { todayIsoDate } from "@/lib/date";
 import { ageYearsOn } from "@/lib/energy/age";
-import { ACTIVITY_LEVELS, offLadderActivity } from "@/lib/profile/activity";
+import { ACTIVITY_LEVELS, isCustomActivity } from "@/lib/profile/activity";
 import { loadProfileForm, saveProfileForm, toField } from "@/lib/profile/persistence";
 import {
   PROFILE_LIMITS,
@@ -60,6 +60,15 @@ export function ProfileForm() {
   const [status, setStatus] = useState<Status>("loading");
   /** The day the weight in the field was measured, when it came from the log. */
   const [weightFrom, setWeightFrom] = useState<string | undefined>(undefined);
+  /**
+   * Whether the activity field is showing its number box instead of the ladder.
+   *
+   * UI state, not form data: the factor itself lives in `values` either way, so
+   * nothing here changes what gets saved. It exists because a `<select>` cannot
+   * both offer five rungs and accept a sixth number, and because a stored value
+   * between two rungs has to reopen in the mode that can display it.
+   */
+  const [customActivity, setCustomActivity] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +82,7 @@ export function ProfileForm() {
 
         setValues(loaded.values);
         setWeightFrom(loaded.weightFrom);
+        setCustomActivity(isCustomActivity(loaded.values.activityFactor));
         setStatus("ready");
       } catch {
         if (!cancelled) setStatus("loadFailed");
@@ -138,8 +148,6 @@ export function ProfileForm() {
     values.birthDate !== "" && !errors.birthDate && values.birthDate <= today
       ? ageOrUndefined(values.birthDate, today)
       : undefined;
-
-  const offLadder = offLadderActivity(values.activityFactor);
 
   const messageFor = (code: ProfileErrorCode) => t(`errors.${code}`, ERROR_PARAMS[code]);
 
@@ -225,36 +233,69 @@ export function ProfileForm() {
 
       <Field
         label={t("activityLabel")}
-        // #14 adds the custom override and the explanation of why two
-        // calculators put the same week of training on different rungs. The
-        // rungs themselves live in ./activity.ts so both share one list.
         hint={t("activityHint")}
-        error={errors.activityFactor && messageFor(errors.activityFactor)}
+        // The error belongs to whichever control is holding the number. When
+        // the box is open the select is showing a mode, not a value, and red
+        // text under it would be pointing at the wrong thing.
+        error={
+          !customActivity && errors.activityFactor
+            ? messageFor(errors.activityFactor)
+            : undefined
+        }
       >
         {(props) => (
           <select
             {...props}
-            value={values.activityFactor}
-            onChange={(event) => update("activityFactor")(event.target.value)}
+            value={customActivity ? CUSTOM_ACTIVITY : values.activityFactor}
+            onChange={(event) => {
+              if (event.target.value === CUSTOM_ACTIVITY) {
+                // Keeps whatever number was selected, so the box opens on the
+                // value they are adjusting rather than on an empty field.
+                setCustomActivity(true);
+                return;
+              }
+
+              setCustomActivity(false);
+              update("activityFactor")(event.target.value);
+            }}
           >
             <option value="" />
             {ACTIVITY_LEVELS.map((level) => (
               <option key={level.id} value={toField(level.factor)}>
-                {t(`activityLevel.${level.id}`)}
+                {/* The multiplier is shown next to the rung, not hidden behind
+                    it (#14). It is the only part of this calculation that is a
+                    convention rather than a measurement, so it is also the only
+                    part someone needs in order to reconcile our answer with a
+                    different one somewhere else. */}
+                {t("activityOption", {
+                  label: t(`activityLevel.${level.id}`),
+                  factor: formatFactor(format, level.factor),
+                })}
               </option>
             ))}
-            {offLadder && (
-              // A stored factor that sits between two rungs — an import (#26),
-              // or #14's override once it exists. Without an option carrying it
-              // the select would show nothing selected and quietly replace the
-              // user's number with whichever rung they touched next.
-              <option value={offLadder}>
-                {t("activityCustom", { factor: offLadder })}
-              </option>
-            )}
+            <option value={CUSTOM_ACTIVITY}>{t("activityCustomOption")}</option>
           </select>
         )}
       </Field>
+
+      {customActivity && (
+        <Field
+          label={t("activityCustomLabel")}
+          hint={t("activityCustomHint", PROFILE_LIMITS.activityFactor)}
+          error={errors.activityFactor && messageFor(errors.activityFactor)}
+        >
+          {(props) => (
+            <input
+              {...props}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={values.activityFactor}
+              onChange={(event) => update("activityFactor")(event.target.value)}
+            />
+          )}
+        </Field>
+      )}
 
       <div className="flex flex-wrap items-center gap-4">
         <button
@@ -264,6 +305,13 @@ export function ProfileForm() {
         >
           {status === "saving" ? t("saving") : t("save")}
         </button>
+
+        {/* Always offered, not only after a save: someone arriving with a
+            profile already on the device came here to look at the result, and
+            hiding the way to it behind a save they do not need is a dead end. */}
+        <Link href="/energia" className="text-sm underline underline-offset-4">
+          {t("energyLink")}
+        </Link>
 
         <p aria-live="polite" className="text-sm">
           {status === "saved" ? (
@@ -286,6 +334,28 @@ export function ProfileForm() {
       </p>
     </form>
   );
+}
+
+/**
+ * The select value that means "I will type the number myself".
+ *
+ * A word rather than a sentinel number, so it can never collide with a factor:
+ * every real value in this field is a decimal string.
+ */
+const CUSTOM_ACTIVITY = "custom";
+
+/**
+ * The multiplier as pt-BR writes it — 1,375 rather than 1.375.
+ *
+ * Three fraction digits because that is what the ladder actually holds, and a
+ * factor rendered as "1,38" beside a result computed from 1,375 is a small lie
+ * that makes the arithmetic impossible to check by hand.
+ */
+function formatFactor(format: ReturnType<typeof useFormatter>, factor: number) {
+  return format.number(factor, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 3,
+  });
 }
 
 /** `undefined` rather than a throw — the date came from an input, not from us. */
