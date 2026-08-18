@@ -88,6 +88,7 @@ function makeDiet(overrides: Partial<Diet> = {}): Diet {
       {
         id: crypto.randomUUID(),
         name: "Café da manhã",
+        share: 1,
         items: [
           {
             id: crypto.randomUUID(),

@@ -32,7 +32,8 @@
     "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho.",
     "profileLink": "Começar pelo perfil",
     "energyLink": "Ver o gasto de energia",
-    "foodsLink": "Buscar alimentos"
+    "foodsLink": "Buscar alimentos",
+    "planLink": "Montar as refeições"
   },
   "NotFound": {
     "heading": "Página não encontrada",
@@ -385,6 +386,56 @@
       "fatKcalRange": "A gordura precisa estar entre {min, number} e {max, number} kcal.",
       "invalidGoal": "Escolha um objetivo da lista.",
       "invalidUnit": "Escolha kcal ou % na lista ao lado do campo."
+    }
+  },
+  "Plan": {
+    "title": "Refeições do dia",
+    "lead": "Quantas refeições você faz, em que ordem e quanto da meta cada uma carrega. Nada disso é fixo: o app não decide por você que o dia tem quatro refeições, nem que todas são do mesmo tamanho.",
+    "loading": "Lendo o plano deste aparelho…",
+    "loadError": "Não foi possível ler o plano salvo neste aparelho. Recarregue a página.",
+    "missingProfile": "Antes de dividir o dia é preciso saber de quem é o dia. Preencha o perfil.",
+    "missingWeight": "Falta o peso. Sem ele não há metas do dia para repartir entre as refeições.",
+    "missingLink": "Preencher o perfil",
+    "targetLabel": "Meta do dia",
+    "kcalPerDay": "{kcal} kcal por dia",
+    "targetMacros": "{protein, number} g de proteína · {carb, number} g de carboidrato · {fat, number} g de gordura",
+    "energyLink": "Ver de onde veio esta meta",
+    "mealsHeading": "Refeições",
+    "mealCount": "{count, plural, one {# refeição} other {# refeições}}",
+    "nameLabel": "Nome da {position, number}ª refeição",
+    "namePlaceholder": "Lanche da tarde",
+    "shareLabel": "Fatia do dia da {position, number}ª refeição, em %",
+    "sharePercent": "{percent, number}%",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "remove": "Remover",
+    "removeLimit": "Um plano precisa de pelo menos uma refeição.",
+    "add": "Adicionar refeição",
+    "addLimit": "Esta tela desenha no máximo {max, number} refeições.",
+    "even": "Dividir igualmente",
+    "newMealName": "Refeição {position, number}",
+    "defaultMeal": {
+      "breakfast": "Café da manhã",
+      "lunch": "Almoço",
+      "dinner": "Jantar"
+    },
+    "planName": "Meu plano",
+    "macros": "{protein, number} g P · {carb, number} g C · {fat, number} g G",
+    "kcal": "{kcal, number} kcal",
+    "totalLabel": "Somando as refeições",
+    "shareNote": "Mudar a fatia de uma refeição redistribui o resto entre as outras mantendo as proporções, então o dia fecha sempre em 100%.",
+    "roundingNote": "As gramas são repartidas entre as refeições, não arredondadas uma a uma: a soma das refeições bate com a meta do dia, sem sobrar nem faltar.",
+    "itemsNote": "Os alimentos de cada refeição entram no próximo passo.",
+    "save": "Salvar plano",
+    "saving": "Salvando…",
+    "saved": "Plano salvo neste aparelho.",
+    "saveError": "Não foi possível salvar. Tente de novo.",
+    "unsaved": "Há alterações não salvas.",
+    "errors": {
+      "required": "Preencha este campo.",
+      "notANumber": "Use apenas números — 30 ou 32,5.",
+      "nameLength": "O nome pode ter no máximo {max, number} letras.",
+      "shareRange": "A fatia precisa estar entre {min, number}% e {max, number}%."
     }
   }
 }

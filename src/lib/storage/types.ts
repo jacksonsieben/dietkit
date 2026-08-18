@@ -94,6 +94,18 @@ export interface DietItem {
 export interface Meal {
   id: Id;
   name: string;
+  /**
+   * The fraction of the day's targets this meal is meant to carry (#18).
+   *
+   * A share per meal rather than an even split computed from the count,
+   * because breakfast and lunch are not the same meal in any plan anyone
+   * actually eats. Stored as a fraction of one rather than a percentage so
+   * nothing has to agree on where the decimal point goes, and normalised on
+   * read (`distributeTargets`) rather than trusted: this is a device store an
+   * import can hand-edit, and shares that do not add to one are a plan that
+   * silently feeds the user the wrong amount.
+   */
+  share: number;
   items: DietItem[];
 }
 
