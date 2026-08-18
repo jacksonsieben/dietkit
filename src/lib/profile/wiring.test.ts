@@ -81,6 +81,40 @@ describe("profile form wiring", () => {
     expect(form).not.toContain('from "dexie"');
   });
 
+  it("tells the browser which scheme to paint its own widgets in", () => {
+    // The `<select>` popup and the date picker are surfaces the browser draws
+    // outside the page, and they read `color-scheme` — not the palette. Without
+    // both halves of this the dropdown came out light-grey on white in dark
+    // mode, which no screenshot of the page would ever have shown.
+    const css = read("src/app/globals.css");
+    const dark = css.slice(css.indexOf("@media (prefers-color-scheme: dark)"));
+
+    expect(css).toMatch(/:root\s*\{[^}]*color-scheme:\s*light/);
+    expect(dark).toMatch(/:root\s*\{[^}]*color-scheme:\s*dark/);
+  });
+
+  it("gives the dropdown rows a background of their own", () => {
+    // `<option>` is not covered by the control's class — it is a separate
+    // element the popup renders — so the colour has to be stated for it.
+    const css = read("src/app/globals.css");
+
+    expect(css).toMatch(/select\s+option\s*\{[^}]*background-color:\s*var\(--background\)/);
+    expect(css).toMatch(/select\s+option\s*\{[^}]*color:\s*var\(--foreground\)/);
+  });
+
+  it("does not make a form control transparent", () => {
+    // `bg-transparent` looks identical on the closed control, because the body
+    // shows through. On the popup it is an author-declared background composited
+    // over the browser's own surface, which is where the white came from.
+    const form = read("src/components/ProfileForm.tsx");
+    const controlClass = /^const CONTROL_CLASS =\n?\s*"([^"]*)"/m.exec(form)?.[1];
+
+    expect(controlClass).toBeDefined();
+    expect(controlClass).not.toContain("bg-transparent");
+    expect(controlClass).toContain("bg-background");
+    expect(controlClass).toContain("text-foreground");
+  });
+
   it("precaches /perfil so it opens with no network", () => {
     // "Works offline" in #12's done-when. Without an entry here a cold start
     // with no connection serves the /~offline fallback instead of the form,

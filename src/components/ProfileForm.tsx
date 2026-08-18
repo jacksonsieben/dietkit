@@ -316,8 +316,23 @@ interface ControlProps {
   className: string;
 }
 
+/**
+ * `bg-background text-foreground` rather than `bg-transparent`, which is what
+ * this was and what broke the dropdown in dark mode.
+ *
+ * A transparent background looks identical on the closed control — the body
+ * shows through — but the `<select>` popup is a surface the browser draws for
+ * itself, and an author-declared `background-color` of `rgba(0,0,0,0)` gets
+ * composited over that surface rather than over the page. The result was the
+ * palette's light-grey text on the UA's white: unreadable, and invisible in any
+ * screenshot of the page, because the popup is not part of the page.
+ *
+ * `color-scheme` in globals.css is the other half of this and is not
+ * interchangeable with it: that one tells the browser which defaults to use,
+ * this one stops us overriding them with a transparency we never wanted.
+ */
 const CONTROL_CLASS =
-  "w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-base aria-[invalid=true]:border-red-600 dark:border-white/20 dark:aria-[invalid=true]:border-red-500";
+  "w-full rounded-md border border-black/15 bg-background px-3 py-2 text-base text-foreground aria-[invalid=true]:border-red-600 dark:border-white/20 dark:aria-[invalid=true]:border-red-500";
 
 /**
  * Label, control, hint and error as one unit.
