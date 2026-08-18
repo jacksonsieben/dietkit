@@ -145,6 +145,38 @@ decides.
 **Why:** in Brazil, prescribing individualised diets is restricted to registered
 nutritionists (CFN). Positioning is not cosmetic here.
 
+**Consequence, on the notices:** three documents at `/privacidade`, `/termos`
+and `/saude`, sharing one effective date from `src/lib/legal.ts` because they are
+one agreement in three parts — the terms defer to the health disclaimer, and the
+disclaimer is what makes the terms' positioning mean anything. The health page
+names `Lei nº 8.234/1991` and the CFN outright rather than hedging with "consult
+a professional", which is advice every app gives and which says nothing about
+Brazil.
+
+**Consequence, on what the terms may claim:** the liability section does not
+attempt a blanket disclaimer. CDC art. 51 voids those against consumers, so one
+would be unenforceable *and* evidence nobody read the law; the text states the
+real limits of an estimate and then says consumer law prevails where they
+conflict.
+
+**Consequence, on the privacy notice:** it discloses the two things that do leave
+the device — the search term sent to query TACO, and Vercel's request logs (IP,
+user agent, URL) — because § D1 is only worth claiming if the honest version is
+still a good answer. It also names why there is no "cookieless" analytics, per
+§ D9.
+
+**Consequence, on reachability:** `LEGAL_ROUTES` is one list, rendered by the
+layout footer so every screen carries it — #10 asks for onboarding and settings,
+neither of which exists yet, and a launch blocker parked behind an unwritten
+screen is how one goes missing. `src/lib/legal.test.ts` checks that each route
+has a page, has a label, and is actually iterated by the footer rather than
+merely imported. When #12 lands, the disclaimer should also appear beside the
+body-metrics input, where it is load-bearing.
+
+**Open before launch:** the copy is drafted by an engineer and wants a Brazilian
+lawyer's read, particularly the CFN positioning and the CDC section.
+`LEGAL_CONTACT` carries a `TODO` for a named *controlador* under LGPD art. 41.
+
 ---
 
 ### D11 — Macros are solved jointly, anchored at the current plan
