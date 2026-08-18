@@ -3,7 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import ptBR from "../../../messages/pt-BR.json";
-import { GOAL_ERROR_CODES, GOAL_FIELDS, GOAL_MODES } from "@/lib/energy/goal";
+import { GOAL_ERROR_CODES, GOAL_FIELDS } from "@/lib/energy/goal";
+import { ENERGY_UNITS, GOAL_KINDS } from "@/lib/storage/types";
 import { ACTIVITY_LEVELS } from "./activity";
 import { PROFILE_ERROR_CODES, PROFILE_FIELDS } from "./validation";
 
@@ -155,12 +156,28 @@ describe("profile form wiring", () => {
     // shows through. On the popup it is an author-declared background composited
     // over the browser's own surface, which is where the white came from.
     const shared = read("src/components/Field.tsx");
-    const controlClass = /^export const CONTROL_CLASS =\n?\s*"([^"]*)"/m.exec(shared)?.[1];
+    // The class is composed from the pieces `UnitInput` reuses, so what has to
+    // be opaque is the string that reaches an element — not the literal source.
+    const piece = (name: string) =>
+      new RegExp(`^const ${name} = "([^"]*)"`, "m").exec(shared)?.[1] ?? "";
+    const controlClass = /^export const CONTROL_CLASS = `([^`]*)`/m
+      .exec(shared)?.[1]
+      .replace("${FRAME}", piece("FRAME"))
+      .replace("${BORDER}", piece("BORDER"));
 
     expect(controlClass).toBeDefined();
     expect(controlClass).not.toContain("bg-transparent");
     expect(controlClass).toContain("bg-background");
     expect(controlClass).toContain("text-foreground");
+
+    // The unit picker is a second `<select>`, built by hand out of the same
+    // pieces rather than handed `CONTROL_CLASS` — a second chance at the same
+    // regression, on the one control that is a popup by definition.
+    const picker = shared.slice(shared.indexOf("export function UnitInput"));
+    const select = picker.slice(picker.indexOf("<select"), picker.indexOf("</select>"));
+
+    expect(select).not.toContain("bg-transparent");
+    expect(select).toContain("bg-background");
   });
 
   it("precaches the screens that need no network to be right", () => {
@@ -273,46 +290,132 @@ describe("macro targets wiring", () => {
   });
 
   it("has a label for every goal the form offers", () => {
-    // The select is built by mapping GOAL_MODES, so a mode added without a
-    // message ships as an option reading "Macros.mode.recomp".
-    expect(Object.keys(ptBR.Macros.mode).sort()).toEqual([...GOAL_MODES].sort());
+    // The select is built by mapping GOAL_KINDS, so a goal added without a
+    // message ships as an option reading "Macros.goal.recomp".
+    expect(Object.keys(ptBR.Macros.goal).sort()).toEqual([...GOAL_KINDS].sort());
   });
 
-  it("renders and updates every field the validator knows about", () => {
+  it("has a name for every unit the pickers offer", () => {
+    expect(Object.keys(ptBR.Macros.unit).sort()).toEqual([...ENERGY_UNITS].sort());
+  });
+
+  it("renders every field the validator knows about", () => {
     const source = macros();
 
     for (const field of GOAL_FIELDS) {
       expect(source, `${field} is never displayed`).toContain(`values.${field}`);
-      expect(source, `${field} can never be edited`).toContain(`update("${field}")`);
       expect(source, `${field} never shows its error`).toContain(`errors.${field}`);
     }
   });
 
-  it("asks for the adjustment as a direction plus a size", () => {
-    // The sign lives in the mode, not in the number. A signed field is one
+  it("lets every number under the goal be edited", () => {
+    // `kind` is the exception, and deliberately: choosing a goal goes through
+    // `chooseGoal`, which replaces the whole form with that goal's preset
+    // rather than editing one field of the previous answer.
+    const source = macros();
+
+    for (const field of GOAL_FIELDS.filter((name) => name !== "kind")) {
+      expect(source, `${field} can never be edited`).toContain(`update("${field}")`);
+    }
+    expect(source).toContain("onChange={(event) => chooseGoal(event.target.value)}");
+  });
+
+  it("asks one question, and fills the rest in from a preset", () => {
+    // The redesign's whole point. The first version of this form opened by
+    // asking for grams of fat per kilogram of bodyweight, which is a question
+    // most people close the tab on rather than answer.
+    const source = macros();
+
+    expect(source).toContain("GOAL_KINDS.map");
+    expect(source).toContain("presetForm(kind)");
+  });
+
+  it("folds the numbers away instead of dropping them", () => {
+    // Collapsed, not removed and not moved to a settings page: someone who
+    // disagrees with a preset is one click and the same save button away.
+    const source = macros();
+
+    expect(source).toContain("<details");
+    expect(source).toContain("<summary");
+    expect(source).toContain('t("advancedLabel")');
+    expect(source.indexOf("<details"), "the goal select is inside the fold").toBeGreaterThan(
+      source.indexOf('t("goalLabel")'),
+    );
+  });
+
+  it("asks for the adjustment as a goal plus an unsigned size", () => {
+    // The sign lives in the goal, not in the number. A signed field is one
     // forgotten minus away from turning a cut into a bulk, with nothing on
     // screen looking wrong — the grams would simply all be larger.
     const source = macros();
 
-    expect(source).toContain("GOAL_MODES.map");
-    expect(source).toContain("needsMagnitude(mode)");
-    expect(ptBR.Macros.magnitudeHint).toContain("{min, number}");
-    expect(ptBR.Macros.magnitudeHint).toContain("{max, number}");
+    expect(source).toContain("needsAdjustment(kind)");
+    for (const hint of [ptBR.Macros.adjustmentHint.kcal, ptBR.Macros.adjustmentHint.percent]) {
+      expect(hint).toContain("{min, number}");
+      expect(hint).toContain("{max, number}");
+    }
+  });
+
+  it("puts the unit picker inside the input, on its right", () => {
+    // The shape the user asked for, and the reason `UnitInput` exists at all: a
+    // phone field's country selector, mirrored. A separate select underneath
+    // would leave the number and its unit looking like two questions.
+    const field = read("src/components/Field.tsx");
+    const composite = field.slice(field.indexOf("export function UnitInput"));
+
+    expect(composite).toContain("<input");
+    expect(composite).toContain("<select");
+    expect(
+      composite.indexOf("<select"),
+      "the unit picker sits to the left of the number",
+    ).toBeGreaterThan(composite.indexOf("<input"));
+
+    const source = macros();
+    expect(source).toContain("units={ADJUSTMENT_UNITS}");
+    expect(source).toContain("units={FAT_UNITS}");
+    expect(source).toContain('unitLabel={t("unitLabel")}');
+  });
+
+  it("takes fat as a share of the energy rather than of the body", () => {
+    // A fixed g/kg quietly takes a larger share of every deficit the user
+    // deepens; a share does not. The kcal unit is still offered, and the hints
+    // have to say which of the two bounds they are quoting.
+    const source = macros();
+
+    expect(source).toContain("fatLimits(fatUnit)");
+    expect(source).toContain("t(`fatHint.${fatUnit}`");
+    for (const hint of [ptBR.Macros.fatHint.percent, ptBR.Macros.fatHint.kcal]) {
+      expect(hint).toContain("{min, number}");
+      expect(hint).toContain("{max, number}");
+    }
+  });
+
+  it("warns when the fat lands under the physiological floor", () => {
+    // Reachable only through the kcal unit — the percentage bounds hold the
+    // line. A warning rather than a refusal: the arithmetic is sound, and the
+    // user may know something about their case that the form does not.
+    const source = macros();
+
+    expect(source).toContain("plan.fatBelowFloor");
+    expect(source).toContain('t("fatFloor"');
+    expect(source).toContain("FAT_FLOOR_PERCENT");
+    expect(ptBR.Macros.fatFloor).toContain("{share}");
+    expect(ptBR.Macros.fatFloor).toContain("{floor, number}");
   });
 
   it("quotes the real bounds in the hints and the range messages", () => {
     const source = macros();
 
     expect(source).toContain('t("coefficientHint", MACRO_GOAL_LIMITS.proteinGPerKg)');
-    expect(source).toContain('t("coefficientHint", MACRO_GOAL_LIMITS.fatGPerKg)');
-    expect(source).toContain("magnitudeLimits(mode)");
+    expect(source).toContain("adjustmentLimits(adjustmentUnit)");
 
     for (const message of [
       ptBR.Macros.coefficientHint,
       ptBR.Macros.errors.kcalRange,
       ptBR.Macros.errors.percentRange,
       ptBR.Macros.errors.proteinRange,
-      ptBR.Macros.errors.fatRange,
+      ptBR.Macros.errors.fatPercentRange,
+      ptBR.Macros.errors.fatKcalRange,
     ]) {
       expect(message).toContain("{min, number}");
       expect(message).toContain("{max, number}");
@@ -328,6 +431,18 @@ describe("macro targets wiring", () => {
     expect(source).toContain("ATWATER.proteinKcalPerG");
     expect(source).toContain("ATWATER.carbKcalPerG");
     expect(source).toContain("ATWATER.fatKcalPerG");
+  });
+
+  it("writes the sum out only when there is an adjustment in it", () => {
+    // Maintenance is not "gasto +0 = gasto". Zero is the one adjustment with no
+    // arithmetic to show, and printing it as a term makes the target look like
+    // it is waiting for a number that never came.
+    const source = macros();
+
+    expect(source).toContain("plan.adjustmentKcal === 0");
+    expect(source).toContain('t("targetSame")');
+    expect(source).toContain('t("targetEquation"');
+    expect(ptBR.Macros.targetSame).not.toContain("{");
   });
 
   it("shows what the grams add up to next to what was asked for", () => {
@@ -355,7 +470,7 @@ describe("macro targets wiring", () => {
     expect(source).toContain('signDisplay: "always"');
   });
 
-  it("says so when the coefficients alone overshoot the target", () => {
+  it("says so when protein and fat alone overshoot the target", () => {
     // Carbohydrate floors at zero in `planMacros`, and a plan whose protein and
     // fat already cost more than the target would otherwise print as a tidy
     // zero-carb split with no sign that it does not add up.
@@ -368,9 +483,9 @@ describe("macro targets wiring", () => {
 
   it("does not blame rounding for a gap rounding cannot explain", () => {
     // Both messages rendering at once is what this prevents: 4 g/kg of protein
-    // with 2,5 g/kg of fat under a deficit printed "+683 kcal" directly above
-    // "at most 8 kcal", which reads as a broken sum rather than as a goal that
-    // cannot be met.
+    // with 60% of the target from fat under a deficit printed "+683 kcal"
+    // directly above "at most 8 kcal", which reads as a broken sum rather than
+    // as a goal that cannot be met.
     const source = macros();
 
     expect(source).toContain("plan.carbShortfallKcal > 0 ? (");
@@ -383,7 +498,8 @@ describe("macro targets wiring", () => {
 
   it("stands on the expenditure it was divided from", () => {
     // Same screen, not a page of its own: grams are meaningless without the
-    // TDEE above them, and the weight the coefficients multiplied is named.
+    // TDEE above them, and the weight the protein coefficient multiplied is
+    // named.
     expect(read("src/components/EnergyResult.tsx")).toContain(
       "<MacroTargets summary={summary} />",
     );

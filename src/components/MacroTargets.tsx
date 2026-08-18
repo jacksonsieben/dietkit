@@ -3,12 +3,15 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
-import { Field } from "@/components/Field";
+import { Field, UnitInput } from "@/components/Field";
 import {
-  GOAL_MODES,
+  ADJUSTMENT_UNITS,
+  FAT_UNITS,
+  adjustmentLimits,
+  fatLimits,
   loadGoal,
-  magnitudeLimits,
-  needsMagnitude,
+  needsAdjustment,
+  presetForm,
   saveGoal,
   toGoalForm,
   validateGoalForm,
@@ -16,26 +19,39 @@ import {
   type GoalErrors,
   type GoalField,
   type GoalFormValues,
-  type GoalMode,
 } from "@/lib/energy/goal";
 import {
   ATWATER,
+  FAT_FLOOR_PERCENT,
   MACRO_GOAL_LIMITS,
   planMacros,
   type MacroPlan,
 } from "@/lib/energy/macros";
 import type { EnergySummary } from "@/lib/energy/summary";
 import { getRepository } from "@/lib/storage";
+import {
+  ENERGY_UNITS,
+  GOAL_KINDS,
+  type EnergyUnit,
+  type GoalKind,
+} from "@/lib/storage/types";
 
 /**
  * TDEE turned into grams (#15).
  *
- * The arithmetic is deliberately all on screen at once — the goal that produced
- * the target, the target, the grams, and what the grams add back up to. The
- * last of those is the part that usually gets hidden: three whole-gram numbers
- * almost never total exactly the kilocalorie figure printed above them, and an
- * app that quietly prints the target as the total is teaching its user that the
- * two are the same number when they are not. The difference is small, it is
+ * The form asks one question. Picking *Emagrecer*, *Manter peso* or
+ * *Hipertrofia* fills in an adjustment, a protein coefficient and a fat share
+ * all at once, and every number is folded away under "ajuste fino" — because
+ * the first version of this screen opened by asking how many grams of fat per
+ * kilogram of bodyweight you wanted, which is a question most people close the
+ * tab on rather than answer.
+ *
+ * What is not folded away is the arithmetic below: the goal that produced the
+ * target, the target, the grams, and what the grams add back up to. The last of
+ * those is the part that usually gets hidden: three whole-gram numbers almost
+ * never total exactly the kilocalorie figure printed above them, and an app
+ * that quietly prints the target as the total is teaching its user that the two
+ * are the same number when they are not. The difference is small, it is
  * rounding, and it is shown.
  *
  * A section of the energy screen rather than a page of its own, because a macro
@@ -58,7 +74,7 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
       try {
         // Falls back to `DEFAULT_MACRO_GOAL`, so the section opens on a usable
         // split rather than on empty boxes: someone who never chose still gets
-        // grams, and the defaults are visible enough to argue with.
+        // grams, and the preset is visible enough to argue with.
         const goal = await loadGoal(getRepository());
         if (cancelled) return;
 
@@ -82,6 +98,11 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
     return <p className="text-sm opacity-60">{t("loading")}</p>;
   }
 
+  /** Drops the "salvo" note, so a reassurance never stands over changed numbers. */
+  const touched = () => {
+    setStatus((current) => (current === "saved" ? "ready" : current));
+  };
+
   const update = (field: GoalField) => (value: string) => {
     setValues((current) => current && { ...current, [field]: value });
     // Clears this field's complaint as it is being addressed, rather than
@@ -91,7 +112,20 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
       const { [field]: _cleared, ...rest } = current;
       return rest;
     });
-    setStatus((current) => (current === "saved" ? "ready" : current));
+    touched();
+  };
+
+  /**
+   * Picking a goal replaces every number under it, including ones edited by
+   * hand. That is the deal the presets offer — the goal *is* the answer — and a
+   * *Hipertrofia* that kept the 500 kcal typed under *Emagrecer* would still be
+   * a deficit, since nothing on screen would have visibly changed.
+   */
+  const chooseGoal = (raw: string) => {
+    const kind = GOAL_KINDS.find((candidate) => candidate === raw);
+    setValues(kind ? presetForm(kind) : (current) => current && { ...current, kind: raw });
+    setErrors({});
+    touched();
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -116,12 +150,15 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
   };
 
   // Recomputed on every keystroke rather than on save: the point of the section
-  // is watching a coefficient move the grams, and a plan that only appeared
-  // after saving would make every adjustment a commitment.
+  // is watching a number move the grams, and a plan that only appeared after
+  // saving would make every adjustment a commitment.
   const plan = previewPlan(values, summary);
-  const mode = currentMode(values.mode);
+  const kind = currentKind(values.kind);
+  const adjustmentUnit = currentUnit(values.adjustmentUnit, "kcal");
+  const fatUnit = currentUnit(values.fatUnit, "percent");
 
-  const messageFor = (code: GoalErrorCode) => t(`errors.${code}`, errorParams(code, mode));
+  const messageFor = (code: GoalErrorCode) =>
+    t(`errors.${code}`, errorParams(code, adjustmentUnit, fatUnit));
 
   return (
     <section className="flex flex-col gap-6">
@@ -132,83 +169,111 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
         <Field
-          label={t("modeLabel")}
-          hint={t("modeHint")}
-          error={errors.mode && messageFor(errors.mode)}
+          label={t("goalLabel")}
+          hint={t("goalHint")}
+          error={errors.kind && messageFor(errors.kind)}
         >
           {(props) => (
             <select
               {...props}
-              value={values.mode}
-              onChange={(event) => update("mode")(event.target.value)}
+              value={values.kind}
+              onChange={(event) => chooseGoal(event.target.value)}
             >
-              {GOAL_MODES.map((option) => (
+              {GOAL_KINDS.map((option) => (
                 <option key={option} value={option}>
-                  {t(`mode.${option}`)}
+                  {t(`goal.${option}`)}
                 </option>
               ))}
             </select>
           )}
         </Field>
 
-        {/* Hidden on maintenance: a magnitude box next to "manutenção" is a
-            question with no answer, and a number left in it from a previous
-            choice is ignored by the validator rather than quietly becoming a
-            deficit nobody asked for. */}
-        {needsMagnitude(mode) && (
-          <Field
-            label={isPercent(mode) ? t("magnitudePercentLabel") : t("magnitudeKcalLabel")}
-            hint={t("magnitudeHint", magnitudeLimits(mode))}
-            error={errors.magnitude && messageFor(errors.magnitude)}
-          >
-            {(props) => (
-              <input
-                {...props}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                value={values.magnitude}
-                onChange={(event) => update("magnitude")(event.target.value)}
-              />
+        {/* Folded, not removed. The numbers are the whole of any disagreement
+            someone might have with the preset, so they stay one click away
+            rather than behind a settings page — and inside the same form, so
+            the button that saves the goal is the button that saves them. */}
+        <details className="rounded-md border border-black/15 p-4 dark:border-white/20">
+          <summary className="cursor-pointer text-sm font-medium">
+            {t("advancedLabel")}
+          </summary>
+
+          <div className="mt-4 flex flex-col gap-6">
+            <p className="text-xs opacity-60">{t("advancedHint")}</p>
+
+            {/* Hidden on maintenance: an adjustment box next to "manter peso"
+                is a question with no answer, and a number left in it from a
+                previous choice is ignored by the validator rather than quietly
+                becoming a deficit nobody asked for. */}
+            {needsAdjustment(kind) && (
+              <Field
+                label={t("adjustmentLabel")}
+                hint={t(`adjustmentHint.${adjustmentUnit}`, adjustmentLimits(adjustmentUnit))}
+                error={
+                  (errors.adjustment ?? errors.adjustmentUnit) &&
+                  messageFor((errors.adjustment ?? errors.adjustmentUnit)!)
+                }
+              >
+                {(props) => (
+                  <UnitInput
+                    control={props}
+                    value={values.adjustment}
+                    onValueChange={update("adjustment")}
+                    unit={values.adjustmentUnit}
+                    onUnitChange={update("adjustmentUnit")}
+                    units={ADJUSTMENT_UNITS}
+                    unitLabel={t("unitLabel")}
+                    unitName={(option) => t(`unit.${option}`)}
+                  />
+                )}
+              </Field>
             )}
-          </Field>
-        )}
 
-        <Field
-          label={t("proteinLabel")}
-          hint={t("coefficientHint", MACRO_GOAL_LIMITS.proteinGPerKg)}
-          error={errors.proteinGPerKg && messageFor(errors.proteinGPerKg)}
-        >
-          {(props) => (
-            <input
-              {...props}
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              value={values.proteinGPerKg}
-              onChange={(event) => update("proteinGPerKg")(event.target.value)}
-            />
-          )}
-        </Field>
+            <Field
+              label={t("proteinLabel")}
+              hint={t("coefficientHint", MACRO_GOAL_LIMITS.proteinGPerKg)}
+              error={errors.proteinGPerKg && messageFor(errors.proteinGPerKg)}
+            >
+              {(props) => (
+                <input
+                  {...props}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={values.proteinGPerKg}
+                  onChange={(event) => update("proteinGPerKg")(event.target.value)}
+                />
+              )}
+            </Field>
 
-        <Field
-          label={t("fatLabel")}
-          hint={t("coefficientHint", MACRO_GOAL_LIMITS.fatGPerKg)}
-          error={errors.fatGPerKg && messageFor(errors.fatGPerKg)}
-        >
-          {(props) => (
-            <input
-              {...props}
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              value={values.fatGPerKg}
-              onChange={(event) => update("fatGPerKg")(event.target.value)}
-            />
-          )}
-        </Field>
+            {/* A share of the energy rather than grams per kilogram, which is
+                how the guidance behind the presets is written — and a fixed
+                g/kg would quietly take a larger share of every deficit the user
+                deepens, squeezing the carbohydrate that is left. */}
+            <Field
+              label={t("fatLabel")}
+              hint={t(`fatHint.${fatUnit}`, fatLimits(fatUnit))}
+              error={
+                (errors.fat ?? errors.fatUnit) &&
+                messageFor((errors.fat ?? errors.fatUnit)!)
+              }
+            >
+              {(props) => (
+                <UnitInput
+                  control={props}
+                  value={values.fat}
+                  onValueChange={update("fat")}
+                  unit={values.fatUnit}
+                  onUnitChange={update("fatUnit")}
+                  units={FAT_UNITS}
+                  unitLabel={t("unitLabel")}
+                  unitName={(option) => t(`unit.${option}`)}
+                />
+              )}
+            </Field>
 
-        <p className="text-xs opacity-60">{t("carbNote")}</p>
+            <p className="text-xs opacity-60">{t("carbNote")}</p>
+          </div>
+        </details>
 
         <div className="flex flex-wrap items-center gap-4">
           <button
@@ -274,15 +339,21 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
         {/* The adjustment written out, for the same reason the TDEE equation
             above it is: a target with no visible arithmetic is a number to take
             on faith. A percentage is shown as the kilocalories it came to,
-            because that is the figure the grams were actually divided from. */}
+            because that is the figure the grams were actually divided from.
+            Maintenance gets a sentence instead of the sum, because "2.606 +0 =
+            2.606" is arithmetic that shows nothing — and a `+0` reads like a
+            number that failed to arrive rather than one that was never asked
+            for. */}
         <p className="font-mono text-sm opacity-70">
-          {t("targetEquation", {
-            tdee: kcal(plan.totalDailyEnergyExpenditure),
-            adjustment: format.number(Math.round(plan.adjustmentKcal), {
-              signDisplay: "always",
-            }),
-            target: kcal(plan.targetKcal),
-          })}
+          {plan.adjustmentKcal === 0
+            ? t("targetSame")
+            : t("targetEquation", {
+                tdee: kcal(plan.totalDailyEnergyExpenditure),
+                adjustment: format.number(Math.round(plan.adjustmentKcal), {
+                  signDisplay: "always",
+                }),
+                target: kcal(plan.targetKcal),
+              })}
         </p>
         <p className="text-xs opacity-60">
           {t("basis", { weight: format.number(weightKg) })}
@@ -325,6 +396,22 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
         </table>
       </div>
 
+      {/* Only reachable by typing fat in kilocalories: as a percentage the form
+          will not take anything under the floor. Said rather than refused —
+          the arithmetic is sound and it is the diet that is the problem, and
+          the user may know something about their case that we do not. */}
+      {plan.fatBelowFloor && (
+        <p className="text-sm text-red-700 dark:text-red-400">
+          {t("fatFloor", {
+            share: format.number(plan.fatShare, {
+              style: "percent",
+              maximumFractionDigits: 0,
+            }),
+            floor: FAT_FLOOR_PERCENT,
+          })}
+        </p>
+      )}
+
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-medium opacity-70">{t("reconcileHeading")}</h3>
         {/* #15's last done-when, and the reason this block exists at all: whole
@@ -337,11 +424,11 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
             target: kcal(plan.targetKcal),
           })}
         </p>
-        {/* One explanation or the other, never both. When the coefficients
-            alone overshoot, the gap is the overshoot — printing the rounding
-            note beside it would put "at most 8 kcal" under a difference of
-            several hundred, which reads as a broken calculation rather than as
-            a goal that cannot be met. */}
+        {/* One explanation or the other, never both. When protein and fat alone
+            overshoot, the gap is the overshoot — printing the rounding note
+            beside it would put "at most 8 kcal" under a difference of several
+            hundred, which reads as a broken calculation rather than as a goal
+            that cannot be met. */}
         {plan.carbShortfallKcal > 0 ? (
           <p className="text-sm text-red-700 dark:text-red-400">
             {t("shortfall", { excess: kcal(plan.carbShortfallKcal) })}
@@ -363,30 +450,34 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
 }
 
 /**
- * The mode the select is showing, as a `GoalMode`.
+ * The goal the select is showing, as a `GoalKind`.
  *
- * The form holds strings, and a value that is not a mode is a real possibility
+ * The form holds strings, and a value that is not a goal is a real possibility
  * — a restored snapshot, a hand-edited store. It falls back to maintenance for
- * the two decisions taken before validation runs (whether to show the magnitude
- * field, and which units the range message quotes); the submit path still
- * refuses it with `invalidMode` rather than silently saving maintenance.
+ * the decision taken before validation runs (whether to show the adjustment
+ * field at all); the submit path still refuses it with `invalidGoal` rather
+ * than silently saving maintenance.
  */
-function currentMode(raw: string): GoalMode {
-  return GOAL_MODES.find((candidate) => candidate === raw) ?? "maintain";
+function currentKind(raw: string): GoalKind {
+  return GOAL_KINDS.find((candidate) => candidate === raw) ?? "maintain";
 }
 
-function isPercent(mode: GoalMode): boolean {
-  return mode === "deficitPercent" || mode === "surplusPercent";
+/** The same fallback, for the unit that decides which bounds a message quotes. */
+function currentUnit(raw: string, fallback: EnergyUnit): EnergyUnit {
+  return ENERGY_UNITS.find((candidate) => candidate === raw) ?? fallback;
 }
 
 /** Bounds interpolated into the messages for the codes that quote them. */
 function errorParams(
   code: GoalErrorCode,
-  mode: GoalMode,
+  adjustmentUnit: EnergyUnit,
+  fatUnit: EnergyUnit,
 ): Record<string, number> | undefined {
-  if (code === "kcalRange" || code === "percentRange") return magnitudeLimits(mode);
+  if (code === "kcalRange" || code === "percentRange") {
+    return adjustmentLimits(adjustmentUnit);
+  }
   if (code === "proteinRange") return MACRO_GOAL_LIMITS.proteinGPerKg;
-  if (code === "fatRange") return MACRO_GOAL_LIMITS.fatGPerKg;
+  if (code === "fatPercentRange" || code === "fatKcalRange") return fatLimits(fatUnit);
 
   return undefined;
 }

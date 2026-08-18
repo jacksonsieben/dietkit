@@ -3,12 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   ATWATER,
   DEFAULT_MACRO_GOAL,
+  FAT_FLOOR_PERCENT,
+  GOAL_PRESETS,
   MACRO_GOAL_LIMITS,
   adjustedEnergy,
+  fatEnergy,
+  goalSign,
   macroEnergy,
   planMacros,
 } from "./macros";
-import type { MacroGoal } from "@/lib/storage/types";
+import { GOAL_KINDS, type MacroGoal } from "@/lib/storage/types";
 
 /**
  * The failure this file is written against is not a wrong answer, it is a
@@ -19,14 +23,19 @@ import type { MacroGoal } from "@/lib/storage/types";
  * the grams are independently checked to be worth the energy they claim.
  */
 
-/** 80 kg, 2500 kcal/day, 500 below maintenance. Chosen to land on integers. */
+/**
+ * 80 kg, 2500 kcal/day, 500 below maintenance, 36% of the target from fat.
+ * Chosen so every step lands on an integer: 2000 kcal, 160 g protein, 80 g fat,
+ * 160 g carbohydrate.
+ */
 const CLEAN: Parameters<typeof planMacros>[0] = {
   totalDailyEnergyExpenditure: 2500,
   weightKg: 80,
   goal: {
-    adjustment: { kind: "kcal", value: -500 },
+    kind: "lose",
+    adjustment: { unit: "kcal", value: 500 },
     proteinGPerKg: 2,
-    fatGPerKg: 1,
+    fat: { unit: "percent", value: 36 },
   },
 };
 
@@ -57,34 +66,52 @@ describe("macroEnergy", () => {
   });
 });
 
+describe("goalSign", () => {
+  it("puts the direction in the goal and nowhere else", () => {
+    // The whole reason no field in this app asks a human to type a minus.
+    expect(goalSign("lose")).toBe(-1);
+    expect(goalSign("maintain")).toBe(0);
+    expect(goalSign("gain")).toBe(1);
+  });
+});
+
 describe("adjustedEnergy", () => {
-  it("subtracts an absolute deficit", () => {
-    expect(adjustedEnergy(2500, { kind: "kcal", value: -500 })).toBe(2000);
+  /** The two fields `adjustedEnergy` actually reads, without the rest of a goal. */
+  const at = (
+    kind: MacroGoal["kind"],
+    unit: MacroGoal["adjustment"]["unit"],
+    value: number,
+  ) => ({ kind, adjustment: { unit, value } });
+
+  it("subtracts on a cut and adds on a bulk, from the same unsigned number", () => {
+    expect(adjustedEnergy(2500, at("lose", "kcal", 500))).toBe(2000);
+    expect(adjustedEnergy(2500, at("gain", "kcal", 500))).toBe(3000);
   });
 
-  it("adds an absolute surplus", () => {
-    expect(adjustedEnergy(2500, { kind: "kcal", value: 300 })).toBe(2800);
+  it("takes a percentage off and puts one on", () => {
+    expect(adjustedEnergy(2500, at("lose", "percent", 20))).toBeCloseTo(2000, 10);
+    expect(adjustedEnergy(2500, at("gain", "percent", 10))).toBeCloseTo(2750, 10);
   });
 
-  it("takes a percentage off", () => {
-    expect(adjustedEnergy(2500, { kind: "percent", value: -20 })).toBeCloseTo(2000, 10);
+  it("leaves maintenance alone, whichever unit it was stored in", () => {
+    // And the stored magnitude is a zero, which is deliberately outside the
+    // unsigned bounds — so maintenance has to return before they are checked.
+    expect(adjustedEnergy(2477.5, at("maintain", "kcal", 0))).toBe(2477.5);
+    expect(adjustedEnergy(2477.5, at("maintain", "percent", 0))).toBe(2477.5);
   });
 
-  it("puts a percentage on", () => {
-    expect(adjustedEnergy(2500, { kind: "percent", value: 10 })).toBeCloseTo(2750, 10);
-  });
-
-  it("leaves maintenance alone, whichever way it was expressed", () => {
-    expect(adjustedEnergy(2477.5, { kind: "kcal", value: 0 })).toBe(2477.5);
-    expect(adjustedEnergy(2477.5, { kind: "percent", value: 0 })).toBe(2477.5);
+  it("ignores a stale magnitude left over from another goal", () => {
+    // The box is hidden on maintenance but its value survives in state, and an
+    // import can carry anything at all. Maintenance means maintenance.
+    expect(adjustedEnergy(2500, at("maintain", "kcal", 500))).toBe(2500);
   });
 
   it("keeps a percentage proportional and an absolute figure not", () => {
-    // The reason `kind` is stored rather than normalised to kilocalories: after
-    // a change in bodyweight moves TDEE, one of these two follows and the other
-    // deliberately does not.
-    const percent = { kind: "percent", value: -20 } as const;
-    const kcal = { kind: "kcal", value: -500 } as const;
+    // The reason the unit is stored rather than normalised to kilocalories:
+    // after a change in bodyweight moves TDEE, one of these two follows and the
+    // other deliberately does not.
+    const percent = at("lose", "percent", 20);
+    const kcal = at("lose", "kcal", 500);
 
     expect(adjustedEnergy(2000, percent)).toBeCloseTo(1600, 10);
     expect(adjustedEnergy(3000, percent)).toBeCloseTo(2400, 10);
@@ -93,22 +120,37 @@ describe("adjustedEnergy", () => {
   });
 
   it.each([
-    ["a deficit deeper than the limit", { kind: "percent", value: -41 } as const],
-    ["a surplus above the limit", { kind: "kcal", value: 1501 } as const],
-    ["NaN", { kind: "kcal", value: Number.NaN } as const],
-  ])("throws on %s", (_label, adjustment) => {
-    expect(() => adjustedEnergy(2500, adjustment)).toThrow(RangeError);
+    ["a deficit deeper than the limit", at("lose", "percent", 41)],
+    ["a surplus above the limit", at("gain", "kcal", 1501)],
+    ["a magnitude of zero on a goal that needs one", at("lose", "kcal", 0)],
+    ["a magnitude with a sign of its own", at("lose", "kcal", -500)],
+    ["NaN", at("gain", "kcal", Number.NaN)],
+  ])("throws on %s", (_label, goal) => {
+    expect(() => adjustedEnergy(2500, goal)).toThrow(RangeError);
   });
 
   it("throws on an expenditure that cannot be one", () => {
-    expect(() => adjustedEnergy(0, { kind: "kcal", value: 0 })).toThrow(RangeError);
+    expect(() => adjustedEnergy(0, at("maintain", "kcal", 0))).toThrow(RangeError);
+  });
+});
+
+describe("fatEnergy", () => {
+  it("takes a share of the target when it is a percentage", () => {
+    expect(fatEnergy({ unit: "percent", value: 25 }, 2000)).toBe(500);
+    expect(fatEnergy({ unit: "percent", value: 25 }, 3000)).toBe(750);
+  });
+
+  it("stays put when it is an absolute figure", () => {
+    expect(fatEnergy({ unit: "kcal", value: 600 }, 2000)).toBe(600);
+    expect(fatEnergy({ unit: "kcal", value: 600 }, 3000)).toBe(600);
   });
 });
 
 describe("planMacros", () => {
   it("matches the worked example", () => {
-    // 2500 − 500 = 2000 kcal. 80 kg × 2 = 160 g protein (640 kcal); 80 kg × 1
-    // = 80 g fat (720 kcal); 2000 − 640 − 720 = 640 kcal left, ÷ 4 = 160 g carb.
+    // 2500 − 500 = 2000 kcal. 80 kg × 2 = 160 g protein (640 kcal); 36% of 2000
+    // = 720 kcal of fat, ÷ 9 = 80 g; 2000 − 640 − 720 = 640 kcal left, ÷ 4 =
+    // 160 g carbohydrate.
     const plan = planMacros(CLEAN);
 
     expect(plan.targetKcal).toBe(2000);
@@ -123,11 +165,80 @@ describe("planMacros", () => {
   it("reports the adjustment in kilocalories even when it was a percentage", () => {
     const plan = planMacros({
       ...CLEAN,
-      goal: { ...CLEAN.goal, adjustment: { kind: "percent", value: -20 } },
+      goal: { ...CLEAN.goal, adjustment: { unit: "percent", value: 20 } },
     });
 
     expect(plan.adjustmentKcal).toBeCloseTo(-500, 10);
     expect(plan.targetKcal).toBeCloseTo(2000, 10);
+  });
+
+  it("signs the adjustment from the goal, not from the number typed", () => {
+    const cut = planMacros(CLEAN);
+    const bulk = planMacros({ ...CLEAN, goal: { ...CLEAN.goal, kind: "gain" } });
+
+    expect(cut.adjustmentKcal).toBe(-500);
+    expect(bulk.adjustmentKcal).toBe(500);
+  });
+
+  describe("fat as a share of the energy", () => {
+    it("scales the grams with the target", () => {
+      // The point of expressing fat as a percentage: deepen the cut and the fat
+      // comes down with it, instead of a fixed g/kg quietly eating a larger and
+      // larger slice of a shrinking target.
+      const shallow = planMacros({
+        ...CLEAN,
+        goal: { ...CLEAN.goal, adjustment: { unit: "kcal", value: 100 } },
+      });
+      const deep = planMacros(CLEAN);
+
+      expect(deep.targetKcal).toBeLessThan(shallow.targetKcal);
+      expect(deep.exact.fatG).toBeLessThan(shallow.exact.fatG);
+      expect(deep.fatShare).toBeCloseTo(shallow.fatShare, 10);
+    });
+
+    it("holds an absolute figure still while the target moves", () => {
+      const goal: MacroGoal = { ...CLEAN.goal, fat: { unit: "kcal", value: 600 } };
+      const shallow = planMacros({
+        ...CLEAN,
+        goal: { ...goal, adjustment: { unit: "kcal", value: 100 } },
+      });
+      const deep = planMacros({ ...CLEAN, goal });
+
+      expect(deep.exact.fatG).toBeCloseTo(shallow.exact.fatG, 10);
+      expect(deep.fatShare).toBeGreaterThan(shallow.fatShare);
+    });
+
+    it("reports the share as a fraction of the target", () => {
+      expect(planMacros(CLEAN).fatShare).toBeCloseTo(0.36, 10);
+    });
+
+    it("says nothing about the floor in the ordinary case", () => {
+      expect(planMacros(CLEAN).fatBelowFloor).toBe(false);
+    });
+
+    it("flags a fat figure that lands under the floor", () => {
+      // Only reachable through the kcal unit — as a percentage the form will
+      // not take anything under `FAT_FLOOR_PERCENT`. 200 kcal of a 2000 kcal
+      // target is 10%.
+      const plan = planMacros({
+        ...CLEAN,
+        goal: { ...CLEAN.goal, fat: { unit: "kcal", value: 200 } },
+      });
+
+      expect(plan.fatShare).toBeCloseTo(0.1, 10);
+      expect(plan.fatBelowFloor).toBe(true);
+    });
+
+    it("puts the flag exactly at the floor and not a step before it", () => {
+      // 15% of 2000 is 300 kcal. The boundary itself is allowed; a shade under
+      // it is not.
+      const at = (value: number) =>
+        planMacros({ ...CLEAN, goal: { ...CLEAN.goal, fat: { unit: "kcal", value } } });
+
+      expect(FAT_FLOOR_PERCENT).toBe(15);
+      expect(at(300).fatBelowFloor).toBe(false);
+      expect(at(299).fatBelowFloor).toBe(true);
+    });
   });
 
   describe("carbohydrate is the remainder", () => {
@@ -138,57 +249,50 @@ describe("planMacros", () => {
       });
       const base = planMacros(CLEAN);
 
-      // +1 g/kg over 80 kg is 80 g of protein, worth 320 kcal, which is 80 g of
-      // carbohydrate.
-      expect(richer.exact.proteinG - base.exact.proteinG).toBeCloseTo(80, 10);
-      expect(richer.exact.carbG - base.exact.carbG).toBeCloseTo(-80, 10);
+      // +1 g/kg over 80 kg is 80 g of protein, worth 320 kcal — which comes
+      // straight out of the carbohydrate, gram for kilocalorie.
+      expect(richer.targets.proteinG - base.targets.proteinG).toBe(80);
+      expect(base.targets.carbG - richer.targets.carbG).toBe(80);
     });
 
-    it("gives up 9 kcal of carbohydrate per extra gram of fat", () => {
+    it("gives up carbohydrate to fat at 9 kcal a gram", () => {
+      // 5 points of a 2000 kcal target is 100 kcal: 11.1 g of fat bought with
+      // 25 g of carbohydrate.
       const fattier = planMacros({
         ...CLEAN,
-        goal: { ...CLEAN.goal, fatGPerKg: CLEAN.goal.fatGPerKg + 0.5 },
+        goal: { ...CLEAN.goal, fat: { unit: "percent", value: 41 } },
       });
       const base = planMacros(CLEAN);
 
-      // +0.5 g/kg over 80 kg is 40 g of fat, worth 360 kcal — 90 g of carbohydrate.
-      expect(fattier.exact.fatG - base.exact.fatG).toBeCloseTo(40, 10);
-      expect(fattier.exact.carbG - base.exact.carbG).toBeCloseTo(-90, 10);
+      expect(fattier.exact.fatG - base.exact.fatG).toBeCloseTo(100 / 9, 10);
+      expect(base.exact.carbG - fattier.exact.carbG).toBeCloseTo(25, 10);
     });
 
-    it("scales protein and fat with bodyweight and not with energy", () => {
-      const heavier = planMacros({ ...CLEAN, weightKg: 90 });
+    it("leaves the grams worth what the target asked for", () => {
+      // The end-to-end check: whatever the split, the exact grams price back to
+      // the target. A factor used in one direction and not the other breaks
+      // here even when every individual number still looks reasonable.
+      const { exact, targetKcal } = planMacros(CLEAN);
 
-      expect(heavier.exact.proteinG).toBeCloseTo(180, 10);
-      expect(heavier.exact.fatG).toBeCloseTo(90, 10);
-      // Same target, more protein and fat, so the remainder has to shrink.
-      expect(heavier.targetKcal).toBe(planMacros(CLEAN).targetKcal);
-      expect(heavier.exact.carbG).toBeLessThan(planMacros(CLEAN).exact.carbG);
+      expect(macroEnergy(exact)).toBeCloseTo(targetKcal, 10);
     });
   });
 
-  describe("reconciliation", () => {
+  describe("rounding", () => {
+    /** Deliberately awkward: nothing here divides evenly. */
     const AWKWARD: Parameters<typeof planMacros>[0] = {
-      totalDailyEnergyExpenditure: 2477.5,
+      totalDailyEnergyExpenditure: 2333,
       weightKg: 72.4,
       goal: {
-        adjustment: { kind: "percent", value: -15 },
+        kind: "lose",
+        adjustment: { unit: "percent", value: 13 },
         proteinGPerKg: 1.8,
-        fatGPerKg: 0.9,
+        fat: { unit: "percent", value: 27 },
       },
     };
 
-    it("prices the stored targets from their own grams, not from the goal", () => {
-      // The invariant that keeps #21 honest: whatever else is true, a MacroSet
-      // must be worth what its own grams are worth. If `kcal` were copied from
-      // the target instead, every diet built against it would fail to add up.
-      const { targets } = planMacros(AWKWARD);
-
-      expect(targets.kcal).toBe(macroEnergy(targets));
-      expect(targets.kcal).toBe(2105);
-    });
-
-    it("keeps the grams whole", () => {
+    it("hands out whole grams", () => {
+      // Nobody weighs 130.32 g of chicken.
       const { targets } = planMacros(AWKWARD);
 
       expect(targets.proteinG % 1).toBe(0);
@@ -200,16 +304,17 @@ describe("planMacros", () => {
       const { exact } = planMacros(AWKWARD);
 
       expect(exact.proteinG).toBeCloseTo(130.32, 10);
-      expect(exact.fatG).toBeCloseTo(65.16, 10);
+      expect(exact.fatG).toBeCloseTo(60.8913, 10);
       expect(exact.carbG % 1).not.toBe(0);
     });
 
     it("reports the rounding drift instead of swallowing it", () => {
       const plan = planMacros(AWKWARD);
 
-      // 2105 on the plate against 2105.875 asked for.
-      expect(plan.targetKcal).toBeCloseTo(2105.875, 10);
-      expect(plan.driftKcal).toBeCloseTo(-0.875, 10);
+      // 2029 on the plate against 2029.71 asked for.
+      expect(plan.targetKcal).toBeCloseTo(2029.71, 10);
+      expect(plan.targets.kcal).toBe(2029);
+      expect(plan.driftKcal).toBeCloseTo(-0.71, 10);
       expect(plan.driftKcal).toBeCloseTo(plan.targets.kcal - plan.targetKcal, 10);
     });
 
@@ -233,14 +338,15 @@ describe("planMacros", () => {
   });
 
   describe("a goal that does not fit", () => {
-    /** 90 kg on 3 g/kg protein and 2 g/kg fat — 2700 kcal before any carbohydrate. */
+    /** 90 kg on 3 g/kg of protein against a 40% cut — 1080 kcal before any fat. */
     const IMPOSSIBLE: Parameters<typeof planMacros>[0] = {
       totalDailyEnergyExpenditure: 1600,
       weightKg: 90,
       goal: {
-        adjustment: { kind: "percent", value: -40 },
+        kind: "lose",
+        adjustment: { unit: "percent", value: 40 },
         proteinGPerKg: 3,
-        fatGPerKg: 2,
+        fat: { unit: "percent", value: 60 },
       },
     };
 
@@ -254,9 +360,10 @@ describe("planMacros", () => {
     it("says how much energy would not fit", () => {
       const plan = planMacros(IMPOSSIBLE);
 
-      // 1600 × 0.6 = 960 kcal asked for; 270 g protein and 180 g fat cost 2700.
+      // 1600 × 0.6 = 960 kcal asked for; 270 g of protein costs 1080 and 60% of
+      // the target is another 576.
       expect(plan.targetKcal).toBeCloseTo(960, 10);
-      expect(plan.carbShortfallKcal).toBeCloseTo(1740, 10);
+      expect(plan.carbShortfallKcal).toBeCloseTo(696, 10);
     });
 
     it("keeps the shortfall out of the ordinary case", () => {
@@ -275,12 +382,14 @@ describe("planMacros", () => {
       ["negative weight", { ...CLEAN, weightKg: -80 }],
       ["protein below the limit", withGoal({ proteinGPerKg: 0.4 })],
       ["protein above the limit", withGoal({ proteinGPerKg: 4.1 })],
-      ["fat below the limit", withGoal({ fatGPerKg: 0.2 })],
-      ["fat above the limit", withGoal({ fatGPerKg: 2.6 })],
-      ["a NaN coefficient", withGoal({ fatGPerKg: Number.NaN })],
+      ["a fat share under the floor", withGoal({ fat: { unit: "percent", value: 14 } })],
+      ["a fat share above the limit", withGoal({ fat: { unit: "percent", value: 61 } })],
+      ["a fat figure below the limit", withGoal({ fat: { unit: "kcal", value: 99 } })],
+      ["a fat figure above the limit", withGoal({ fat: { unit: "kcal", value: 2001 } })],
+      ["a NaN coefficient", withGoal({ proteinGPerKg: Number.NaN })],
       [
         "an adjustment past the limit",
-        withGoal({ adjustment: { kind: "kcal", value: -2000 } }),
+        withGoal({ adjustment: { unit: "kcal", value: 2000 } }),
       ],
     ])("throws on %s", (_label, input) => {
       expect(() => planMacros(input)).toThrow(RangeError);
@@ -294,9 +403,10 @@ describe("planMacros", () => {
           totalDailyEnergyExpenditure: 1200,
           weightKg: 50,
           goal: {
-            adjustment: { kind: "kcal", value: -1500 },
+            kind: "lose",
+            adjustment: { unit: "kcal", value: 1500 },
             proteinGPerKg: 1.8,
-            fatGPerKg: 1,
+            fat: { unit: "percent", value: 30 },
           },
         }),
       ).toThrow(RangeError);
@@ -304,26 +414,78 @@ describe("planMacros", () => {
   });
 });
 
-describe("DEFAULT_MACRO_GOAL", () => {
-  it("is maintenance", () => {
-    expect(DEFAULT_MACRO_GOAL.adjustment.value).toBe(0);
+describe("GOAL_PRESETS", () => {
+  it("has one for every goal, labelled with its own name", () => {
+    for (const kind of GOAL_KINDS) {
+      expect(GOAL_PRESETS[kind].kind).toBe(kind);
+    }
+  });
+
+  it("keeps maintenance at maintenance", () => {
+    expect(GOAL_PRESETS.maintain.adjustment.value).toBe(0);
+  });
+
+  it("moves the same distance either side of it", () => {
+    // 500 kcal each way. Not a law of nature, but a preset that cut by 500 and
+    // bulked by 200 would be making a judgement nobody asked it to make.
+    expect(GOAL_PRESETS.lose.adjustment).toEqual({ unit: "kcal", value: 500 });
+    expect(GOAL_PRESETS.gain.adjustment).toEqual({ unit: "kcal", value: 500 });
+  });
+
+  it("raises protein as energy gets scarcer or training gets harder", () => {
+    // Maintenance is the floor of the three: a cut needs protein to protect
+    // lean mass, and a bulk needs it to build any.
+    expect(GOAL_PRESETS.lose.proteinGPerKg).toBeGreaterThan(
+      GOAL_PRESETS.maintain.proteinGPerKg,
+    );
+    expect(GOAL_PRESETS.gain.proteinGPerKg).toBeGreaterThan(
+      GOAL_PRESETS.lose.proteinGPerKg,
+    );
+  });
+
+  it("expresses fat as a share, above the floor and inside the guidance", () => {
+    // ISSN/ACSM: 20–25% cutting, 25–30% maintaining, 20–30% gaining, never
+    // under 15–20%. A preset outside those is the one number here a user is
+    // least equipped to second-guess.
+    for (const kind of GOAL_KINDS) {
+      const fat = GOAL_PRESETS[kind].fat;
+
+      expect(fat.unit).toBe("percent");
+      expect(fat.value).toBeGreaterThan(FAT_FLOOR_PERCENT);
+      expect(fat.value).toBeLessThanOrEqual(30);
+    }
   });
 
   it("sits inside the limits the form enforces", () => {
-    // A default outside its own bounds would hand the user a form that refuses
-    // to save until they change a value they never chose.
-    expect(DEFAULT_MACRO_GOAL.proteinGPerKg).toBeGreaterThanOrEqual(
-      MACRO_GOAL_LIMITS.proteinGPerKg.min,
-    );
-    expect(DEFAULT_MACRO_GOAL.proteinGPerKg).toBeLessThanOrEqual(
-      MACRO_GOAL_LIMITS.proteinGPerKg.max,
-    );
-    expect(DEFAULT_MACRO_GOAL.fatGPerKg).toBeGreaterThanOrEqual(
-      MACRO_GOAL_LIMITS.fatGPerKg.min,
-    );
-    expect(DEFAULT_MACRO_GOAL.fatGPerKg).toBeLessThanOrEqual(
-      MACRO_GOAL_LIMITS.fatGPerKg.max,
-    );
+    // A preset outside its own bounds would hand the user a form that opens on
+    // an error they never typed and refuses to save until they fix it.
+    for (const kind of GOAL_KINDS) {
+      const goal = GOAL_PRESETS[kind];
+
+      expect(goal.proteinGPerKg).toBeGreaterThanOrEqual(
+        MACRO_GOAL_LIMITS.proteinGPerKg.min,
+      );
+      expect(goal.proteinGPerKg).toBeLessThanOrEqual(MACRO_GOAL_LIMITS.proteinGPerKg.max);
+      expect(goal.fat.value).toBeGreaterThanOrEqual(MACRO_GOAL_LIMITS.fatPercent.min);
+      expect(goal.fat.value).toBeLessThanOrEqual(MACRO_GOAL_LIMITS.fatPercent.max);
+    }
+  });
+
+  it("plans a real diet for every goal", () => {
+    for (const kind of GOAL_KINDS) {
+      const plan = planMacros({ ...CLEAN, goal: GOAL_PRESETS[kind] });
+
+      expect(plan.targets.carbG).toBeGreaterThan(0);
+      expect(plan.carbShortfallKcal).toBe(0);
+      expect(plan.fatBelowFloor).toBe(false);
+    }
+  });
+});
+
+describe("DEFAULT_MACRO_GOAL", () => {
+  it("is maintenance", () => {
+    // The goal that assumes least about someone the app has never met.
+    expect(DEFAULT_MACRO_GOAL).toBe(GOAL_PRESETS.maintain);
   });
 
   it("plans without argument", () => {
