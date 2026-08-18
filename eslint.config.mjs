@@ -116,6 +116,19 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": ["error", { patterns: [noAnalytics] }],
     },
   },
+  {
+    // ...and except tests, which are allowed to build a real adapter to run the
+    // code under test against. The point of the seam is that *shipped* code
+    // does not know which store it is talking to; a test that stands one up on
+    // fake-indexeddb is checking the seam holds, not going around it. The
+    // alternative is a mock that agrees with whatever the implementation does,
+    // which is how "persisted through the Repository interface" (#12) becomes a
+    // claim nothing verifies.
+    files: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [noAnalytics] }],
+    },
+  },
 
   // Override default ignores of eslint-config-next.
   globalIgnores([

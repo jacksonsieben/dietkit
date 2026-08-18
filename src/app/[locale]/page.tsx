@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
+import { Link } from "@/i18n/navigation";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 
@@ -22,6 +23,13 @@ export default async function Home({ params }: PageProps<"/[locale]">) {
         </h1>
         <p className="text-lg text-balance opacity-80">{app("tagline")}</p>
       </div>
+
+      <Link
+        href="/perfil"
+        className="self-start rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+      >
+        {t("profileLink")}
+      </Link>
 
       <p className="text-sm opacity-60">
         {t("underConstruction")} {t("privacyReassurance")}

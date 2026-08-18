@@ -29,7 +29,8 @@
   "Home": {
     "heading": "DietKit",
     "underConstruction": "Em construção.",
-    "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho."
+    "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho.",
+    "profileLink": "Começar pelo perfil"
   },
   "NotFound": {
     "heading": "Página não encontrada",
@@ -149,5 +150,50 @@
     "deviceHeading": "Não é dispositivo médico",
     "deviceBody": "O DietKit não diagnostica, não trata e não previne doença nenhuma. Não é dispositivo médico, não passou por avaliação da Anvisa e não substitui consulta, exame ou acompanhamento.",
     "emergencyBody": "Em caso de emergência, procure atendimento médico."
+  },
+  "Profile": {
+    "title": "Seu perfil",
+    "lead": "Estes números ficam neste aparelho. Nada é enviado para servidor nenhum, e ninguém além de você consegue lê-los.",
+    "disclaimer": "O que sai daqui é uma estimativa, não uma prescrição.",
+    "disclaimerLink": "Leia o aviso de saúde",
+    "loading": "Lendo o que está salvo neste aparelho…",
+    "loadError": "Não foi possível ler os dados salvos neste aparelho. Recarregue a página.",
+    "weightLabel": "Peso (kg)",
+    "weightHint": "Salvo também como a pesagem de hoje.",
+    "weightFrom": "Valor da pesagem de {date}.",
+    "heightLabel": "Altura (cm)",
+    "heightHint": "Em centímetros — 178, não 1,78.",
+    "birthDateLabel": "Data de nascimento",
+    "birthDateHint": "Guardamos a data, não a idade: idade anotada uma vez fica errada em menos de um ano.",
+    "ageValue": "{years, plural, one {# ano} other {# anos}} hoje.",
+    "sexLabel": "Sexo",
+    "sexHint": "A equação usada aqui foi ajustada separadamente para homens e mulheres, e só tem essas duas constantes.",
+    "sexMale": "Masculino",
+    "sexFemale": "Feminino",
+    "activityLabel": "Fator de atividade",
+    "activityHint": "Conte a semana inteira, não só o treino: quem passa o dia em pé já não é sedentário.",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "saved": "Perfil salvo neste aparelho.",
+    "saveError": "Não foi possível salvar. Tente de novo.",
+    "errors": {
+      "required": "Preencha este campo.",
+      "notANumber": "Use apenas números — 82 ou 82,4.",
+      "weightRange": "O peso precisa estar entre {min} e {max} kg.",
+      "heightRange": "A altura precisa estar entre {min} e {max} cm.",
+      "activityRange": "O fator precisa estar entre {min} e {max}.",
+      "notADate": "Use uma data válida.",
+      "future": "A data de nascimento não pode estar no futuro.",
+      "implausibleAge": "Confira o ano — essa data indica mais de {max} anos.",
+      "invalidSex": "Escolha uma das opções."
+    },
+    "activityLevel": {
+      "sedentary": "Sedentário — trabalho sentado, pouco ou nenhum exercício",
+      "light": "Levemente ativo — exercício leve 1 a 3 dias por semana",
+      "moderate": "Moderadamente ativo — exercício 3 a 5 dias por semana",
+      "high": "Muito ativo — exercício intenso 6 a 7 dias por semana",
+      "athlete": "Extremamente ativo — trabalho físico pesado ou dois treinos por dia"
+    },
+    "activityCustom": "Personalizado — {factor}"
   }
 }

@@ -1,0 +1,384 @@
+"use client";
+
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
+import { useFormatter, useTranslations } from "next-intl";
+
+import { Link } from "@/i18n/navigation";
+import { todayIsoDate } from "@/lib/date";
+import { ageYearsOn } from "@/lib/energy/age";
+import { ACTIVITY_LEVELS, offLadderActivity } from "@/lib/profile/activity";
+import { loadProfileForm, saveProfileForm, toField } from "@/lib/profile/persistence";
+import {
+  PROFILE_LIMITS,
+  type ProfileErrorCode,
+  type ProfileErrors,
+  type ProfileField,
+  type ProfileFormValues,
+  validateProfileForm,
+} from "@/lib/profile/validation";
+import { getRepository } from "@/lib/storage";
+
+/**
+ * The one screen that asks the user for something about their body.
+ *
+ * A client component, and not by preference: `getRepository()` throws where
+ * there is no IndexedDB, on purpose (see src/lib/storage/index.ts). Personal
+ * data never reaches a server in this architecture, so there is nothing for a
+ * server component to render here — the values do not exist until this code
+ * runs on the device that owns them.
+ *
+ * Weight is captured here but does not live in `Profile`. It is written to the
+ * weight log as today's entry, because the log is the single source of the
+ * current weight (#23, #25) and a profile field beside it would go stale the
+ * first time somebody weighed themselves.
+ */
+
+const EMPTY: ProfileFormValues = {
+  weightKg: "",
+  heightCm: "",
+  birthDate: "",
+  sex: "",
+  activityFactor: "",
+};
+
+/** Bounds interpolated into the message for the codes that quote them. */
+const ERROR_PARAMS: Partial<Record<ProfileErrorCode, Record<string, number>>> = {
+  weightRange: PROFILE_LIMITS.weightKg,
+  heightRange: PROFILE_LIMITS.heightCm,
+  activityRange: PROFILE_LIMITS.activityFactor,
+  implausibleAge: { max: PROFILE_LIMITS.ageYears.max },
+};
+
+type Status = "loading" | "ready" | "saving" | "saved" | "loadFailed" | "saveFailed";
+
+export function ProfileForm() {
+  const t = useTranslations("Profile");
+  const format = useFormatter();
+
+  const [values, setValues] = useState<ProfileFormValues>(EMPTY);
+  const [errors, setErrors] = useState<ProfileErrors>({});
+  const [status, setStatus] = useState<Status>("loading");
+  /** The day the weight in the field was measured, when it came from the log. */
+  const [weightFrom, setWeightFrom] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        // "Editable after creation" is this, and nothing else: the form is the
+        // same form whether or not there is already something to read.
+        const loaded = await loadProfileForm(getRepository());
+        if (cancelled) return;
+
+        setValues(loaded.values);
+        setWeightFrom(loaded.weightFrom);
+        setStatus("ready");
+      } catch {
+        if (!cancelled) setStatus("loadFailed");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const update = (field: ProfileField) => (value: string) => {
+    setValues((current) => ({ ...current, [field]: value }));
+    // Clears this field's complaint as it is being addressed, rather than
+    // leaving stale red text under a value the user has already fixed.
+    setErrors((current) => {
+      if (!(field in current)) return current;
+      const { [field]: _cleared, ...rest } = current;
+      return rest;
+    });
+    setStatus((current) => (current === "saved" ? "ready" : current));
+  };
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const today = todayIsoDate();
+    const result = validateProfileForm(values, today);
+    if (!result.ok) {
+      setErrors(result.errors);
+      setStatus("ready");
+      return;
+    }
+
+    setErrors({});
+    setStatus("saving");
+
+    try {
+      await saveProfileForm(
+        getRepository(),
+        result.value,
+        today,
+        new Date().toISOString(),
+      );
+
+      setWeightFrom(today);
+      setStatus("saved");
+    } catch {
+      setStatus("saveFailed");
+    }
+  };
+
+  if (status === "loading") {
+    return <p className="text-sm opacity-60">{t("loading")}</p>;
+  }
+
+  if (status === "loadFailed") {
+    return <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>;
+  }
+
+  const today = todayIsoDate();
+  const age =
+    values.birthDate !== "" && !errors.birthDate && values.birthDate <= today
+      ? ageOrUndefined(values.birthDate, today)
+      : undefined;
+
+  const offLadder = offLadderActivity(values.activityFactor);
+
+  const messageFor = (code: ProfileErrorCode) => t(`errors.${code}`, ERROR_PARAMS[code]);
+
+  return (
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
+      <Field
+        label={t("weightLabel")}
+        hint={
+          weightFrom
+            ? `${t("weightHint")} ${t("weightFrom", { date: formatDay(format, weightFrom) })}`
+            : t("weightHint")
+        }
+        error={errors.weightKg && messageFor(errors.weightKg)}
+      >
+        {(props) => (
+          <input
+            {...props}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={values.weightKg}
+            onChange={(event) => update("weightKg")(event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field
+        label={t("heightLabel")}
+        hint={t("heightHint")}
+        error={errors.heightCm && messageFor(errors.heightCm)}
+      >
+        {(props) => (
+          <input
+            {...props}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={values.heightCm}
+            onChange={(event) => update("heightCm")(event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field
+        label={t("birthDateLabel")}
+        hint={
+          age === undefined
+            ? t("birthDateHint")
+            : `${t("birthDateHint")} ${t("ageValue", { years: age })}`
+        }
+        error={errors.birthDate && messageFor(errors.birthDate)}
+      >
+        {(props) => (
+          <input
+            {...props}
+            // Yields `YYYY-MM-DD` in `.value` whatever the display format is,
+            // which is exactly the shape everything downstream expects.
+            type="date"
+            max={today}
+            value={values.birthDate}
+            onChange={(event) => update("birthDate")(event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field
+        label={t("sexLabel")}
+        hint={t("sexHint")}
+        error={errors.sex && messageFor(errors.sex)}
+      >
+        {(props) => (
+          <select
+            {...props}
+            value={values.sex}
+            onChange={(event) => update("sex")(event.target.value)}
+          >
+            <option value="" />
+            <option value="male">{t("sexMale")}</option>
+            <option value="female">{t("sexFemale")}</option>
+          </select>
+        )}
+      </Field>
+
+      <Field
+        label={t("activityLabel")}
+        // #14 adds the custom override and the explanation of why two
+        // calculators put the same week of training on different rungs. The
+        // rungs themselves live in ./activity.ts so both share one list.
+        hint={t("activityHint")}
+        error={errors.activityFactor && messageFor(errors.activityFactor)}
+      >
+        {(props) => (
+          <select
+            {...props}
+            value={values.activityFactor}
+            onChange={(event) => update("activityFactor")(event.target.value)}
+          >
+            <option value="" />
+            {ACTIVITY_LEVELS.map((level) => (
+              <option key={level.id} value={toField(level.factor)}>
+                {t(`activityLevel.${level.id}`)}
+              </option>
+            ))}
+            {offLadder && (
+              // A stored factor that sits between two rungs — an import (#26),
+              // or #14's override once it exists. Without an option carrying it
+              // the select would show nothing selected and quietly replace the
+              // user's number with whichever rung they touched next.
+              <option value={offLadder}>
+                {t("activityCustom", { factor: offLadder })}
+              </option>
+            )}
+          </select>
+        )}
+      </Field>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <button
+          type="submit"
+          disabled={status === "saving"}
+          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+        >
+          {status === "saving" ? t("saving") : t("save")}
+        </button>
+
+        <p aria-live="polite" className="text-sm">
+          {status === "saved" ? (
+            <span className="opacity-70">{t("saved")}</span>
+          ) : null}
+          {status === "saveFailed" ? (
+            <span className="text-red-700 dark:text-red-400">{t("saveError")}</span>
+          ) : null}
+        </p>
+      </div>
+
+      {/* The follow-up § D10 left open: the health notice belongs beside the
+          body-metrics input, not only in the footer where it is easy to walk
+          past. */}
+      <p className="text-xs opacity-60">
+        {t("disclaimer")}{" "}
+        <Link href="/saude" className="underline underline-offset-4">
+          {t("disclaimerLink")}
+        </Link>
+      </p>
+    </form>
+  );
+}
+
+/** `undefined` rather than a throw — the date came from an input, not from us. */
+function ageOrUndefined(birthDate: string, today: string): number | undefined {
+  try {
+    return ageYearsOn(birthDate, today);
+  } catch {
+    return undefined;
+  }
+}
+
+function formatDay(format: ReturnType<typeof useFormatter>, day: string): string {
+  // `timeZone: "UTC"` for the same reason as src/lib/legal.ts: the string is a
+  // calendar day, `new Date` reads it as UTC midnight, and rendering that in
+  // São Paulo prints the day before.
+  return format.dateTime(new Date(`${day}T00:00:00Z`), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+interface ControlProps {
+  id: string;
+  "aria-describedby": string;
+  "aria-invalid": boolean;
+  className: string;
+}
+
+/**
+ * `bg-background text-foreground` rather than `bg-transparent`, which is what
+ * this was and what broke the dropdown in dark mode.
+ *
+ * A transparent background looks identical on the closed control — the body
+ * shows through — but the `<select>` popup is a surface the browser draws for
+ * itself, and an author-declared `background-color` of `rgba(0,0,0,0)` gets
+ * composited over that surface rather than over the page. The result was the
+ * palette's light-grey text on the UA's white: unreadable, and invisible in any
+ * screenshot of the page, because the popup is not part of the page.
+ *
+ * `color-scheme` in globals.css is the other half of this and is not
+ * interchangeable with it: that one tells the browser which defaults to use,
+ * this one stops us overriding them with a transparency we never wanted.
+ */
+const CONTROL_CLASS =
+  "w-full rounded-md border border-black/15 bg-background px-3 py-2 text-base text-foreground aria-[invalid=true]:border-red-600 dark:border-white/20 dark:aria-[invalid=true]:border-red-500";
+
+/**
+ * Label, control, hint and error as one unit.
+ *
+ * The control is a render prop rather than a `type` string because three of
+ * these are text inputs, one is a date input and one is a `<select>`, and a
+ * component that switched on a prop to decide which element to render would be
+ * harder to read than the five call sites it saved.
+ */
+function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint: string;
+  error?: string;
+  children: (props: ControlProps) => ReactNode;
+}) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </label>
+
+      {children({
+        id,
+        "aria-describedby": error ? `${hintId} ${errorId}` : hintId,
+        "aria-invalid": error !== undefined,
+        className: CONTROL_CLASS,
+      })}
+
+      <p id={hintId} className="text-xs opacity-60">
+        {hint}
+      </p>
+
+      {error ? (
+        <p id={errorId} className="text-xs text-red-700 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}

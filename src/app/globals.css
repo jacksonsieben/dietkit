@@ -1,6 +1,18 @@
 @import "tailwindcss";
 
+/*
+ * `color-scheme` is what native controls read, and it is not implied by the
+ * palette below. Without it the browser paints every widget it owns — the
+ * `<select>` popup, the date picker, scrollbars — from its own light defaults,
+ * while the text inside them inherits `--foreground`. In dark mode that is
+ * #ededed on white: a dropdown you cannot read, and one that never appears in
+ * a screenshot of the page because the popup is drawn outside it.
+ *
+ * Declared next to the palette, and switched by the same media query, so the
+ * two cannot drift apart.
+ */
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -14,6 +26,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --background: #0a0a0a;
     --foreground: #ededed;
   }
@@ -23,4 +36,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/*
+ * The popup a `<select>` opens is drawn by the browser, outside the page, and
+ * its rows do not inherit the page's colours the way the closed control does.
+ * Left alone they land on the UA's own surface — white, under light-grey text,
+ * in dark mode. Stated here rather than on one component because it is true of
+ * every select this app will ever render.
+ */
+select,
+select option {
+  background-color: var(--background);
+  color: var(--foreground);
 }
