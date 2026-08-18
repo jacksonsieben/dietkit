@@ -110,6 +110,25 @@ describe("foodSearchResponse", () => {
     expect(response.headers.has("set-cookie")).toBe(false);
   });
 
+  it("does not let a shared cache keep an empty answer", async () => {
+    // The failure this pins down happened for real: the preview deployment
+    // answered `q=batata` with nothing for hours after the table was seeded,
+    // because the empty body it cached before the seed carried a day-long
+    // `stale-while-revalidate`. An empty result is the one answer here that
+    // goes stale without the query changing, so it is the one that may not be
+    // held past the minute it takes to absorb a repeated keystroke.
+    const empty = await foodSearchResponse(stub([]), params("q=batata"));
+    const cacheControl = empty.headers.get("cache-control");
+
+    expect(cacheControl).not.toContain("stale-while-revalidate");
+    expect(cacheControl).toContain("s-maxage=60");
+
+    const found = await foodSearchResponse(stub(), params("q=arroz"));
+    expect(found.headers.get("cache-control")).toContain(
+      "stale-while-revalidate",
+    );
+  });
+
   it("carries nothing but the query, the count and the foods", async () => {
     // The same guard src/app/api/health/route.test.ts keeps: a response grows
     // a field one commit at a time, and this is the commit that notices.

@@ -38,7 +38,23 @@ export interface FoodSearchBody {
  * them: no cookie is read, no header is inspected, and the whole response is a
  * quotation from a published table. The privacy notice says the same in words.
  */
-const CACHE_CONTROL = "public, max-age=60, s-maxage=3600, stale-while-revalidate=86400";
+const FOUND = "public, max-age=60, s-maxage=3600, stale-while-revalidate=86400";
+
+/**
+ * An empty answer gets a fraction of that, and no revalidation window.
+ *
+ * "Nothing matched" is the one answer here that changes without the query
+ * changing: it is what an unseeded database, a half-finished ingest or a
+ * mid-deploy table says, and `stale-while-revalidate` would then keep serving
+ * that "no" for a day after the rows arrived. This is not hypothetical — it is
+ * exactly what happened to the preview deployment, where `batata` kept coming
+ * back empty long after the seed while `batata&limit=20`, a different cache
+ * key, answered with ten rows from the same database.
+ *
+ * A minute is still enough to absorb a burst of the same typo, and a wrong
+ * "no" now expires on its own instead of needing a redeploy to clear it.
+ */
+const NOT_FOUND = "public, max-age=0, s-maxage=60";
 
 export async function foodSearchResponse(
   search: FoodSearchFn,
@@ -59,6 +75,6 @@ export async function foodSearchResponse(
 
 function json(body: FoodSearchBody): NextResponse<FoodSearchBody> {
   return NextResponse.json(body, {
-    headers: { "cache-control": CACHE_CONTROL },
+    headers: { "cache-control": body.count === 0 ? NOT_FOUND : FOUND },
   });
 }
