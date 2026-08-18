@@ -97,13 +97,43 @@ the two are adjacent operationally.
 
 ---
 
-### D9 — Cookieless analytics only
+### D9 — No analytics at all, cookieless included
 
-No conventional analytics tag, ever.
+No analytics tag, ever — and on inspection "cookieless" turned out not to be a
+usable exception either. DietKit ships zero measurement of the people using it.
 
 **Why:** it would break the "we collect nothing" claim and re-create precisely
 the LGPD obligations the architecture exists to avoid. The privacy posture is a
 feature, and it is only credible if it has no exceptions.
+
+**Why not a cookieless vendor:** the cookie was never the thing that mattered.
+Plausible, Umami and Vercel Web Analytics all derive a visitor identifier by
+hashing IP address with user agent, which is pseudonymisation, not anonymisation
+— under the LGPD a pseudonymous identifier is still a *dado pessoal*, and
+processing it needs a legal basis, a retention answer, and a line in the notice.
+Dropping the cookie removes the consent banner, not the obligation. Since the
+one thing DietKit can say that no competitor can is "this never leaves your
+device", spending that sentence on page-view counts is a bad trade.
+
+**Consequence, on what is known instead:** nothing, by design. Vercel's own
+request logs exist at the infrastructure layer whatever we do — they are the
+platform's operational records, not a product decision, and the privacy notice
+(#10) names them plainly rather than pretending the origin is blind. Product
+questions get answered by talking to users, not by watching them.
+
+**Consequence, on enforcement:** this is checked, not just written down. ESLint
+`no-restricted-imports` blocks the packages, and because ESLint replaces a
+rule's options rather than merging them, the analytics patterns are restated in
+the block that exempts the storage and db adapters from the *other* boundaries.
+`src/no-analytics.test.ts` covers what a linter cannot see: an inline `<script>`
+pasted from a vendor's setup page, and the dependency appearing in
+`package.json` at all — devDependencies included, because a tag added "just for
+staging" is still a tag.
+
+**Consequence, operationally:** Web Analytics and Speed Insights must stay
+switched off in the Vercel project settings. Both are dashboard toggles that
+inject `/_vercel/insights/script.js` server-side; no commit would show it, and
+neither check above would fire.
 
 ---
 
@@ -233,3 +263,35 @@ keeps its identity across editions. A blank cell is written as an explicit NULL
 so a re-extraction can clear one. The ingest is one transaction and therefore
 uses the direct Neon host, not the pooler; `db:seed` refuses a `-pooler` URL
 rather than half-writing the table.
+
+---
+
+### D15 — The service worker is built after Next, not by it
+
+`serwist build serwist.config.mjs` compiles `src/sw.ts` into `public/sw.js` as a
+second step in `npm run build`, rather than through the `withSerwist` webpack
+plugin its documentation leads with.
+
+**Why:** that plugin hooks Next's webpack configuration, and Next 16 builds with
+Turbopack. It does not fail — it prints a warning and produces no service worker
+at all, which is the worst available outcome for a feature whose absence is
+invisible until someone is offline. Compiling the worker with esbuild after
+`next build` has emitted the assets it needs to list sidesteps the bundler
+question entirely.
+
+**Why offline at all:** everything personal already lives in IndexedDB on the
+device (§ D1). An app that goes blank without a network is hiding data the user
+is standing on top of.
+
+**Consequence, on precaching:** `precachePrerendered` is off. `localePrefix` is
+`as-needed` (§ D5), so prerendered HTML lands on disk under the locale segment —
+`pt-BR.html`, `pt-BR/fontes.html` — while the app is served from unprefixed
+URLs. Globbing the build output would fill the cache with keys no request ever
+asks for. The two pages that must survive a cold start, `/` and `/~offline`, are
+named explicitly and fetched through the proxy the way a browser would, keyed on
+the commit SHA. `src/sw.test.ts` pins that URL across the three files that have
+to agree on it and never import each other.
+
+**Consequence, on updates:** `skipWaiting` and `clientsClaim` are both on. The
+device holds the only copy of the user's data, so two versions writing to one
+IndexedDB is a worse risk than an abrupt takeover.
