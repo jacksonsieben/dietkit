@@ -500,16 +500,30 @@
     "swapUnknown": "Alimento sem dados neste aparelho",
     "groupsLink": "Criar grupos de substituição",
     "groupsNote": "Um grupo é uma lista de alimentos que se substituem. Ao trocar, os limites da linha continuam os mesmos e o app resolve as gramas de novo, então a meta continua fechando.",
-    "achievedLabel": "Nos alimentos escolhidos",
-    "onTarget": "Bate com a meta desta refeição.",
-    "offTarget": "Não fecha: {detail}.",
-    "under": "faltam {value, number} g de {macro}",
-    "over": "sobram {value, number} g de {macro}",
+    "reconcile": {
+      "mealHeading": "Meta e plano desta refeição, macro a macro",
+      "dayHeading": "Meta e plano do dia, macro a macro",
+      "macro": "Macro",
+      "target": "Meta",
+      "actual": "Plano",
+      "delta": "Diferença",
+      "grams": "{value, number} g",
+      "kcal": "{value, number} kcal",
+      "deltaGrams": "{sign}{value, number} g",
+      "deltaKcal": "{sign}{value, number} kcal",
+      "met": "Bate com a meta.",
+      "missed": "Ainda não fecha — veja a coluna Diferença.",
+      "state": {
+        "under": "abaixo da meta",
+        "over": "acima da meta"
+      }
+    },
     "limitingNote": "No limite: {foods}. Alargue o mínimo ou o máximo desses alimentos, ou acrescente outro, para a meta fechar.",
     "macroName": {
       "proteinG": "proteína",
       "carbG": "carboidrato",
-      "fatG": "gordura"
+      "fatG": "gordura",
+      "kcal": "energia"
     },
     "itemErrors": {
       "required": "Preencha a quantidade.",

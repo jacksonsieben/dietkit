@@ -10,6 +10,7 @@ import {
 import { useFormatter, useTranslations } from "next-intl";
 
 import { CONTROL_CLASS } from "@/components/Field";
+import { MacroPanel } from "@/components/MacroPanel";
 import { type FoodChoice } from "@/components/FoodPicker";
 import { MealItems } from "@/components/MealItems";
 import { Link } from "@/i18n/navigation";
@@ -43,7 +44,8 @@ import {
   type MealErrorCode,
 } from "@/lib/diet/meals";
 import { loadPlan, newPlan, savePlan } from "@/lib/diet/plan";
-import { applySolution, planTotals, solvePlan } from "@/lib/diet/solve";
+import { reconcileDay } from "@/lib/diet/reconcile";
+import { applySolution, solvePlan } from "@/lib/diet/solve";
 import { loadGoal } from "@/lib/energy/goal";
 import { planMacros } from "@/lib/energy/macros";
 import { loadEnergySummary } from "@/lib/energy/summary";
@@ -257,7 +259,6 @@ export function MealPlanner() {
     loaded.customFoods,
   );
   const solved = solvePlan(loaded.targets, meals, book);
-  const totals = planTotals(solved);
 
   /** Drops the "salvo" note, so a reassurance never stands over changed numbers. */
   const apply = (next: Meal[]) => {
@@ -463,7 +464,6 @@ export function MealPlanner() {
     }
   };
 
-  const grams = (value: number) => format.number(value);
   const kcal = (value: number) => format.number(Math.round(value));
 
   return (
@@ -563,37 +563,18 @@ export function MealPlanner() {
         </div>
       </section>
 
-      {/* The check, printed. Every rule in `lib/diet` exists so that this line
-          equals the target above it, and putting the sum on screen is what
-          makes that claim falsifiable by the person using the app. */}
-      <section className="flex flex-col gap-1 border-t border-black/10 pt-4 dark:border-white/15">
+      {/* The check, printed. Every rule in `lib/diet` exists so that this
+          panel's two columns agree, and putting the subtraction on screen is
+          what makes that claim falsifiable by the person using the app (#21).
+          It is a section rather than a modal or a tab because a reconciliation
+          you have to go and look for is one nobody looks for. */}
+      <section className="flex flex-col gap-2 border-t border-black/10 pt-4 dark:border-white/15">
         <h2 className="text-sm font-medium opacity-70">{t("totalLabel")}</h2>
-        <p className="font-mono text-sm">
-          {t("macros", {
-            protein: grams(sum(rows, "proteinG")),
-            carb: grams(sum(rows, "carbG")),
-            fat: grams(sum(rows, "fatG")),
-          })}
-          {" · "}
-          {t("kcal", { kcal: sum(rows, "kcal") })}
-        </p>
+        <MacroPanel
+          heading={t("reconcile.dayHeading")}
+          reconciliation={reconcileDay(solved)}
+        />
         <p className="text-xs opacity-60">{t("roundingNote")}</p>
-
-        {/* And the other half of the check: what the foods chosen actually come
-            to. The line above is what the day was asked for; this one is what
-            it was given, and a gap between them is the residual the solver
-            refused to hide. */}
-        <p className="font-mono text-sm">
-          {t("achievedLabel")}
-          {": "}
-          {t("macros", {
-            protein: grams(Math.round(totals.proteinG)),
-            carb: grams(Math.round(totals.carbG)),
-            fat: grams(Math.round(totals.fatG)),
-          })}
-          {" · "}
-          {t("kcal", { kcal: Math.round(totals.kcal) })}
-        </p>
       </section>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -632,10 +613,6 @@ export function MealPlanner() {
       </div>
     </form>
   );
-}
-
-function sum(rows: { targets: MacroSet }[], macro: keyof MacroSet): number {
-  return rows.reduce((total, row) => total + row.targets[macro], 0);
 }
 
 /**

@@ -7,6 +7,9 @@ import ptBR from "../../../messages/pt-BR.json";
 import { GROUP_ERROR_CODES, GROUP_LIMITS } from "./groups";
 import { ITEM_ERROR_CODES, ITEM_LIMITS } from "./items";
 import { MEAL_ERROR_CODES, MEAL_LIMITS } from "./meals";
+import { RECONCILE_MACROS, TOLERANCE } from "./reconcile";
+import { ATWATER } from "@/lib/energy/macros";
+import { DEFAULT_TOLERANCE_G } from "@/lib/solver/macroSolver";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 
@@ -112,6 +115,7 @@ describe("meal item wiring", () => {
   const planner = () => read("src/components/MealPlanner.tsx");
   const items = () => read("src/components/MealItems.tsx");
   const picker = () => read("src/components/FoodPicker.tsx");
+  const panel = () => read("src/components/MacroPanel.tsx");
 
   it("solves the quantities instead of asking for them", () => {
     const source = planner();
@@ -154,12 +158,15 @@ describe("meal item wiring", () => {
     expect(source).toContain("searchCustomFoods(");
   });
 
-  it("shows the residual rather than only the numbers that worked out", () => {
+  it("shows the shortfall rather than only the numbers that worked out", () => {
     // "Infeasible targets reported as a residual, never silently mis-solved."
+    // The residual reaches the screen through the reconciliation panel (#21),
+    // which prints target, plan and the difference between them.
     const source = items();
 
-    expect(source).toContain("solved.residual");
+    expect(source).toContain("reconcileMeal(");
     expect(source).toContain("limiting");
+    expect(panel()).toContain("line.delta");
   });
 
   it("has a message for every error the item rules can produce", () => {
@@ -171,11 +178,9 @@ describe("meal item wiring", () => {
   });
 
   it("names every macro it can report a shortfall in", () => {
-    expect(Object.keys(ptBR.Plan.macroName).sort()).toEqual([
-      "carbG",
-      "fatG",
-      "proteinG",
-    ]);
+    expect(Object.keys(ptBR.Plan.macroName).sort()).toEqual(
+      [...RECONCILE_MACROS].sort(),
+    );
   });
 
   it("quotes the real item ceiling rather than a number typed into it", () => {
@@ -272,5 +277,94 @@ describe("substitution group wiring", () => {
     expect(ptBR.Groups.addLimit).toContain("{max, number}");
     expect(ptBR.Groups.foodsHint).toContain("{min, number}");
     expect(GROUP_LIMITS.foods.min).toBeLessThan(GROUP_LIMITS.foods.max);
+  });
+});
+
+/**
+ * #21, which is four claims about a screen rather than about a calculation:
+ * every macro shows target, actual and delta; the panel is always on screen;
+ * off-target is legible as off-target; and the numbers come from the values the
+ * plan already rendered rather than from a second computation.
+ */
+describe("reconciliation panel wiring", () => {
+  const planner = () => read("src/components/MealPlanner.tsx");
+  const items = () => read("src/components/MealItems.tsx");
+  const panel = () => read("src/components/MacroPanel.tsx");
+
+  it("shows target, actual and delta for the day and for each meal", () => {
+    expect(planner()).toContain("reconcileDay(solved)");
+    expect(items()).toContain("reconcileMeal(solved)");
+
+    const source = panel();
+    for (const column of ["line.target", "line.actual", "line.delta"]) {
+      expect(source).toContain(column);
+    }
+  });
+
+  it("reports energy as well as the three macros", () => {
+    // The day's kcal is what someone checks first, and a panel that reconciled
+    // only the grams would leave the headline number unaccounted for.
+    expect([...RECONCILE_MACROS]).toContain("kcal");
+    expect(Object.keys(ptBR.Plan.macroName)).toContain("kcal");
+  });
+
+  it("is not behind a tab, a toggle or a disclosure", () => {
+    // "Always visible while editing." The panel has no open state of its own,
+    // and neither call site wraps it in one.
+    const source = panel();
+
+    expect(source).not.toContain("useState");
+    expect(source).not.toMatch(/<details|<summary|aria-expanded/);
+
+    for (const caller of [planner(), items()]) {
+      expect(caller).not.toMatch(/\{\s*show\w*\s*&&\s*<MacroPanel/);
+      expect(caller).not.toMatch(/\?\s*<MacroPanel/);
+    }
+  });
+
+  it("says off-target in more than a colour", () => {
+    // Amber text alone is nothing to a screen reader and not much to someone
+    // who does not see the difference between amber and grey.
+    const source = panel();
+
+    expect(source).toContain("reconcile.state.");
+    expect(Object.keys(ptBR.Plan.reconcile.state).sort()).toEqual([
+      "over",
+      "under",
+    ]);
+  });
+
+  it("subtracts the numbers it printed", () => {
+    // The carried-over lesson in docs/MACRO-RECONCILIATION.md § 5: a computed
+    // quantity has one source of truth and the view reads it. Rounding lives in
+    // `reconcile.ts` so the delta column is the difference between the two
+    // columns beside it, not between the values behind them.
+    const source = panel();
+
+    expect(source).not.toContain("Math.round");
+    expect(source).not.toContain("- line.target");
+  });
+
+  it("agrees with the solver about what counts as met", () => {
+    // One tolerance, shared rather than restated. A panel with its own idea of
+    // "close enough" would call a meal short that the solver had already
+    // called solved, and the user would have two apps disagreeing in one page.
+    expect(TOLERANCE.gramsG).toBe(DEFAULT_TOLERANCE_G);
+
+    // Energy is judged by what that same gram band is worth at 4/4/9, because
+    // kcal is never solved for directly — holding it to a couple of
+    // kilocalories would flag every plan the solver is content with.
+    expect(TOLERANCE.kcal).toBe(
+      DEFAULT_TOLERANCE_G *
+        (ATWATER.proteinKcalPerG + ATWATER.carbKcalPerG + ATWATER.fatKcalPerG),
+    );
+  });
+
+  it("does not keep a second copy of the totals", () => {
+    // The planner solves during render and hands the same array to both the
+    // rows and the panel. A `useState` holding totals would be the predecessor's
+    // bug with better types.
+    expect(planner()).not.toMatch(/useState[^;]*[Tt]otals/);
+    expect(planner()).toContain("reconcileDay(solved)");
   });
 });

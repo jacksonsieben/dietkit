@@ -74,7 +74,15 @@ export interface MacroSolution {
 }
 
 const DEFAULT_ROUND_TO_G = 1;
-const DEFAULT_TOLERANCE_G = 2;
+
+/**
+ * A macro within two grams of its target counts as hit.
+ *
+ * Exported because it is not only the solver's business: the reconciliation
+ * panel (#21) decides in colour whether a meal met its numbers, and it has to
+ * be the same question with the same answer.
+ */
+export const DEFAULT_TOLERANCE_G = 2;
 
 const MACRO_ROWS = ["proteinG", "carbG", "fatG"] as const;
 type MacroRow = (typeof MACRO_ROWS)[number];
