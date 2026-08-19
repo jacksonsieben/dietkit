@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { CONTROL_CLASS } from "@/components/Field";
+import { MacroPanel } from "@/components/MacroPanel";
 import { FoodPicker, SmallButton, type FoodChoice } from "@/components/FoodPicker";
 import type { FoodBook } from "@/lib/diet/composition";
 import { alternativesFor, findGroup, groupsForFood } from "@/lib/diet/groups";
@@ -13,6 +14,7 @@ import {
   type ItemChanges,
   type ItemErrorCode,
 } from "@/lib/diet/items";
+import { reconcileMeal } from "@/lib/diet/reconcile";
 import type { SolvedItem, SolvedMeal } from "@/lib/diet/solve";
 import type {
   FoodRef,
@@ -139,54 +141,23 @@ export function MealItems({
  * Whether this meal's numbers were met, and if not, by how much and because of
  * what.
  *
- * Printed for every meal rather than only for the broken ones: "bate com a
- * meta" is a claim the user can check against the row above it, and a screen
- * that only speaks up when something is wrong is a screen whose silence means
- * nothing.
+ * Printed for every meal, including the empty one someone has just added: the
+ * panel is what the screen is *for*, so hiding it until a meal has food would
+ * mean the first thing a new meal does is not say what it owes the day (#21).
+ *
+ * The residual is not recomputed here — `reconcileMeal` subtracts the two
+ * numbers the panel prints, which are the same solved values the rows above it
+ * were rendered from.
  */
 function Outcome({ solved }: { solved: SolvedMeal }) {
   const t = useTranslations("Plan");
-  const format = useFormatter();
-
-  if (solved.items.length === 0) return null;
-
-  const grams = (value: number) => format.number(Math.round(value));
-
-  const off = (["proteinG", "carbG", "fatG"] as const)
-    .map((macro) => {
-      const value = solved.residual[macro];
-      if (Math.abs(value) < 1) return undefined;
-
-      return t(value < 0 ? "under" : "over", {
-        value: Math.abs(Math.round(value)),
-        macro: t(`macroName.${macro}`),
-      });
-    })
-    .filter((part) => part !== undefined);
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="font-mono text-xs opacity-70">
-        {t("achievedLabel")}
-        {": "}
-        {t("macros", {
-          protein: grams(solved.achieved.proteinG),
-          carb: grams(solved.achieved.carbG),
-          fat: grams(solved.achieved.fatG),
-        })}
-        {" · "}
-        {t("kcal", { kcal: Math.round(solved.achieved.kcal) })}
-      </p>
-
-      {off.length === 0 ? (
-        <p className="text-xs text-emerald-700 dark:text-emerald-400">
-          {t("onTarget")}
-        </p>
-      ) : (
-        <p className="text-xs text-amber-800 dark:text-amber-300">
-          {t("offTarget", { detail: off.join(", ") })}
-        </p>
-      )}
+      <MacroPanel
+        heading={t("reconcile.mealHeading")}
+        reconciliation={reconcileMeal(solved)}
+      />
 
       {/* Why it did not close, in the only terms that let someone fix it. */}
       {solved.items.some((entry) => entry.limiting) ? (
