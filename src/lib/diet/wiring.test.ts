@@ -74,6 +74,75 @@ describe("meal planner wiring", () => {
     expect(source).toContain("planMacros(");
   });
 
+  it("divides the day from the plan's own targets, not from today's", () => {
+    // #25's hinge. Recomputing on every visit made a saved plan quietly change
+    // shape whenever the scale did, with nothing on screen to say when or why —
+    // and the meals underneath were still divided from the old numbers.
+    const source = component();
+
+    expect(source).toContain("const targets = loaded.plan.targets");
+    expect(source).toContain("distributeTargets(targets, meals)");
+    expect(source).toContain("solvePlan(targets, meals, book)");
+  });
+
+  it("does not overwrite the saved targets on the next save", () => {
+    // The save writes the plan as it stands. Re-stating the targets here is how
+    // the recompute used to leak back into the store.
+    const source = component();
+    const submit = source.slice(source.indexOf("const onSubmit"));
+    const write = submit.slice(0, submit.indexOf("setDirty(false)"));
+
+    expect(write).not.toContain("targets: loaded.current.targets");
+    expect(write).not.toContain("basedOnWeightKg:");
+  });
+
+  it("offers the newest weight rather than applying it", () => {
+    const source = component();
+
+    expect(source).toContain("weightDrift(loaded.plan, loaded.current.weightKg)");
+    // The rebuild happens because a button was pressed, not because the screen
+    // was opened: no effect and no render-time call may reach `rebasePlan`.
+    expect(source).toContain("onClick={rebase}");
+    expect(source.match(/rebasePlan\(/g)).toHaveLength(1);
+  });
+
+  it("rebuilds without asking for the profile again", () => {
+    // The issue's second bullet: one action. The handler recomputes from what
+    // is already loaded and never sends the user to /perfil to change a number.
+    const source = component();
+    const handler = source.slice(source.indexOf("const rebase = ()"));
+    const body = handler.slice(0, handler.indexOf("const onSubmit"));
+
+    expect(body).toContain("state.current.targets");
+    expect(body).toContain("state.current.weightKg");
+    expect(body).not.toContain("/perfil");
+    expect(body).not.toContain("savePlan");
+  });
+
+  it("says which body the plan was written for", () => {
+    // "Old plans stay interpretable" is the third bullet, and it is this line:
+    // 2 100 kcal means nothing a year later without the weight beside it.
+    expect(component()).toContain("planKnowsItsWeight(loaded.plan)");
+    expect(ptBR.Plan.basedOn).toContain("{weight, number}");
+  });
+
+  it("names the direction the weight moved, not just the size of the gap", () => {
+    for (const message of [ptBR.Plan.driftUp, ptBR.Plan.driftDown]) {
+      expect(message).toContain("{from, number}");
+      expect(message).toContain("{to, number}");
+    }
+
+    // Two messages rather than one with a signed number in it: Portuguese needs
+    // different words for the two, and "-3 kg" is not a sentence.
+    expect(ptBR.Plan.driftUp).not.toBe(ptBR.Plan.driftDown);
+  });
+
+  it("puts the weight it would use on the button", () => {
+    // A button labelled only "Recalcular" asks the user to trust that the app
+    // knows which number it means.
+    expect(ptBR.Plan.rebase).toContain("{weight, number}");
+  });
+
   it("does not create a stored plan just because the screen was opened", () => {
     const source = component();
 

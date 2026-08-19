@@ -44,6 +44,11 @@ import {
   type MealErrorCode,
 } from "@/lib/diet/meals";
 import { loadPlan, newPlan, savePlan } from "@/lib/diet/plan";
+import {
+  planKnowsItsWeight,
+  rebasePlan,
+  weightDrift,
+} from "@/lib/diet/rebase";
 import { reconcileDay } from "@/lib/diet/reconcile";
 import { applySolution, solvePlan } from "@/lib/diet/solve";
 import { loadGoal } from "@/lib/energy/goal";
@@ -85,10 +90,23 @@ type Status =
   "loading" | "ready" | "saving" | "saved" | "loadFailed" | "saveFailed";
 
 interface Loaded {
+  /**
+   * The plan as it stands, targets included.
+   *
+   * The targets are read off the plan rather than off `current` because they
+   * are what its meals were apportioned from: a plan whose numbers followed the
+   * scale on their own would be a day that no longer adds up, changed on a visit
+   * the user did not ask for anything on (#25, and `savePlan`'s note).
+   */
   plan: Diet;
-  /** Recomputed from the profile on every visit — see `savePlan`'s note. */
-  targets: MacroSet;
-  weightKg: number;
+  /**
+   * What the profile and the latest logged weight say *today*.
+   *
+   * Kept beside the plan rather than merged into it: the whole of #25 is the
+   * difference between the two being visible, and one action away from being
+   * closed. For a plan built on this visit the two agree, and nothing shows.
+   */
+  current: { targets: MacroSet; weightKg: number };
   /**
    * The user's own foods, read live rather than snapshotted into the plan.
    *
@@ -173,8 +191,10 @@ export function MealPlanner() {
         });
 
         setLoaded({
-          targets: macros.targets,
-          weightKg: energy.summary.weightKg,
+          current: {
+            targets: macros.targets,
+            weightKg: energy.summary.weightKg,
+          },
           customFoods,
           groups,
           // `newPlan` builds without writing: someone who opens this screen and
@@ -241,8 +261,20 @@ export function MealPlanner() {
   }
 
   const meals = loaded.plan.meals;
-  const rows = distributeTargets(loaded.targets, meals);
+  const targets = loaded.plan.targets;
+  const rows = distributeTargets(targets, meals);
   const percents = sharePercents(meals);
+
+  /**
+   * How far the body has moved since this plan was written (#25).
+   *
+   * Derived rather than held in state, like `solved` below and for the same
+   * reason: it is a function of the plan and the latest weight, both of which
+   * are already here, and a copy could only ever disagree with them. Pressing
+   * *Recalcular* changes the plan, which is what makes this go away — nothing
+   * has to remember that it was dismissed.
+   */
+  const drift = weightDrift(loaded.plan, loaded.current.weightKg);
 
   /**
    * Solved during render, not in state.
@@ -258,7 +290,7 @@ export function MealPlanner() {
     [...(loaded.plan.tacoFoods ?? []), ...groupCompositions(loaded.groups)],
     loaded.customFoods,
   );
-  const solved = solvePlan(loaded.targets, meals, book);
+  const solved = solvePlan(targets, meals, book);
 
   /** Drops the "salvo" note, so a reassurance never stands over changed numbers. */
   const apply = (next: Meal[]) => {
@@ -411,6 +443,33 @@ export function MealPlanner() {
     setStatus((current) => (current === "saved" ? "ready" : current));
   };
 
+  /**
+   * Rebuild the day's targets from the weight that is on the scale now.
+   *
+   * One click, deliberately: #25's complaint is that the alternative — going
+   * back through the profile and re-entering everything to move one number —
+   * is enough friction that people stop closing the loop and keep eating a plan
+   * written for a body they no longer have. Nothing is asked because nothing is
+   * lost: the meals, shares and foods are untouched (see `rebasePlan`), the new
+   * portions are visible before anything is written, and the plan in the store
+   * is unchanged until *Salvar*.
+   */
+  const rebase = () => {
+    setLoaded(
+      (state) =>
+        state && {
+          ...state,
+          plan: rebasePlan(
+            state.plan,
+            state.current.targets,
+            state.current.weightKg,
+          ),
+        },
+    );
+    setDirty(true);
+    setStatus("ready");
+  };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -450,8 +509,6 @@ export function MealPlanner() {
           ...loaded.plan,
           meals: settled,
           tacoFoods: usedTacoFoods(settled, loaded.plan.tacoFoods ?? []),
-          targets: loaded.targets,
-          basedOnWeightKg: loaded.weightKg,
         },
         new Date().toISOString(),
       );
@@ -471,18 +528,52 @@ export function MealPlanner() {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium opacity-70">{t("targetLabel")}</h2>
         <p className="font-mono text-3xl font-semibold tracking-tight">
-          {t("kcalPerDay", { kcal: kcal(loaded.targets.kcal) })}
+          {t("kcalPerDay", { kcal: kcal(targets.kcal) })}
         </p>
         <p className="font-mono text-sm opacity-70">
           {t("targetMacros", {
-            protein: loaded.targets.proteinG,
-            carb: loaded.targets.carbG,
-            fat: loaded.targets.fatG,
+            protein: targets.proteinG,
+            carb: targets.carbG,
+            fat: targets.fatG,
           })}
         </p>
+        {/* Absent on a plan written before the weight was recorded, or one
+            imported from the predecessor — see `weightDrift`. */}
+        {planKnowsItsWeight(loaded.plan) ? (
+          <p className="text-xs opacity-60">
+            {t("basedOn", { weight: loaded.plan.basedOnWeightKg })}
+          </p>
+        ) : null}
+
         <Link href="/energia" className="text-sm underline underline-offset-4">
           {t("energyLink")}
         </Link>
+
+        {/*
+         * The loop closing: the plan says what body it was written for, and
+         * when that stops being the body on the scale it offers to catch up
+         * (#25). Not applied on its own — see `rebasePlan` and `savePlan` for
+         * why a plan that silently followed the weight would be worse than one
+         * that goes stale visibly.
+         */}
+        {drift === undefined ? null : (
+          <div className="mt-2 flex flex-col items-start gap-3 rounded-lg border border-black/10 bg-black/[0.03] p-4 dark:border-white/15 dark:bg-white/[0.04]">
+            <p className="text-sm">
+              {t(drift.deltaKg < 0 ? "driftDown" : "driftUp", {
+                from: drift.fromKg,
+                to: drift.toKg,
+                delta: Math.abs(drift.deltaKg),
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={rebase}
+              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            >
+              {t("rebase", { weight: drift.toKg })}
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-4">
