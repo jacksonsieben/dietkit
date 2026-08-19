@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { CONTROL_CLASS } from "@/components/Field";
+import { MealItems, type FoodChoice } from "@/components/MealItems";
 import { Link } from "@/i18n/navigation";
 import { todayIsoDate } from "@/lib/date";
+import { buildFoodBook, usedTacoFoods } from "@/lib/diet/composition";
 import { distributeTargets, sharePercents } from "@/lib/diet/distribute";
+import {
+  addItem,
+  canAddItem,
+  newItem,
+  removeItem,
+  updateItem,
+  type ItemChanges,
+} from "@/lib/diet/items";
 import {
   MEAL_LIMITS,
   addMeal,
@@ -23,11 +39,12 @@ import {
   type MealErrorCode,
 } from "@/lib/diet/meals";
 import { loadPlan, newPlan, savePlan } from "@/lib/diet/plan";
+import { applySolution, planTotals, solvePlan } from "@/lib/diet/solve";
 import { loadGoal } from "@/lib/energy/goal";
 import { planMacros } from "@/lib/energy/macros";
 import { loadEnergySummary } from "@/lib/energy/summary";
 import { getRepository } from "@/lib/storage";
-import type { Diet, Id, MacroSet, Meal } from "@/lib/storage/types";
+import type { CustomFood, Diet, Id, MacroSet, Meal } from "@/lib/storage/types";
 
 /**
  * The day as a list the user writes (#18).
@@ -58,6 +75,14 @@ interface Loaded {
   /** Recomputed from the profile on every visit — see `savePlan`'s note. */
   targets: MacroSet;
   weightKg: number;
+  /**
+   * The user's own foods, read live rather than snapshotted into the plan.
+   *
+   * The asymmetry with `plan.tacoFoods` is deliberate and `FoodComposition`
+   * explains it: a published row must not change under a plan someone wrote,
+   * and a food the user typed themselves must.
+   */
+  customFoods: CustomFood[];
 }
 
 type MealErrors = Record<Id, { name?: MealErrorCode; share?: MealErrorCode }>;
@@ -102,10 +127,11 @@ export function MealPlanner() {
     void (async () => {
       try {
         const repository = getRepository();
-        const [energy, goal, stored] = await Promise.all([
+        const [energy, goal, stored, customFoods] = await Promise.all([
           loadEnergySummary(repository, todayIsoDate()),
           loadGoal(repository),
           loadPlan(repository),
+          repository.customFoods.list(),
         ]);
         if (cancelled) return;
 
@@ -125,6 +151,7 @@ export function MealPlanner() {
         setLoaded({
           targets: macros.targets,
           weightKg: energy.summary.weightKg,
+          customFoods,
           // `newPlan` builds without writing: someone who opens this screen and
           // leaves should not find a diet in their store tomorrow.
           plan:
@@ -192,6 +219,20 @@ export function MealPlanner() {
   const rows = distributeTargets(loaded.targets, meals);
   const percents = sharePercents(meals);
 
+  /**
+   * Solved during render, not in state.
+   *
+   * It is a pure function of the plan and the compositions, and a solve of a
+   * day's worth of meals costs well under a millisecond (see the benchmarks on
+   * `boundedLeastSquares`). Keeping it in state would mean a second copy of the
+   * answer that can disagree with the plan it came from — which, on a screen
+   * whose whole job is that the numbers add up, is the bug not worth the
+   * memoisation.
+   */
+  const book = buildFoodBook(loaded.plan.tacoFoods, loaded.customFoods);
+  const solved = solvePlan(loaded.targets, meals, book);
+  const totals = planTotals(solved);
+
   /** Drops the "salvo" note, so a reassurance never stands over changed numbers. */
   const apply = (next: Meal[]) => {
     setLoaded(
@@ -251,6 +292,59 @@ export function MealPlanner() {
     });
   };
 
+  /**
+   * A food chosen, and the composition that came with it.
+   *
+   * The TACO snapshot is written into the plan in the same update that adds the
+   * item, because an item pointing at a row the plan cannot price is exactly the
+   * "unknown food" state — and there is no reason to pass through it when the
+   * numbers are already in hand.
+   */
+  const onAddFood = (mealId: Id, choice: FoodChoice) => {
+    const item = newItem(choice.ref, crypto.randomUUID(), choice.servingG);
+
+    setLoaded((current) => {
+      if (!current) return current;
+
+      const tacoFoods =
+        choice.composition === undefined
+          ? current.plan.tacoFoods
+          : [
+              ...(current.plan.tacoFoods ?? []).filter(
+                (food) => food.tacoId !== choice.composition?.tacoId,
+              ),
+              choice.composition,
+            ];
+
+      return {
+        ...current,
+        // Keeping the picked food current here too: it was read from the device
+        // by the picker, and it may be newer than the list loaded at mount.
+        customFoods:
+          choice.custom === undefined
+            ? current.customFoods
+            : [
+                ...current.customFoods.filter(
+                  (food) => food.id !== choice.custom?.id,
+                ),
+                choice.custom,
+              ],
+        plan: {
+          ...current.plan,
+          tacoFoods,
+          meals: addItem(current.plan.meals, mealId, item),
+        },
+      };
+    });
+
+    setDirty(true);
+    setStatus((current) => (current === "saved" ? "ready" : current));
+  };
+
+  const onChangeItem = (mealId: Id, itemId: Id, changes: ItemChanges) => {
+    apply(updateItem(meals, mealId, itemId, changes));
+  };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -275,12 +369,21 @@ export function MealPlanner() {
     setErrors({});
     setStatus("saving");
 
+    // What gets stored is what is on screen: the solved quantities, not the
+    // ones the items were carrying before the solve. Anything else and reopening
+    // the plan would show different portions from the ones just saved.
+    const settled = applySolution(meals, solved).map((meal) => ({
+      ...meal,
+      name: meal.name.trim(),
+    }));
+
     try {
       const saved = await savePlan(
         getRepository(),
         {
           ...loaded.plan,
-          meals: meals.map((meal) => ({ ...meal, name: meal.name.trim() })),
+          meals: settled,
+          tacoFoods: usedTacoFoods(settled, loaded.plan.tacoFoods ?? []),
           targets: loaded.targets,
           basedOnWeightKg: loaded.weightKg,
         },
@@ -347,7 +450,19 @@ export function MealPlanner() {
               onBlurShare={() => setTyping(undefined)}
               onMove={(offset) => apply(moveMeal(meals, meal.id, offset))}
               onRemove={() => onRemove(meal.id)}
-            />
+            >
+              <MealItems
+                solved={solved[index]}
+                canAdd={canAddItem(meal)}
+                onAdd={(choice) => onAddFood(meal.id, choice)}
+                onChange={(itemId, changes) =>
+                  onChangeItem(meal.id, itemId, changes)
+                }
+                onRemove={(itemId) =>
+                  apply(removeItem(meals, meal.id, itemId))
+                }
+              />
+            </MealRow>
           ))}
         </ul>
 
@@ -392,6 +507,22 @@ export function MealPlanner() {
           {t("kcal", { kcal: sum(rows, "kcal") })}
         </p>
         <p className="text-xs opacity-60">{t("roundingNote")}</p>
+
+        {/* And the other half of the check: what the foods chosen actually come
+            to. The line above is what the day was asked for; this one is what
+            it was given, and a gap between them is the residual the solver
+            refused to hide. */}
+        <p className="font-mono text-sm">
+          {t("achievedLabel")}
+          {": "}
+          {t("macros", {
+            protein: grams(Math.round(totals.proteinG)),
+            carb: grams(Math.round(totals.carbG)),
+            fat: grams(Math.round(totals.fatG)),
+          })}
+          {" · "}
+          {t("kcal", { kcal: Math.round(totals.kcal) })}
+        </p>
       </section>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -437,6 +568,7 @@ function sum(rows: { targets: MacroSet }[], macro: keyof MacroSet): number {
  * more protein than they will actually eat before work.
  */
 function MealRow({
+  children,
   meal,
   position,
   percent,
@@ -452,6 +584,8 @@ function MealRow({
   onMove,
   onRemove,
 }: {
+  /** The meal's items — see `MealItems`. */
+  children: ReactNode;
   meal: Meal;
   position: number;
   percent: number;
@@ -562,6 +696,8 @@ function MealRow({
           </button>
         </div>
       </div>
+
+      {children}
     </li>
   );
 }

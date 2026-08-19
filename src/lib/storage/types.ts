@@ -91,6 +91,30 @@ export interface DietItem {
   substitutionGroupId?: Id;
 }
 
+/**
+ * The composition of one TACO row, copied into the plan that uses it (#19).
+ *
+ * The published table lives on the server; a plan lives on the device and has
+ * to still add up on a phone with no signal, which is the whole promise of an
+ * offline-first app. So the numbers a meal was solved against travel with the
+ * meal rather than being fetched back.
+ *
+ * The second reason is more important than the first: TACO gets re-ingested,
+ * and a row that changes between two visits would silently re-solve someone's
+ * plan into different portions with nothing on screen to say why. A quotation
+ * copied at the moment the food was chosen is a plan that stays the plan.
+ *
+ * Custom foods are deliberately *not* snapshotted here. They are the user's own
+ * record and an edit to one is meant to reach the plans that use it — that is
+ * what `saveCustomFood` keeping the id is for.
+ */
+export interface FoodComposition {
+  tacoId: number;
+  /** As TACO prints it, so the plan can be read without the table beside it. */
+  name: string;
+  per100g: MacroSet;
+}
+
 export interface Meal {
   id: Id;
   name: string;
@@ -115,6 +139,12 @@ export interface Diet {
   targets: MacroSet;
   /** Count is the user's, never hardcoded to four (#18). */
   meals: Meal[];
+  /**
+   * Composition for every TACO row any meal points at — see `FoodComposition`.
+   * Optional because a plan written before #19 has none, and a plan whose meals
+   * are still empty needs none.
+   */
+  tacoFoods?: FoodComposition[];
   /** The weight this plan was calculated from, so a later plan can show drift. */
   basedOnWeightKg?: number;
   createdAt: IsoTimestamp;
