@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import type { FoodSearchResult } from "@/lib/db/foods";
 
-import { parseFoodQuery, parseLimit, type FoodQuery } from "./query";
+import {
+  parseFoodIds,
+  parseFoodQuery,
+  parseLimit,
+  type FoodQuery,
+} from "./query";
 
 /**
  * `GET /api/foods` without the database attached.
@@ -19,11 +24,16 @@ export type FoodSearchFn = (
   limit: number,
 ) => Promise<readonly FoodSearchResult[]>;
 
+export type FoodLookupFn = (
+  ids: readonly number[],
+) => Promise<readonly FoodSearchResult[]>;
+
 export interface FoodSearchBody {
   /**
    * What the server actually searched for: the typed text folded and split into
-   * words. Echoed back because it is the honest answer to "why did I get this"
-   * — and because it is all the server kept, which is the point of #16.
+   * words, or the ids it was handed. Echoed back because it is the honest
+   * answer to "why did I get this" — and because it is all the server kept,
+   * which is the point of #16.
    */
   readonly query: string;
   readonly count: number;
@@ -71,6 +81,31 @@ export async function foodSearchResponse(
   const foods = await search(query, parseLimit(params.get("limit")));
 
   return json({ query: query.terms.join(" "), count: foods.length, foods });
+}
+
+/**
+ * The same endpoint answering `?ids=`, for a caller that already knows which
+ * rows it wants (#22).
+ *
+ * The import needs every TACO row the old app's catalogue can reach before it
+ * can quote a single portion, and searching for them by name would be asking
+ * the wrong question — the mapping from an old food to an id is settled in
+ * `foodMap.ts`, not by a search box. Same body, so a client renders one list.
+ *
+ * Rows that do not exist are simply absent: `count` against the number asked
+ * for is how the caller learns that, and there is nothing to say about an id
+ * that was never a food.
+ */
+export async function foodLookupResponse(
+  lookup: FoodLookupFn,
+  params: URLSearchParams,
+): Promise<NextResponse<FoodSearchBody>> {
+  const ids = parseFoodIds(params.get("ids"));
+  if (ids.length === 0) return json({ query: "", count: 0, foods: [] });
+
+  const foods = await lookup(ids);
+
+  return json({ query: ids.join(","), count: foods.length, foods });
 }
 
 function json(body: FoodSearchBody): NextResponse<FoodSearchBody> {

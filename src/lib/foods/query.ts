@@ -26,6 +26,16 @@ export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 50;
 
 /**
+ * How many foods one `?ids=` request may name.
+ *
+ * The import (#22) is what asks: it needs every TACO row the old app's
+ * catalogue can reach, in one request, before it can quote a single portion.
+ * That is a few dozen — the cap is here so the URL stays a URL and so this
+ * cannot become a way to ask for the whole table one query string at a time.
+ */
+export const MAX_IDS = 120;
+
+/**
  * More words than this and the extra ones are dropped.
  *
  * Every term is another `AND` over the index, and a description in TACO is
@@ -88,4 +98,31 @@ export function parseLimit(raw: string | null): number {
   if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_LIMIT;
 
   return Math.min(Math.floor(parsed), MAX_LIMIT);
+}
+
+/**
+ * The foods named in `?ids=1,2,3`.
+ *
+ * Split on anything that is not a digit, for `parseFoodQuery`'s reason: what
+ * comes out is a list of numbers by construction rather than a string that was
+ * checked and hoped about. Duplicates collapse and the order is the order they
+ * were asked for, which is the order the caller can match its own list against.
+ *
+ * Empty when nothing usable was named — a `?ids=` with junk in it is answered
+ * with an empty list rather than a 400, the same way an empty search box is.
+ */
+export function parseFoodIds(raw: string | null): number[] {
+  if (raw === null) return [];
+
+  const ids = new Set<number>();
+  for (const part of raw.split(/[^0-9]+/)) {
+    if (part === "") continue;
+    const id = Number(part);
+    // TACO's ids are small; anything that is not a plain positive integer is
+    // not one of them, and `Number.MAX_SAFE_INTEGER` is not a food.
+    if (Number.isSafeInteger(id) && id > 0) ids.add(id);
+    if (ids.size >= MAX_IDS) break;
+  }
+
+  return [...ids];
 }

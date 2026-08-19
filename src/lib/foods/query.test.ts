@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_LIMIT,
+  MAX_IDS,
   MAX_LIMIT,
+  parseFoodIds,
   parseFoodQuery,
   parseLimit,
 } from "./query";
@@ -94,5 +96,38 @@ describe("parseLimit", () => {
     expect(parseLimit("0")).toBe(DEFAULT_LIMIT);
     expect(parseLimit("abc")).toBe(DEFAULT_LIMIT);
     expect(parseLimit("7.9")).toBe(7);
+  });
+});
+
+describe("parseFoodIds", () => {
+  it("reads the ids a caller already knows", () => {
+    expect(parseFoodIds("1,182,561")).toEqual([1, 182, 561]);
+  });
+
+  it("asks for each row once, in the order it was asked for", () => {
+    // The import walks its catalogue, and two of the old app's foods can map to
+    // the same TACO row. Asking twice would only make the URL longer.
+    expect(parseFoodIds("182,1,182")).toEqual([182, 1]);
+  });
+
+  it("is a parser rather than an escape", () => {
+    // `parseFoodQuery`'s rule, for the same reason: what comes out is numbers
+    // by construction, so there is no string here for anything to hide in.
+    expect(parseFoodIds("1; drop table foods; --2")).toEqual([1, 2]);
+    expect(parseFoodIds("-3")).toEqual([3]);
+    expect(parseFoodIds("1.5")).toEqual([1, 5]);
+  });
+
+  it("answers an unusable parameter with nothing rather than an error", () => {
+    expect(parseFoodIds(null)).toEqual([]);
+    expect(parseFoodIds("")).toEqual([]);
+    expect(parseFoodIds("abc")).toEqual([]);
+    expect(parseFoodIds("0")).toEqual([]);
+  });
+
+  it("stops at a number of foods that is still a URL", () => {
+    const many = Array.from({ length: MAX_IDS + 40 }, (_, index) => index + 1);
+
+    expect(parseFoodIds(many.join(","))).toHaveLength(MAX_IDS);
   });
 });
