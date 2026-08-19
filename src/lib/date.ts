@@ -35,3 +35,22 @@ export function calendarDate(date: IsoDate): Date {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
 }
+
+/**
+ * Whole calendar days from `from` to `to`, negative when `to` is earlier.
+ *
+ * Through `Date.UTC` rather than local time on purpose. Subtracting two local
+ * `Date`s and dividing by 86 400 000 is off by an hour twice a year — the day a
+ * DST change lands in the span is 23 or 25 hours long, and the quotient stops
+ * being a whole number. UTC has no such days, and since both arguments name
+ * calendar days rather than instants, there is nothing here a timezone could
+ * legitimately shift.
+ */
+export function daysBetween(from: IsoDate, to: IsoDate): number {
+  return (utcMidnight(to) - utcMidnight(from)) / 86_400_000;
+}
+
+function utcMidnight(date: IsoDate): number {
+  const [year, month, day] = date.split("-").map(Number);
+  return Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1);
+}

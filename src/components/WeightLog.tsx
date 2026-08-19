@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Field } from "@/components/Field";
+import { WeightTrend } from "@/components/WeightTrend";
 import { Link } from "@/i18n/navigation";
 import { calendarDate, todayIsoDate } from "@/lib/date";
 import { getRepository } from "@/lib/storage";
@@ -26,6 +27,10 @@ import {
  * A client component because these measurements exist only on the device that
  * wrote them — there is nothing for a server to render, and nothing it is
  * allowed to know.
+ *
+ * The trend (#24) is rendered from the same `entries` this component already
+ * holds, rather than reading the store again — so the line moves the moment a
+ * weighing is saved, and there is no second copy of the log to fall behind.
  *
  * The form and the list are one component because editing joins them: pressing
  * *Editar* on a row fills the boxes above. Saving onto a day that already has a
@@ -330,6 +335,8 @@ export function WeightLog() {
           </p>
         </div>
       </form>
+
+      <WeightTrend entries={entries} />
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
