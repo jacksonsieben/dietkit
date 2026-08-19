@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Field } from "@/components/Field";
 import { Link } from "@/i18n/navigation";
 import { calendarDate, todayIsoDate } from "@/lib/date";
@@ -15,6 +16,7 @@ import {
   type WeightErrorCode,
   type WeightErrors,
   type WeightField,
+  type WeightFormInput,
   type WeightFormValues,
 } from "@/lib/weight/validation";
 
@@ -26,10 +28,10 @@ import {
  * allowed to know.
  *
  * The form and the list are one component because editing joins them: pressing
- * *Editar* on a row fills the boxes above, and so does picking a date that has
- * already been logged. That second path is the whole of this screen's duplicate
- * handling — a day is a slot, not a stack, so choosing an occupied day shows
- * what is in it and says plainly that saving replaces it.
+ * *Editar* on a row fills the boxes above. Saving onto a day that already has a
+ * weight is the other half of that: a day is a slot, not a stack, so the old
+ * value is replaced — and because that is a loss, it is asked about in a
+ * `ConfirmDialog` rather than mentioned in advance and then done anyway.
  */
 
 const ERROR_PARAMS: Partial<Record<WeightErrorCode, Record<string, number>>> = {
@@ -50,6 +52,18 @@ type Status =
 function emptyForm(today: string): WeightFormValues {
   return { date: today, weightKg: "", note: "" };
 }
+
+/**
+ * The question on screen, if one is being asked.
+ *
+ * One slot rather than a flag per dialog: two of these can never be true at
+ * once, and a union makes that unrepresentable instead of merely unlikely. Each
+ * variant carries what its wording needs, so the dialog is written from the
+ * value that opened it and cannot describe a row that has since changed.
+ */
+type Pending =
+  | { kind: "replace"; input: WeightFormInput; existing: WeightEntry }
+  | { kind: "remove"; entry: WeightEntry };
 
 /** Renders a stored number the way pt-BR writes one — see `toField`. */
 function toField(value: number): string {
@@ -82,7 +96,7 @@ export function WeightLog() {
    * work out for themselves. This is the narrower fact: a row was picked.
    */
   const [editing, setEditing] = useState<WeightEntry | undefined>(undefined);
-  const [confirming, setConfirming] = useState<Id | undefined>(undefined);
+  const [pending, setPending] = useState<Pending | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +151,7 @@ export function WeightLog() {
     setStatus("ready");
   };
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const result = validateWeightForm(values, today);
@@ -148,13 +162,28 @@ export function WeightLog() {
     }
 
     setErrors({});
+
+    // The day is a slot, so this save would take a measurement out of the log.
+    // Ask first — and ask here rather than after writing, because there is
+    // nothing to undo with once the old value is gone.
+    const existing = entryOn(entries, result.value.date);
+    if (existing !== undefined) {
+      setPending({ kind: "replace", input: result.value, existing });
+      return;
+    }
+
+    void save(result.value);
+  };
+
+  const save = async (input: WeightFormInput) => {
+    setPending(undefined);
     setStatus("saving");
 
     try {
       const repository = getRepository();
       const { replaced } = await saveWeightEntry(
         repository,
-        result.value,
+        input,
         new Date().toISOString(),
       );
 
@@ -162,7 +191,7 @@ export function WeightLog() {
       // list kept in step by hand would drift the first time a backfilled day
       // landed in the middle of it.
       setEntries(await loadWeightLog(repository));
-      setSavedDate(result.value.date);
+      setSavedDate(input.date);
       setValues(emptyForm(today));
       setEditing(undefined);
       setStatus(replaced ? "savedReplaced" : "savedNew");
@@ -172,7 +201,7 @@ export function WeightLog() {
   };
 
   const remove = async (id: Id) => {
-    setConfirming(undefined);
+    setPending(undefined);
 
     try {
       const repository = getRepository();
@@ -200,11 +229,6 @@ export function WeightLog() {
       month: "long",
       year: "numeric",
     });
-
-  // What is already filed under the day in the box. Read from the list rather
-  // than the store so it answers while the date is being changed, with no
-  // round-trip and nothing to keep in sync.
-  const occupied = entryOn(entries, values.date.trim());
 
   return (
     <div className="flex flex-col gap-10">
@@ -266,15 +290,6 @@ export function WeightLog() {
             />
           )}
         </Field>
-
-        {occupied === undefined ? null : (
-          <p className="text-xs opacity-70">
-            {t("replaceWarning", {
-              date: day(occupied.date),
-              weight: occupied.weightKg,
-            })}
-          </p>
-        )}
 
         <div className="flex flex-wrap items-center gap-4">
           <button
@@ -345,42 +360,20 @@ export function WeightLog() {
                 </div>
 
                 <div className="flex items-center gap-3 text-sm">
-                  {confirming === entry.id ? (
-                    <>
-                      <span className="text-xs opacity-60">{t("removeWarning")}</span>
-                      <button
-                        type="button"
-                        onClick={() => void remove(entry.id)}
-                        className="text-red-700 underline underline-offset-4 dark:text-red-400"
-                      >
-                        {t("removeConfirm")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirming(undefined)}
-                        className="underline underline-offset-4"
-                      >
-                        {t("removeCancel")}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => startEditing(entry)}
-                        className="underline underline-offset-4"
-                      >
-                        {t("edit")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirming(entry.id)}
-                        className="underline underline-offset-4 opacity-70"
-                      >
-                        {t("remove")}
-                      </button>
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => startEditing(entry)}
+                    className="underline underline-offset-4"
+                  >
+                    {t("edit")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPending({ kind: "remove", entry })}
+                    className="underline underline-offset-4 opacity-70"
+                  >
+                    {t("remove")}
+                  </button>
                 </div>
               </li>
             ))}
@@ -396,6 +389,35 @@ export function WeightLog() {
           </Link>
         </p>
       </section>
+
+      {pending?.kind === "replace" ? (
+        <ConfirmDialog
+          title={t("replaceTitle", { date: day(pending.input.date) })}
+          confirmLabel={t("replaceConfirm")}
+          cancelLabel={t("replaceCancel")}
+          tone="danger"
+          onConfirm={() => void save(pending.input)}
+          onCancel={() => setPending(undefined)}
+        >
+          {t("replaceBody", {
+            current: pending.existing.weightKg,
+            next: pending.input.weightKg,
+          })}
+        </ConfirmDialog>
+      ) : null}
+
+      {pending?.kind === "remove" ? (
+        <ConfirmDialog
+          title={t("removeTitle", { date: day(pending.entry.date) })}
+          confirmLabel={t("removeConfirm")}
+          cancelLabel={t("removeCancel")}
+          tone="danger"
+          onConfirm={() => void remove(pending.entry.id)}
+          onCancel={() => setPending(undefined)}
+        >
+          {t("removeBody", { weight: pending.entry.weightKg })}
+        </ConfirmDialog>
+      ) : null}
     </div>
   );
 }

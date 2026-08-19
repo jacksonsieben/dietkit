@@ -32,21 +32,62 @@ describe("weight log wiring", () => {
     );
   });
 
-  it("says what saving over an existing day will do, before it does it", () => {
+  it("asks before saving over an existing day, and does not save until told", () => {
     // The defined duplicate-date behaviour is "the day is a slot": choosing an
-    // occupied one replaces what is in it. A user who is not told that is one
-    // who loses a measurement to a keystroke.
+    // occupied one replaces what is in it. A user who is not asked is one who
+    // loses a measurement to a keystroke.
     const source = read("src/components/WeightLog.tsx");
 
-    // Shown from the day in the box, which is known as it is typed — not from
-    // the result of the save, which would be an apology rather than a warning.
-    expect(source).toContain("entryOn(entries, values.date");
-    const warning = source.slice(source.indexOf("occupied === undefined ? null"));
-    expect(warning.slice(0, warning.indexOf(")}"))).toContain('t("replaceWarning"');
+    const submit = source.slice(source.indexOf("const onSubmit"));
+    const body = submit.slice(0, submit.indexOf("const save"));
 
-    // And it quotes the weight that is about to be overwritten, so the user can
-    // see whether it is worth keeping.
-    expect(ptBR.Weight.replaceWarning).toContain("{weight, number}");
+    // The occupied day is found before anything is written…
+    expect(body).toContain("entryOn(entries, result.value.date)");
+
+    // …and everything between finding it and the save is the branch that opens
+    // the question and leaves. Sliced up to `void save(` rather than to the
+    // first `return`, which would be the invalid-input one above and would pass
+    // no matter what this branch did.
+    const occupied = body.slice(
+      body.indexOf("if (existing !== undefined)"),
+      body.indexOf("void save("),
+    );
+
+    expect(occupied).toContain('kind: "replace"');
+    expect(occupied).toContain("return;");
+  });
+
+  it("quotes both weights in the question, not just the new one", () => {
+    // "Substituir?" with no numbers in it is a question about nothing. The
+    // decision is whether the value on screen is worth the one already saved,
+    // so both have to be in the sentence.
+    expect(ptBR.Weight.replaceBody).toContain("{current, number}");
+    expect(ptBR.Weight.replaceBody).toContain("{next, number}");
+  });
+
+  it("asks the same way before deleting a row", () => {
+    // Delete is the other way a measurement leaves this screen, and it is worth
+    // no less than an overwrite. One dialog for both, so neither can quietly
+    // become the easy one.
+    const source = read("src/components/WeightLog.tsx");
+
+    expect(source).toContain('setPending({ kind: "remove", entry })');
+
+    const dialog = source.slice(source.indexOf('pending?.kind === "remove"'));
+    const call = dialog.slice(0, dialog.indexOf("</ConfirmDialog>"));
+    expect(call).toContain("void remove(pending.entry.id)");
+    expect(call).toContain('tone="danger"');
+  });
+
+  it("asks through the shared dialog rather than a line of text on the page", () => {
+    // Small print under the inputs sits outside the path from the last box to
+    // the button, which is how the warning it replaced went unread.
+    const source = read("src/components/WeightLog.tsx");
+
+    expect(source).toContain(
+      'import { ConfirmDialog } from "@/components/ConfirmDialog"',
+    );
+    expect(source).not.toContain("replaceWarning");
   });
 
   it("offers a day other than today", () => {
