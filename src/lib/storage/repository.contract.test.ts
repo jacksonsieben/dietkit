@@ -7,7 +7,13 @@ import { createDexieRepository } from "./dexie/repository";
 import { createMemoryRepository } from "./memory";
 import type { Repository } from "./repository";
 import { DEFAULT_SETTINGS } from "./shared";
-import type { CustomFood, Diet, Profile, WeightEntry } from "./types";
+import type {
+  CustomFood,
+  Diet,
+  Profile,
+  SubstitutionGroup,
+  WeightEntry,
+} from "./types";
 import { SNAPSHOT_SCHEMA_VERSION } from "./types";
 
 /**
@@ -116,6 +122,32 @@ function makeFood(overrides: Partial<CustomFood> = {}): CustomFood {
     // comparing a whole food — the export, the round-trip through JSON — is
     // also checking that the optional serving size survived the trip.
     servingG: 200,
+    createdAt: "2026-08-01T10:00:00.000Z",
+    updatedAt: "2026-08-01T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeGroup(
+  overrides: Partial<SubstitutionGroup> = {},
+): SubstitutionGroup {
+  return {
+    id: crypto.randomUUID(),
+    name: "Frutas",
+    foods: [
+      { source: "taco", tacoId: 12 },
+      { source: "taco", tacoId: 48 },
+    ],
+    // Carried in the default fixture for `makeFood`'s reason: every assertion
+    // that compares a whole group is then also checking that the composition
+    // snapshot — the thing that lets a swap work offline — survived the trip.
+    tacoFoods: [
+      {
+        tacoId: 48,
+        name: "Banana prata",
+        per100g: { kcal: 98, proteinG: 1.3, carbG: 26, fatG: 0.1 },
+      },
+    ],
     createdAt: "2026-08-01T10:00:00.000Z",
     updatedAt: "2026-08-01T10:00:00.000Z",
     ...overrides,
@@ -329,6 +361,58 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
     });
   });
 
+  describe("substitution groups", () => {
+    it("has none until the user writes one", async () => {
+      await expect(repository.substitutionGroups.list()).resolves.toEqual([]);
+      await expect(
+        repository.substitutionGroups.get(crypto.randomUUID()),
+      ).resolves.toBeUndefined();
+    });
+
+    it("round-trips a group with its composition snapshots", async () => {
+      const group = makeGroup();
+      await repository.substitutionGroups.put(group);
+
+      await expect(
+        repository.substitutionGroups.get(group.id),
+      ).resolves.toEqual(group);
+    });
+
+    it("replaces a group of the same id rather than adding a second", async () => {
+      const group = makeGroup();
+      await repository.substitutionGroups.put(group);
+      await repository.substitutionGroups.put({
+        ...group,
+        name: "Frutas da manhã",
+        foods: [...group.foods, { source: "custom", customFoodId: "abc" }],
+        updatedAt: "2026-08-17T10:00:00.000Z",
+      });
+
+      const groups = await repository.substitutionGroups.list();
+      expect(groups).toHaveLength(1);
+      expect(groups[0]?.name).toBe("Frutas da manhã");
+      expect(groups[0]?.foods).toHaveLength(3);
+    });
+
+    it("lists alphabetically and removes by id", async () => {
+      const grains = makeGroup({ name: "Grãos" });
+      const fruit = makeGroup({ name: "Frutas" });
+      const acompanhamentos = makeGroup({ name: "Acompanhamentos" });
+      await repository.substitutionGroups.put(grains);
+      await repository.substitutionGroups.put(fruit);
+      await repository.substitutionGroups.put(acompanhamentos);
+
+      expect(
+        (await repository.substitutionGroups.list()).map((g) => g.name),
+      ).toEqual(["Acompanhamentos", "Frutas", "Grãos"]);
+
+      await repository.substitutionGroups.remove(fruit.id);
+      expect(
+        (await repository.substitutionGroups.list()).map((g) => g.name),
+      ).toEqual(["Acompanhamentos", "Grãos"]);
+    });
+  });
+
   describe("settings", () => {
     it("reads back defaults before anything is written", async () => {
       await expect(repository.settings.get()).resolves.toEqual(
@@ -357,10 +441,12 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       const entry = makeWeight();
       const diet = makeDiet();
       const food = makeFood();
+      const group = makeGroup();
       await repository.profile.save(profile);
       await repository.weight.put(entry);
       await repository.diets.put(diet);
       await repository.customFoods.put(food);
+      await repository.substitutionGroups.put(group);
       await repository.settings.patch({
         lastBackupAt: "2026-08-17T09:00:00.000Z",
       });
@@ -373,6 +459,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       expect(snapshot.weight).toEqual([entry]);
       expect(snapshot.diets).toEqual([diet]);
       expect(snapshot.customFoods).toEqual([food]);
+      expect(snapshot.substitutionGroups).toEqual([group]);
       expect(snapshot.settings.lastBackupAt).toBe("2026-08-17T09:00:00.000Z");
     });
 
@@ -382,6 +469,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.weight.put(makeWeight({ date: "2026-08-17" }));
       await repository.diets.put(makeDiet());
       await repository.customFoods.put(makeFood());
+      await repository.substitutionGroups.put(makeGroup());
 
       // Through JSON, because that is exactly what the backup file is.
       const snapshot = JSON.parse(
@@ -396,6 +484,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       expect(restored.weight).toEqual(snapshot.weight);
       expect(restored.diets).toEqual(snapshot.diets);
       expect(restored.customFoods).toEqual(snapshot.customFoods);
+      expect(restored.substitutionGroups).toEqual(snapshot.substitutionGroups);
     });
 
     it("replaces on import rather than merging", async () => {
@@ -431,6 +520,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.weight.put(makeWeight());
       await repository.diets.put(makeDiet());
       await repository.customFoods.put(makeFood());
+      await repository.substitutionGroups.put(makeGroup());
       await repository.settings.patch({
         lastBackupAt: "2026-08-17T09:00:00.000Z",
       });
@@ -441,6 +531,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await expect(repository.weight.list()).resolves.toEqual([]);
       await expect(repository.diets.list()).resolves.toEqual([]);
       await expect(repository.customFoods.list()).resolves.toEqual([]);
+      await expect(repository.substitutionGroups.list()).resolves.toEqual([]);
       await expect(repository.settings.get()).resolves.toEqual(
         DEFAULT_SETTINGS,
       );

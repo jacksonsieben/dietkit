@@ -10,16 +10,20 @@ import {
 import { useFormatter, useTranslations } from "next-intl";
 
 import { CONTROL_CLASS } from "@/components/Field";
-import { MealItems, type FoodChoice } from "@/components/MealItems";
+import { type FoodChoice } from "@/components/FoodPicker";
+import { MealItems } from "@/components/MealItems";
 import { Link } from "@/i18n/navigation";
 import { todayIsoDate } from "@/lib/date";
 import { buildFoodBook, usedTacoFoods } from "@/lib/diet/composition";
 import { distributeTargets, sharePercents } from "@/lib/diet/distribute";
+import { groupCompositions } from "@/lib/diet/groups";
 import {
   addItem,
   canAddItem,
   newItem,
   removeItem,
+  setItemGroup,
+  swapFood,
   updateItem,
   type ItemChanges,
 } from "@/lib/diet/items";
@@ -44,7 +48,15 @@ import { loadGoal } from "@/lib/energy/goal";
 import { planMacros } from "@/lib/energy/macros";
 import { loadEnergySummary } from "@/lib/energy/summary";
 import { getRepository } from "@/lib/storage";
-import type { CustomFood, Diet, Id, MacroSet, Meal } from "@/lib/storage/types";
+import type {
+  CustomFood,
+  Diet,
+  FoodRef,
+  Id,
+  MacroSet,
+  Meal,
+  SubstitutionGroup,
+} from "@/lib/storage/types";
 
 /**
  * The day as a list the user writes (#18).
@@ -83,6 +95,15 @@ interface Loaded {
    * and a food the user typed themselves must.
    */
   customFoods: CustomFood[];
+  /**
+   * The substitution groups on this device (#20).
+   *
+   * Read here rather than inside the item row so that every row is offered the
+   * same list, and so the compositions the groups carry can go into the food
+   * book below: a group's alternatives are by definition foods the plan is not
+   * using, so nothing else on the device knows what they are worth.
+   */
+  groups: SubstitutionGroup[];
 }
 
 type MealErrors = Record<Id, { name?: MealErrorCode; share?: MealErrorCode }>;
@@ -127,11 +148,12 @@ export function MealPlanner() {
     void (async () => {
       try {
         const repository = getRepository();
-        const [energy, goal, stored, customFoods] = await Promise.all([
+        const [energy, goal, stored, customFoods, groups] = await Promise.all([
           loadEnergySummary(repository, todayIsoDate()),
           loadGoal(repository),
           loadPlan(repository),
           repository.customFoods.list(),
+          repository.substitutionGroups.list(),
         ]);
         if (cancelled) return;
 
@@ -152,6 +174,7 @@ export function MealPlanner() {
           targets: macros.targets,
           weightKg: energy.summary.weightKg,
           customFoods,
+          groups,
           // `newPlan` builds without writing: someone who opens this screen and
           // leaves should not find a diet in their store tomorrow.
           plan:
@@ -229,7 +252,10 @@ export function MealPlanner() {
    * whose whole job is that the numbers add up, is the bug not worth the
    * memoisation.
    */
-  const book = buildFoodBook(loaded.plan.tacoFoods, loaded.customFoods);
+  const book = buildFoodBook(
+    [...(loaded.plan.tacoFoods ?? []), ...groupCompositions(loaded.groups)],
+    loaded.customFoods,
+  );
   const solved = solvePlan(loaded.targets, meals, book);
   const totals = planTotals(solved);
 
@@ -345,6 +371,45 @@ export function MealPlanner() {
     apply(updateItem(meals, mealId, itemId, changes));
   };
 
+  /**
+   * One member of a group swapped in for another (#20).
+   *
+   * The plan takes the new food's snapshot with it, for `onAddFood`'s reason:
+   * `usedTacoFoods` keeps only what the items point at, so a food that arrived
+   * from a group and left no copy behind would come back as an unknown row the
+   * next time the plan is opened. The group's own copy is not enough — deleting
+   * the group later would take the plan's numbers with it.
+   *
+   * No arithmetic here, deliberately. The bounds stay where they were and the
+   * next render re-solves the meal, which is what makes a swap keep the macro
+   * targets rather than merely keeping the grams.
+   */
+  const onSwapFood = (mealId: Id, itemId: Id, food: FoodRef) => {
+    setLoaded((current) => {
+      if (!current) return current;
+
+      const known = current.plan.tacoFoods ?? [];
+      const snapshot =
+        food.source === "taco" && !known.some((f) => f.tacoId === food.tacoId)
+          ? groupCompositions(current.groups).find(
+              (f) => f.tacoId === food.tacoId,
+            )
+          : undefined;
+
+      return {
+        ...current,
+        plan: {
+          ...current.plan,
+          tacoFoods: snapshot === undefined ? current.plan.tacoFoods : [...known, snapshot],
+          meals: swapFood(current.plan.meals, mealId, itemId, food),
+        },
+      };
+    });
+
+    setDirty(true);
+    setStatus((current) => (current === "saved" ? "ready" : current));
+  };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -453,11 +518,17 @@ export function MealPlanner() {
             >
               <MealItems
                 solved={solved[index]}
+                groups={loaded.groups}
+                book={book}
                 canAdd={canAddItem(meal)}
                 onAdd={(choice) => onAddFood(meal.id, choice)}
                 onChange={(itemId, changes) =>
                   onChangeItem(meal.id, itemId, changes)
                 }
+                onSetGroup={(itemId, groupId) =>
+                  apply(setItemGroup(meals, meal.id, itemId, groupId))
+                }
+                onSwap={(itemId, food) => onSwapFood(meal.id, itemId, food)}
                 onRemove={(itemId) =>
                   apply(removeItem(meals, meal.id, itemId))
                 }
@@ -549,7 +620,16 @@ export function MealPlanner() {
         </p>
       </div>
 
-      <p className="text-xs opacity-60">{t("itemsNote")}</p>
+      <div className="flex flex-col items-start gap-2">
+        <p className="text-xs opacity-60">{t("itemsNote")}</p>
+        <p className="text-xs opacity-60">{t("groupsNote")}</p>
+        <Link
+          href="/alimentos/grupos"
+          className="text-xs underline underline-offset-4"
+        >
+          {t("groupsLink")}
+        </Link>
+      </div>
     </form>
   );
 }

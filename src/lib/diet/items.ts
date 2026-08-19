@@ -114,6 +114,66 @@ export function removeItem(meals: readonly Meal[], mealId: Id, itemId: Id): Meal
 }
 
 /**
+ * The same slot, filled with a different food (#20).
+ *
+ * The bounds do not move. `minG`, `maxG` and `mandatory` say how much room this
+ * position in the meal has — that is a fact about the meal, not about whatever
+ * is currently in the slot — so after the swap the render-time solve sizes the
+ * new food against the same room and the macro targets still hold. That is the
+ * whole mechanism: nothing here does arithmetic.
+ *
+ * Refuses a food the meal already holds in another row, for `addItem`'s reason:
+ * one row per food, or the solver sizes the same food twice and the screen
+ * shows two portions of it.
+ */
+export function swapFood(
+  meals: readonly Meal[],
+  mealId: Id,
+  itemId: Id,
+  food: FoodRef,
+): Meal[] {
+  return withMeal(meals, mealId, (meal) => {
+    const clash = meal.items.some(
+      (item) => item.id !== itemId && sameFood(item.food, food),
+    );
+    if (clash) return meal;
+
+    return {
+      ...meal,
+      items: meal.items.map((item) =>
+        item.id === itemId ? { ...item, food } : item,
+      ),
+    };
+  });
+}
+
+/**
+ * Which group this slot draws from, or none.
+ *
+ * Not part of `ItemChanges` because it is not a field of the food's sizing: it
+ * decides what the swap control offers, and it is cleared by passing
+ * `undefined` rather than by writing one.
+ */
+export function setItemGroup(
+  meals: readonly Meal[],
+  mealId: Id,
+  itemId: Id,
+  substitutionGroupId: Id | undefined,
+): Meal[] {
+  return withMeal(meals, mealId, (meal) => ({
+    ...meal,
+    items: meal.items.map((item) => {
+      if (item.id !== itemId) return item;
+      if (substitutionGroupId === undefined) {
+        const { substitutionGroupId: _dropped, ...rest } = item;
+        return rest;
+      }
+      return { ...item, substitutionGroupId };
+    }),
+  }));
+}
+
+/**
  * The fields of an item a screen may set.
  *
  * Narrower than `Partial<DietItem>` on purpose: `id` and `food` are what the

@@ -19,6 +19,7 @@ export function emptySnapshot(): Snapshot {
     weight: [],
     diets: [],
     customFoods: [],
+    substitutionGroups: [],
     settings: { ...DEFAULT_SETTINGS },
   };
 }
