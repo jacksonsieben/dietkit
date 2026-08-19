@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parseFoodQuery } from "@/lib/foods/query";
 
 import { DATA_FILE, type TacoDataset } from "../../../scripts/taco/dataset.ts";
-import { searchFoods, type FoodSearchResult } from "./foods";
+import { foodsByIds, searchFoods, type FoodSearchResult } from "./foods";
 import { NUTRIENT_KEYS } from "./nutrients";
 import { createReferenceDatabase, type ReferenceDatabase } from "./pglite.fixture";
 import { datasetVersions, foodGroups, foods } from "./schema";
@@ -227,5 +227,45 @@ describe("searchFoods", () => {
     expect(plan.rows.map((row) => row["QUERY PLAN"]).join("\n")).toContain(
       "foods_search_text_idx",
     );
+  });
+});
+
+/**
+ * The by-id half (#22), which exists because an import already knows which
+ * rows it wants — and answers a different question from search about a row
+ * whose numbers were withdrawn.
+ */
+describe("foodsByIds", () => {
+  it("returns the rows that were asked for", async () => {
+    expect(descriptions(await foodsByIds(fixture.db, [561, 1]))).toEqual([
+      "Arroz, integral, cozido",
+      "Feijão, carioca, cozido",
+    ]);
+  });
+
+  it("leaves out an id that is not a food rather than failing", async () => {
+    expect(await foodsByIds(fixture.db, [99_999])).toEqual([]);
+    expect(await foodsByIds(fixture.db, [])).toEqual([]);
+  });
+
+  it("answers for a food search would not offer", async () => {
+    // 458 is "Leite, de vaca, integral", every macro withdrawn as `*`. Search
+    // leaves it out because it cannot be chosen for a plan; here the caller is
+    // pointing straight at it, and "no such food" would be a different — and
+    // false — answer from "NEPA published no number".
+    const [milk] = await foodsByIds(fixture.db, [458]);
+
+    expect(milk?.description).toBe("Leite, de vaca, integral");
+    expect(milk?.proteinG).toBeNull();
+    expect(descriptions(await search("leite"))).not.toContain(
+      "Leite, de vaca, integral",
+    );
+  });
+
+  it("carries the sentinels, so Tr is still Tr", async () => {
+    const [potato] = await foodsByIds(fixture.db, [91]);
+
+    expect(potato?.fatG).toBeNull();
+    expect(potato?.sentinels.fatG).toBe("Tr");
   });
 });

@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { FoodSearchResult } from "@/lib/db/foods";
 
-import { foodSearchResponse, type FoodSearchFn } from "./endpoint";
+import {
+  foodLookupResponse,
+  foodSearchResponse,
+  type FoodLookupFn,
+  type FoodSearchFn,
+} from "./endpoint";
 import { DEFAULT_LIMIT, MAX_LIMIT } from "./query";
 
 /**
@@ -149,5 +154,57 @@ describe("foodSearchResponse", () => {
       "proteinG",
       "sentinels",
     ]);
+  });
+});
+
+describe("foodLookupResponse", () => {
+  const lookup = (results: readonly FoodSearchResult[] = [ARROZ]) =>
+    vi.fn<FoodLookupFn>(async () => results);
+
+  it("hands the query the ids it was given, once each", async () => {
+    const fn = lookup();
+    await foodLookupResponse(fn, params("ids=1,182,1"));
+
+    expect(fn).toHaveBeenCalledWith([1, 182]);
+  });
+
+  it("answers with the same body a search does", async () => {
+    const response = await foodLookupResponse(lookup(), params("ids=1"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      query: "1",
+      count: 1,
+      foods: [ARROZ],
+    });
+  });
+
+  it("does not ask the database about a parameter with no ids in it", async () => {
+    const fn = lookup();
+    const response = await foodLookupResponse(fn, params("ids=abc"));
+
+    expect(fn).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      query: "",
+      count: 0,
+      foods: [],
+    });
+  });
+
+  it("lets a caller see that a row was not found", async () => {
+    // Two asked for, one back: the count against the list is the whole report,
+    // and it is what puts `compositionMissing` on the import's screen.
+    const response = await foodLookupResponse(lookup(), params("ids=1,2"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      query: "1,2",
+      count: 1,
+    });
+  });
+
+  it("may be cached, because there is nothing personal in an id", async () => {
+    const response = await foodLookupResponse(lookup(), params("ids=1"));
+
+    expect(response.headers.get("cache-control")).toContain("public");
   });
 });

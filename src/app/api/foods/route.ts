@@ -1,6 +1,9 @@
 import { db } from "@/lib/db/client";
-import { searchFoods } from "@/lib/db/foods";
-import { foodSearchResponse } from "@/lib/foods/endpoint";
+import { foodsByIds, searchFoods } from "@/lib/db/foods";
+import {
+  foodLookupResponse,
+  foodSearchResponse,
+} from "@/lib/foods/endpoint";
 
 /**
  * Food search over the TACO table (#16).
@@ -20,6 +23,13 @@ import { foodSearchResponse } from "@/lib/foods/endpoint";
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+
+  // `?ids=` is the same reference data asked for by id, which is what an import
+  // needs (#22): the mapping from an old app's food to a TACO row is settled
+  // before the request is made, so there is nothing to search for.
+  if (searchParams.has("ids")) {
+    return foodLookupResponse((ids) => foodsByIds(db(), ids), searchParams);
+  }
 
   return foodSearchResponse(
     (query, limit) => searchFoods(db(), query, limit),

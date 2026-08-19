@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import type { FoodQuery } from "@/lib/foods/query";
@@ -56,6 +56,20 @@ export interface FoodSearchResult {
 
 type Database = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
 
+/** What both queries return. Shared so the two cannot drift apart. */
+const COLUMNS = {
+  id: foods.id,
+  description: foods.description,
+  groupSlug: foods.groupSlug,
+  groupName: foodGroups.name,
+  energyKcal: foods.energyKcal,
+  proteinG: foods.proteinG,
+  carbG: foods.carbG,
+  fatG: foods.fatG,
+  fiberG: foods.fiberG,
+  sentinels: foods.sentinels,
+};
+
 /**
  * Whether a macro cell is usable, which is not the same as "is not null".
  *
@@ -103,23 +117,42 @@ export async function searchFoods(
   const startsWithTyped = sql<boolean>`starts_with(${foods.searchText}, ${query.terms[0]})`;
 
   const rows = await database
-    .select({
-      id: foods.id,
-      description: foods.description,
-      groupSlug: foods.groupSlug,
-      groupName: foodGroups.name,
-      energyKcal: foods.energyKcal,
-      proteinG: foods.proteinG,
-      carbG: foods.carbG,
-      fatG: foods.fatG,
-      fiberG: foods.fiberG,
-      sentinels: foods.sentinels,
-    })
+    .select(COLUMNS)
     .from(foods)
     .innerJoin(foodGroups, eq(foods.groupSlug, foodGroups.slug))
     .where(and(matches, ...REQUIRED_MACROS.map(measured)))
     .orderBy(desc(startsWithTyped), asc(foods.description))
     .limit(limit);
+
+  return rows.map((row) => ({ ...row, sentinels: macroSentinels(row.sentinels) }));
+}
+
+/**
+ * The same rows, asked for by id (#22).
+ *
+ * Without `measured`, which is the difference that matters: search is a list of
+ * foods to *choose* from, so a row with a hole in its macros is left out of it,
+ * but this answers a caller that already points at a particular id and needs to
+ * know what is published for it. Hiding the row would look like "that food does
+ * not exist" when the truth is "NEPA withdrew its protein" — and the client
+ * already refuses to build a composition from such a row
+ * (`compositionFromResult`), which is the check that keeps the hole out of a
+ * plan.
+ *
+ * Ordered by description so the same ids come back the same way twice.
+ */
+export async function foodsByIds(
+  database: Database,
+  ids: readonly number[],
+): Promise<FoodSearchResult[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await database
+    .select(COLUMNS)
+    .from(foods)
+    .innerJoin(foodGroups, eq(foods.groupSlug, foodGroups.slug))
+    .where(inArray(foods.id, [...ids]))
+    .orderBy(asc(foods.description));
 
   return rows.map((row) => ({ ...row, sentinels: macroSentinels(row.sentinels) }));
 }
