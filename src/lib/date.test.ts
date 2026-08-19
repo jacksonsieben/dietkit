@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { todayIsoDate } from "./date";
+import { calendarDate, todayIsoDate } from "./date";
 
 const originalTz = process.env.TZ;
 
@@ -34,5 +34,32 @@ describe("todayIsoDate", () => {
   it("produces a value the ISO date parser accepts", () => {
     process.env.TZ = "America/Sao_Paulo";
     expect(todayIsoDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("calendarDate", () => {
+  it("lands on the day the string names, not the day before", () => {
+    // `new Date("2026-08-19")` is UTC midnight, which in São Paulo is 21:00 on
+    // the 18th — so the log would print every entry one day early.
+    process.env.TZ = "America/Sao_Paulo";
+    const date = calendarDate("2026-08-19");
+
+    expect(date.getFullYear()).toBe(2026);
+    expect(date.getMonth()).toBe(7);
+    expect(date.getDate()).toBe(19);
+    expect(new Date("2026-08-19").getDate()).toBe(18);
+  });
+
+  it("lands on the same day east of UTC", () => {
+    process.env.TZ = "Pacific/Kiritimati";
+
+    expect(calendarDate("2026-08-19").getDate()).toBe(19);
+  });
+
+  it("puts it at local midnight, so no formatter can round it away", () => {
+    process.env.TZ = "America/Sao_Paulo";
+    const date = calendarDate("2026-08-19");
+
+    expect([date.getHours(), date.getMinutes()]).toEqual([0, 0]);
   });
 });
