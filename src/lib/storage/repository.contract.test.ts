@@ -111,6 +111,10 @@ function makeFood(overrides: Partial<CustomFood> = {}): CustomFood {
     id: crypto.randomUUID(),
     name: "Açaí batido",
     per100g: { kcal: 110, proteinG: 1.2, carbG: 22, fatG: 2.1 },
+    // In the default fixture rather than in one test, so that every assertion
+    // comparing a whole food — the export, the round-trip through JSON — is
+    // also checking that the optional serving size survived the trip.
+    servingG: 200,
     createdAt: "2026-08-01T10:00:00.000Z",
     updatedAt: "2026-08-01T10:00:00.000Z",
     ...overrides,
@@ -272,6 +276,31 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await expect(repository.customFoods.search("grelhado")).resolves.toEqual([
         frango,
       ]);
+    });
+
+    it("searches the brand as well as the name", async () => {
+      // The brand is often the only word a person remembers: they wrote the tub
+      // down under its flavour, and they look for it by who makes it.
+      const whey = makeFood({ name: "Baunilha", brand: "Growth" });
+      await repository.customFoods.put(whey);
+      await repository.customFoods.put(makeFood({ name: "Frango grelhado" }));
+
+      await expect(repository.customFoods.search("growth")).resolves.toEqual([
+        whey,
+      ]);
+    });
+
+    it("returns search results in name order", async () => {
+      // Pinned here rather than left to each adapter, because a caller that
+      // filters the results keeps whatever order it was given — and a list that
+      // reshuffles between two identical searches reads as a bug.
+      await repository.customFoods.put(makeFood({ name: "Iogurte caseiro" }));
+      await repository.customFoods.put(makeFood({ name: "Amendoim caseiro" }));
+      await repository.customFoods.put(makeFood({ name: "Ervilha caseira" }));
+
+      expect(
+        (await repository.customFoods.search("caseir")).map((f) => f.name),
+      ).toEqual(["Amendoim caseiro", "Ervilha caseira", "Iogurte caseiro"]);
     });
 
     it("returns nothing for a blank search rather than everything", async () => {

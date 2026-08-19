@@ -12,7 +12,7 @@ import type {
 } from "./types";
 import type { Repository } from "./repository";
 import { SNAPSHOT_SCHEMA_VERSION } from "./types";
-import { DEFAULT_SETTINGS, clone } from "./shared";
+import { DEFAULT_SETTINGS, clone, customFoodHaystack } from "./shared";
 
 interface MemoryState {
   profile?: Profile;
@@ -124,7 +124,7 @@ export function createMemoryRepository(): Repository {
         const needle = fold(term);
         if (needle === "") return [];
         return [...state.customFoods.values()]
-          .filter((food) => fold(food.name).includes(needle))
+          .filter((food) => customFoodHaystack(food).includes(needle))
           .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
           .map(clone);
       },
