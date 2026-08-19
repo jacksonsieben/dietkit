@@ -105,6 +105,21 @@ export function createDexieRepository(
       },
     },
 
+    substitutionGroups: {
+      async list() {
+        return db.substitutionGroups.orderBy("name").toArray();
+      },
+      async get(id) {
+        return db.substitutionGroups.get(id);
+      },
+      async put(group) {
+        await db.substitutionGroups.put(group);
+      },
+      async remove(id) {
+        await db.substitutionGroups.delete(id);
+      },
+    },
+
     settings: {
       async get() {
         const row = await db.settings.get(SINGLETON_KEY);
@@ -128,16 +143,30 @@ export function createDexieRepository(
     async exportAll(): Promise<Snapshot> {
       return db.transaction(
         "r",
-        [db.profile, db.weight, db.diets, db.customFoods, db.settings],
+        [
+          db.profile,
+          db.weight,
+          db.diets,
+          db.customFoods,
+          db.substitutionGroups,
+          db.settings,
+        ],
         async () => {
-          const [profileRow, weight, diets, customFoods, settingsRow] =
-            await Promise.all([
-              db.profile.get(SINGLETON_KEY),
-              db.weight.orderBy("date").toArray(),
-              db.diets.toArray(),
-              db.customFoods.toArray(),
-              db.settings.get(SINGLETON_KEY),
-            ]);
+          const [
+            profileRow,
+            weight,
+            diets,
+            customFoods,
+            substitutionGroups,
+            settingsRow,
+          ] = await Promise.all([
+            db.profile.get(SINGLETON_KEY),
+            db.weight.orderBy("date").toArray(),
+            db.diets.toArray(),
+            db.customFoods.toArray(),
+            db.substitutionGroups.toArray(),
+            db.settings.get(SINGLETON_KEY),
+          ]);
 
           return {
             schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -146,6 +175,7 @@ export function createDexieRepository(
             weight,
             diets,
             customFoods,
+            substitutionGroups,
             settings: settingsRow
               ? { ...DEFAULT_SETTINGS, ...(stripKey(settingsRow) as Settings) }
               : { ...DEFAULT_SETTINGS },
@@ -161,13 +191,21 @@ export function createDexieRepository(
       // transaction across every table.
       await db.transaction(
         "rw",
-        [db.profile, db.weight, db.diets, db.customFoods, db.settings],
+        [
+          db.profile,
+          db.weight,
+          db.diets,
+          db.customFoods,
+          db.substitutionGroups,
+          db.settings,
+        ],
         async () => {
           await Promise.all([
             db.profile.clear(),
             db.weight.clear(),
             db.diets.clear(),
             db.customFoods.clear(),
+            db.substitutionGroups.clear(),
             db.settings.clear(),
           ]);
 
@@ -177,6 +215,7 @@ export function createDexieRepository(
           await db.weight.bulkPut(snapshot.weight);
           await db.diets.bulkPut(snapshot.diets);
           await db.customFoods.bulkPut(snapshot.customFoods);
+          await db.substitutionGroups.bulkPut(snapshot.substitutionGroups);
           await db.settings.put({
             ...DEFAULT_SETTINGS,
             ...snapshot.settings,
@@ -189,13 +228,21 @@ export function createDexieRepository(
     async clearAll() {
       await db.transaction(
         "rw",
-        [db.profile, db.weight, db.diets, db.customFoods, db.settings],
+        [
+          db.profile,
+          db.weight,
+          db.diets,
+          db.customFoods,
+          db.substitutionGroups,
+          db.settings,
+        ],
         async () => {
           await Promise.all([
             db.profile.clear(),
             db.weight.clear(),
             db.diets.clear(),
             db.customFoods.clear(),
+            db.substitutionGroups.clear(),
             db.settings.clear(),
           ]);
         },

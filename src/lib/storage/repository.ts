@@ -6,6 +6,7 @@ import type {
   Profile,
   Settings,
   Snapshot,
+  SubstitutionGroup,
   WeightEntry,
 } from "./types";
 
@@ -56,6 +57,14 @@ export interface CustomFoodRepository {
   remove(id: Id): Promise<void>;
 }
 
+export interface SubstitutionGroupRepository {
+  /** Alphabetical: these are browsed by name, not by when they were written. */
+  list(): Promise<SubstitutionGroup[]>;
+  get(id: Id): Promise<SubstitutionGroup | undefined>;
+  put(group: SubstitutionGroup): Promise<void>;
+  remove(id: Id): Promise<void>;
+}
+
 export interface SettingsRepository {
   /** Never undefined — an unset store reads back as defaults. */
   get(): Promise<Settings>;
@@ -67,6 +76,7 @@ export interface Repository {
   readonly weight: WeightRepository;
   readonly diets: DietRepository;
   readonly customFoods: CustomFoodRepository;
+  readonly substitutionGroups: SubstitutionGroupRepository;
   readonly settings: SettingsRepository;
 
   /**

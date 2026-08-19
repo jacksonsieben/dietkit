@@ -8,6 +8,7 @@ import type {
   Profile,
   Settings,
   Snapshot,
+  SubstitutionGroup,
   WeightEntry,
 } from "./types";
 import type { Repository } from "./repository";
@@ -19,6 +20,7 @@ interface MemoryState {
   weight: Map<Id, WeightEntry>;
   diets: Map<Id, Diet>;
   customFoods: Map<Id, CustomFood>;
+  substitutionGroups: Map<Id, SubstitutionGroup>;
   settings: Settings;
 }
 
@@ -28,6 +30,7 @@ function emptyState(): MemoryState {
     weight: new Map(),
     diets: new Map(),
     customFoods: new Map(),
+    substitutionGroups: new Map(),
     settings: { ...DEFAULT_SETTINGS },
   };
 }
@@ -136,6 +139,24 @@ export function createMemoryRepository(): Repository {
       },
     },
 
+    substitutionGroups: {
+      async list() {
+        return [...state.substitutionGroups.values()]
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+          .map(clone);
+      },
+      async get(id) {
+        const found = state.substitutionGroups.get(id);
+        return found ? clone(found) : undefined;
+      },
+      async put(group) {
+        state.substitutionGroups.set(group.id, clone(group));
+      },
+      async remove(id) {
+        state.substitutionGroups.delete(id);
+      },
+    },
+
     settings: {
       async get() {
         return clone(state.settings);
@@ -156,6 +177,7 @@ export function createMemoryRepository(): Repository {
           .map(clone),
         diets: [...state.diets.values()].map(clone),
         customFoods: [...state.customFoods.values()].map(clone),
+        substitutionGroups: [...state.substitutionGroups.values()].map(clone),
         settings: clone(state.settings),
       };
     },
@@ -167,6 +189,9 @@ export function createMemoryRepository(): Repository {
       for (const diet of snapshot.diets) next.diets.set(diet.id, clone(diet));
       for (const food of snapshot.customFoods) {
         next.customFoods.set(food.id, clone(food));
+      }
+      for (const group of snapshot.substitutionGroups) {
+        next.substitutionGroups.set(group.id, clone(group));
       }
       next.settings = { ...DEFAULT_SETTINGS, ...clone(snapshot.settings) };
       state = next;

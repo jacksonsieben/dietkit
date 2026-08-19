@@ -12,6 +12,8 @@ import {
   newItem,
   removeItem,
   sameFood,
+  setItemGroup,
+  swapFood,
   updateItem,
 } from "./items";
 
@@ -175,5 +177,74 @@ describe("checkGrams", () => {
 
   it("accepts zero, which is a thing someone can mean", () => {
     expect(checkGrams("0")).toEqual({ value: 0 });
+  });
+});
+
+describe("swapFood", () => {
+  it("keeps the slot and changes only what fills it", () => {
+    const next = swapFood(
+      meals([item({ quantityG: 180, minG: 50, maxG: 300, mandatory: true })]),
+      "m1",
+      "i1",
+      beans,
+    );
+
+    expect(next[0].items[0]).toEqual({
+      id: "i1",
+      food: beans,
+      quantityG: 180,
+      mandatory: true,
+      minG: 50,
+      maxG: 300,
+    });
+  });
+
+  it("keeps the group the slot draws from", () => {
+    const next = swapFood(
+      meals([item({ substitutionGroupId: "g1" })]),
+      "m1",
+      "i1",
+      beans,
+    );
+
+    expect(next[0].items[0].substitutionGroupId).toBe("g1");
+  });
+
+  it("refuses a food the meal already holds in another row", () => {
+    const before = meals([item(), item({ id: "i2", food: beans })]);
+    const next = swapFood(before, "m1", "i1", beans);
+
+    expect(next[0].items.map((i) => i.food)).toEqual([rice, beans]);
+  });
+
+  it("leaves other meals alone", () => {
+    const before: Meal[] = [
+      { id: "m1", name: "Almoço", share: 0.5, items: [item()] },
+      { id: "m2", name: "Jantar", share: 0.5, items: [item({ id: "i2" })] },
+    ];
+
+    expect(swapFood(before, "m1", "i1", beans)[1]).toBe(before[1]);
+  });
+});
+
+describe("setItemGroup", () => {
+  it("attaches a group without touching the food", () => {
+    const next = setItemGroup(meals([item()]), "m1", "i1", "g1");
+
+    expect(next[0].items[0].substitutionGroupId).toBe("g1");
+    expect(next[0].items[0].food).toEqual(rice);
+  });
+
+  it("drops the key entirely when detached, rather than storing undefined", () => {
+    const next = setItemGroup(
+      meals([item({ substitutionGroupId: "g1" })]),
+      "m1",
+      "i1",
+      undefined,
+    );
+
+    // An explicit `undefined` would survive into IndexedDB and back out of a
+    // JSON export as a key that reads like an unfinished write.
+    expect("substitutionGroupId" in next[0].items[0]).toBe(false);
   });
 });

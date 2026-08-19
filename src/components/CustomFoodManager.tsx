@@ -403,9 +403,12 @@ export function CustomFoodManager() {
           </ul>
         )}
 
-        <p className="text-xs opacity-60">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
           <Link href="/alimentos" className="underline underline-offset-4">
             {t("searchLink")}
+          </Link>
+          <Link href="/alimentos/grupos" className="underline underline-offset-4">
+            {t("groupsLink")}
           </Link>
         </p>
       </section>

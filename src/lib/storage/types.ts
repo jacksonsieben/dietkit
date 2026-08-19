@@ -87,7 +87,14 @@ export interface DietItem {
   /** Per-food bounds the joint solver optimises within (#6, #19). */
   minG: number;
   maxG: number;
-  /** Items sharing a group are interchangeable — the fruit swap, generalised (#20). */
+  /**
+   * The `SubstitutionGroup` this row draws from, if it is a slot rather than a
+   * fixed food (#20).
+   *
+   * On the item, not on the food: the same banana can be a swappable "fruit" in
+   * breakfast and the one thing that is definitely happening in the afternoon,
+   * and only the row knows which.
+   */
   substitutionGroupId?: Id;
 }
 
@@ -113,6 +120,37 @@ export interface FoodComposition {
   /** As TACO prints it, so the plan can be read without the table beside it. */
   name: string;
   per100g: MacroSet;
+}
+
+/**
+ * A set of foods that may stand in for one another (#20).
+ *
+ * The predecessor had one of these hardcoded — a list of fruits, swappable in
+ * the morning meal and nowhere else — which is the shape of the mistake this
+ * generalises. "Interchangeable" is not a property of fruit; it is a decision
+ * the person eating makes, and it applies just as well to rice and potato, or
+ * to the three protein sources someone actually keeps in the house.
+ *
+ * So a group is a record the user writes, not a class the app knows. Nothing in
+ * the codebase ships a group, and nothing reads a food's TACO category to guess
+ * one.
+ */
+export interface SubstitutionGroup {
+  id: Id;
+  /** The user's word for the class — "Frutas", "Carboidrato do almoço". */
+  name: string;
+  /** The interchangeable foods, in the order they were added. */
+  foods: FoodRef[];
+  /**
+   * Composition for every TACO row in `foods`, on the same terms as
+   * `Diet.tacoFoods` and for a sharper version of the same reason: the
+   * alternatives are, by definition, foods the plan is *not* currently using,
+   * so their numbers are nowhere else on the device. Without this, swapping
+   * would be the one action in the app that needs a network.
+   */
+  tacoFoods?: FoodComposition[];
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
 }
 
 export interface Meal {
@@ -229,5 +267,6 @@ export interface Snapshot {
   weight: WeightEntry[];
   diets: Diet[];
   customFoods: CustomFood[];
+  substitutionGroups: SubstitutionGroup[];
   settings: Settings;
 }

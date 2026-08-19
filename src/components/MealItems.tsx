@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { CONTROL_CLASS } from "@/components/Field";
-import type { FoodSearchResult } from "@/lib/db/foods";
-import { compositionFromResult } from "@/lib/diet/composition";
+import { FoodPicker, SmallButton, type FoodChoice } from "@/components/FoodPicker";
+import type { FoodBook } from "@/lib/diet/composition";
+import { alternativesFor, findGroup, groupsForFood } from "@/lib/diet/groups";
 import {
   ITEM_LIMITS,
   checkGrams,
@@ -13,15 +14,12 @@ import {
   type ItemErrorCode,
 } from "@/lib/diet/items";
 import type { SolvedItem, SolvedMeal } from "@/lib/diet/solve";
-import type { FoodSearchBody } from "@/lib/foods/endpoint";
-import {
-  MIN_QUERY_LENGTH,
-  SEARCH_DEBOUNCE_MS,
-  parseFoodQuery,
-} from "@/lib/foods/query";
-import { mergeListings, searchCustomFoods, type FoodListing } from "@/lib/foods/results";
-import { getRepository } from "@/lib/storage";
-import type { CustomFood, DietItem, FoodComposition, Id } from "@/lib/storage/types";
+import type {
+  FoodRef,
+  Id,
+  Meal,
+  SubstitutionGroup,
+} from "@/lib/storage/types";
 
 /**
  * What a meal is made of, and how much of it (#19).
@@ -42,26 +40,25 @@ import type { CustomFood, DietItem, FoodComposition, Id } from "@/lib/storage/ty
  * fat is the failure this issue exists to end.
  */
 
-export interface FoodChoice {
-  readonly ref: DietItem["food"];
-  readonly servingG?: number;
-  /** Present for a TACO row: the snapshot the plan has to carry with it. */
-  readonly composition?: FoodComposition;
-  /** Present for one of the user's foods, so the book can be kept current. */
-  readonly custom?: CustomFood;
-}
-
 export function MealItems({
   solved,
+  groups,
+  book,
   canAdd,
   onAdd,
   onChange,
+  onSetGroup,
+  onSwap,
   onRemove,
 }: {
   solved: SolvedMeal;
+  groups: readonly SubstitutionGroup[];
+  book: FoodBook;
   canAdd: boolean;
   onAdd: (choice: FoodChoice) => void;
   onChange: (itemId: Id, changes: ItemChanges) => void;
+  onSetGroup: (itemId: Id, groupId: Id | undefined) => void;
+  onSwap: (itemId: Id, food: FoodRef) => void;
   onRemove: (itemId: Id) => void;
 }) {
   const t = useTranslations("Plan");
@@ -84,7 +81,12 @@ export function MealItems({
             <ItemRow
               key={entry.item.id}
               entry={entry}
+              meal={solved.meal}
+              groups={groups}
+              book={book}
               onChange={(changes) => onChange(entry.item.id, changes)}
+              onSetGroup={(groupId) => onSetGroup(entry.item.id, groupId)}
+              onSwap={(food) => onSwap(entry.item.id, food)}
               onRemove={() => onRemove(entry.item.id)}
             />
           ))}
@@ -107,6 +109,7 @@ export function MealItems({
 
       {picking ? (
         <FoodPicker
+          inputId={`${solved.meal.id}-food-picker`}
           taken={taken}
           onPick={(choice) => {
             onAdd(choice);
@@ -202,11 +205,21 @@ function Outcome({ solved }: { solved: SolvedMeal }) {
 
 function ItemRow({
   entry,
+  meal,
+  groups,
+  book,
   onChange,
+  onSetGroup,
+  onSwap,
   onRemove,
 }: {
   entry: SolvedItem;
+  meal: Meal;
+  groups: readonly SubstitutionGroup[];
+  book: FoodBook;
   onChange: (changes: ItemChanges) => void;
+  onSetGroup: (groupId: Id | undefined) => void;
+  onSwap: (food: FoodRef) => void;
   onRemove: () => void;
 }) {
   const t = useTranslations("Plan");
@@ -304,12 +317,131 @@ function ItemRow({
         )}
       </div>
 
+      <SlotGroup
+        entry={entry}
+        meal={meal}
+        groups={groups}
+        book={book}
+        onSetGroup={onSetGroup}
+        onSwap={onSwap}
+      />
+
       {error ? (
         <p id={errorId} className="text-xs text-red-700 dark:text-red-400">
           {t(`itemErrors.${error}`, { max: ITEM_LIMITS.gramsG.max })}
         </p>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Which class this slot draws from, and what else could fill it (#20).
+ *
+ * Two controls rather than one: the group says what would be acceptable here,
+ * the swap says what is on the plate today. Only groups that already contain
+ * this food are offered — attaching any other would mean either silently
+ * replacing the food or offering a list of alternatives without it.
+ *
+ * Nothing here does arithmetic. A swap replaces `item.food` and leaves `minG`,
+ * `maxG` and `mandatory` where they are, because those describe the room this
+ * position in the meal has rather than the food currently in it; the plan is
+ * re-solved on the next render and the new food comes back sized to the same
+ * targets. That is the whole of "swapping re-solves quantities".
+ */
+function SlotGroup({
+  entry,
+  meal,
+  groups,
+  book,
+  onSetGroup,
+  onSwap,
+}: {
+  entry: SolvedItem;
+  meal: Meal;
+  groups: readonly SubstitutionGroup[];
+  book: FoodBook;
+  onSetGroup: (groupId: Id | undefined) => void;
+  onSwap: (food: FoodRef) => void;
+}) {
+  const t = useTranslations("Plan");
+
+  const attached = findGroup(groups, entry.item.substitutionGroupId);
+  const eligible = groupsForFood(groups, entry.item.food);
+
+  // A group edited to drop this food is still the group this slot points at,
+  // and hiding it would leave a select whose value is nowhere in its options.
+  const choices =
+    attached && !eligible.some((group) => group.id === attached.id)
+      ? [attached, ...eligible]
+      : eligible;
+
+  if (choices.length === 0) return null;
+
+  const options = attached
+    ? alternativesFor(attached, meal, entry.item.id, book)
+    : [];
+  const current = options.find((option) => option.current);
+
+  const groupFieldId = `${entry.item.id}-group`;
+  const swapFieldId = `${entry.item.id}-swap`;
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={groupFieldId} className="text-xs opacity-60">
+          {t("groupLabel")}
+        </label>
+        <select
+          id={groupFieldId}
+          value={attached?.id ?? ""}
+          onChange={(event) =>
+            onSetGroup(event.target.value === "" ? undefined : event.target.value)
+          }
+          className={`${CONTROL_CLASS} py-1 text-xs`}
+        >
+          <option value="">{t("groupNone")}</option>
+          {choices.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {attached ? (
+        <div className="flex flex-col gap-1">
+          <label htmlFor={swapFieldId} className="text-xs opacity-60">
+            {t("swapLabel")}
+          </label>
+          <select
+            id={swapFieldId}
+            value={current?.key ?? ""}
+            onChange={(event) => {
+              const picked = options.find(
+                (option) => option.key === event.target.value,
+              );
+              if (picked) onSwap(picked.ref);
+            }}
+            className={`${CONTROL_CLASS} py-1 text-xs`}
+          >
+            {/* Only when the slot's food left the group: otherwise every
+                option below is a real food and an empty one would be a way to
+                empty the plate by accident. */}
+            {current === undefined ? <option value="" /> : null}
+            {options.map((option) => (
+              <option key={option.key} value={option.key} disabled={option.taken}>
+                {option.name === undefined
+                  ? t("swapUnknown")
+                  : option.taken
+                    ? t("swapTaken", { name: option.name })
+                    : option.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -351,230 +483,5 @@ function GramsBox({
         className={`${CONTROL_CLASS} w-20 py-1 text-right font-mono text-xs`}
       />
     </div>
-  );
-}
-
-/**
- * The same two-source search as `/alimentos`, cut down to what picking a food
- * needs (#16, #17).
- *
- * Its own fetch rather than a shared component: `FoodSearch` renders the full
- * published row — five nutrients, sentinels quoted as TACO prints them — which
- * is the right screen for reading the table and the wrong one for choosing from
- * a list inside a meal. What is genuinely shared is the part with decisions in
- * it: the parser, the debounce and the merge all come from `lib/foods`, so this
- * cannot ask a question `/alimentos` would have refused.
- */
-function FoodPicker({
-  taken,
-  onPick,
-  onCancel,
-}: {
-  taken: ReadonlySet<DietItem["food"]>;
-  onPick: (choice: FoodChoice) => void;
-  onCancel: () => void;
-}) {
-  const t = useTranslations("Plan");
-
-  const [typed, setTyped] = useState("");
-  const [answer, setAnswer] = useState<
-    { query: string; listings: FoodListing[] } | undefined
-  >(undefined);
-
-  const query = parseFoodQuery(typed);
-  const asked = query?.terms.join(" ");
-
-  useEffect(() => {
-    if (asked === undefined) return;
-
-    const controller = new AbortController();
-
-    const timer = setTimeout(() => {
-      void (async () => {
-        const [taco, custom] = await Promise.all([
-          fetchTaco(asked, controller.signal),
-          readCustom(asked.split(" ")),
-        ]);
-
-        if (controller.signal.aborted) return;
-
-        setAnswer({ query: asked, listings: mergeListings(custom, taco) });
-      })();
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [asked]);
-
-  const takenIds = {
-    taco: new Set(
-      [...taken].filter((ref) => ref.source === "taco").map((ref) => ref.tacoId),
-    ),
-    custom: new Set(
-      [...taken]
-        .filter((ref) => ref.source === "custom")
-        .map((ref) => ref.customFoodId),
-    ),
-  };
-
-  return (
-    <div className="flex flex-col gap-3 rounded-md border border-black/15 px-3 py-3 dark:border-white/20">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="flex min-w-48 flex-1 flex-col gap-1">
-          <label htmlFor="food-picker" className="text-xs opacity-60">
-            {t("searchLabel")}
-          </label>
-          <input
-            id="food-picker"
-            type="search"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            enterKeyHint="search"
-            placeholder={t("searchPlaceholder")}
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-            className={`${CONTROL_CLASS} py-1 text-sm`}
-          />
-        </div>
-        <SmallButton label={t("cancel")} onClick={onCancel} />
-      </div>
-
-      {asked === undefined ? (
-        <p className="text-xs opacity-60">
-          {t("searchMin", { min: MIN_QUERY_LENGTH })}
-        </p>
-      ) : answer?.query !== asked ? (
-        <p className="text-xs opacity-60">{t("searching")}</p>
-      ) : answer.listings.length === 0 ? (
-        <p className="text-xs opacity-60">{t("searchEmpty")}</p>
-      ) : (
-        <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
-          {answer.listings.map((listing) => (
-            <PickRow
-              key={listing.key}
-              listing={listing}
-              already={
-                listing.source === "taco"
-                  ? takenIds.taco.has(listing.food.id)
-                  : takenIds.custom.has(listing.food.id)
-              }
-              onPick={onPick}
-            />
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/**
- * One choosable food.
- *
- * A TACO row whose macros the publication withheld cannot be chosen at all —
- * `compositionFromResult` returns nothing for it — and the row says why instead
- * of disappearing. Offering it as a food worth zero grams of everything is the
- * one thing that would let a plan add up while being wrong.
- */
-function PickRow({
-  listing,
-  already,
-  onPick,
-}: {
-  listing: FoodListing;
-  already: boolean;
-  onPick: (choice: FoodChoice) => void;
-}) {
-  const t = useTranslations("Plan");
-
-  const composition =
-    listing.source === "taco" ? compositionFromResult(listing.food) : undefined;
-
-  const name =
-    listing.source === "taco" ? listing.food.description : listing.food.name;
-
-  const usable = listing.source === "custom" || composition !== undefined;
-
-  return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10">
-      <span className="flex flex-wrap items-baseline gap-2 text-sm">
-        {name}
-        {listing.source === "custom" ? (
-          <span className="rounded-full border border-sky-600/40 px-2 py-0.5 text-xs text-sky-800 dark:border-sky-400/40 dark:text-sky-300">
-            {t("mine")}
-          </span>
-        ) : null}
-      </span>
-
-      {already ? (
-        <span className="text-xs opacity-60">{t("alreadyAdded")}</span>
-      ) : usable ? (
-        <SmallButton
-          label={t("addThis")}
-          onClick={() =>
-            onPick(
-              listing.source === "taco"
-                ? { ref: listing.ref, composition }
-                : {
-                    ref: listing.ref,
-                    servingG: listing.food.servingG,
-                    custom: listing.food,
-                  },
-            )
-          }
-        />
-      ) : (
-        <span className="text-xs opacity-60">{t("unusableFood")}</span>
-      )}
-    </li>
-  );
-}
-
-/** The network half. A non-200 is a failure, not an empty result. */
-async function fetchTaco(
-  asked: string,
-  signal: AbortSignal,
-): Promise<readonly FoodSearchResult[]> {
-  try {
-    const response = await fetch(`/api/foods?q=${encodeURIComponent(asked)}`, {
-      signal,
-    });
-    if (!response.ok) throw new Error(String(response.status));
-
-    return ((await response.json()) as FoodSearchBody).foods;
-  } catch {
-    return [];
-  }
-}
-
-/** The device half. Never a request — this reads IndexedDB on this machine. */
-async function readCustom(terms: readonly string[]): Promise<CustomFood[]> {
-  try {
-    return await searchCustomFoods(getRepository(), terms);
-  } catch {
-    return [];
-  }
-}
-
-function SmallButton({
-  label,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/20 disabled:opacity-40"
-    >
-      {label}
-    </button>
   );
 }

@@ -5,6 +5,7 @@ import type {
   Diet,
   Profile,
   Settings,
+  SubstitutionGroup,
   WeightEntry,
 } from "../types";
 
@@ -19,6 +20,7 @@ export class DietKitDatabase extends Dexie {
   weight!: Table<WeightEntry, string>;
   diets!: Table<Diet, string>;
   customFoods!: Table<CustomFood, string>;
+  substitutionGroups!: Table<SubstitutionGroup, string>;
   settings!: Table<SettingsRow, string>;
 
   constructor(name: string) {
@@ -32,6 +34,14 @@ export class DietKitDatabase extends Dexie {
       diets: "id, updatedAt",
       customFoods: "id, name",
       settings: "id",
+    });
+
+    // Additive: Dexie carries every table it is not asked about forward, so
+    // this adds the store without touching a device's existing rows. A version
+    // rather than an edit to version 1 because a browser that already opened
+    // the database at version 1 will never re-read it.
+    this.version(2).stores({
+      substitutionGroups: "id, name",
     });
   }
 }

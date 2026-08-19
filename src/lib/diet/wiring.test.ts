@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import ptBR from "../../../messages/pt-BR.json";
 
+import { GROUP_ERROR_CODES, GROUP_LIMITS } from "./groups";
 import { ITEM_ERROR_CODES, ITEM_LIMITS } from "./items";
 import { MEAL_ERROR_CODES, MEAL_LIMITS } from "./meals";
 
@@ -110,6 +111,7 @@ describe("meal planner wiring", () => {
 describe("meal item wiring", () => {
   const planner = () => read("src/components/MealPlanner.tsx");
   const items = () => read("src/components/MealItems.tsx");
+  const picker = () => read("src/components/FoodPicker.tsx");
 
   it("solves the quantities instead of asking for them", () => {
     const source = planner();
@@ -138,13 +140,13 @@ describe("meal item wiring", () => {
   it("refuses a TACO row whose macros were never published", () => {
     // `numericValue` would read those cells as 0, which is the silent
     // mis-solve #19 exists to rule out — see `compositionFromResult`.
-    expect(items()).toContain("compositionFromResult(");
+    expect(picker()).toContain("compositionFromResult(");
   });
 
   it("asks the food question the way /alimentos asks it", () => {
     // Its own fetch, but not its own parser or its own debounce: a picker that
     // searched by different rules would find foods the food screen cannot.
-    const source = items();
+    const source = picker();
 
     expect(source).toContain("parseFoodQuery(");
     expect(source).toContain("SEARCH_DEBOUNCE_MS");
@@ -190,5 +192,85 @@ describe("meal item wiring", () => {
     for (const source of [planner(), items(), read("src/lib/diet/solve.ts")]) {
       expect(source).not.toMatch(/fatVehicle|fat_vehicle|veiculoDeGordura/i);
     }
+  });
+});
+
+/**
+ * #20, whose "done when" is three sentences about behaviour: a slot can hold a
+ * group, swapping re-solves, and the groups are user-definable. The first two
+ * are proved in `groups.test.ts` and `solve.test.ts`; what only the source can
+ * show is that the screens use those functions — and, for the third, that no
+ * list of fruits is written down anywhere.
+ */
+describe("substitution group wiring", () => {
+  const manager = () => read("src/components/SubstitutionGroupManager.tsx");
+  const planner = () => read("src/components/MealPlanner.tsx");
+  const items = () => read("src/components/MealItems.tsx");
+
+  it("lets a slot hold a group and swap within it", () => {
+    const source = items();
+
+    expect(source).toContain("groupsForFood(");
+    expect(source).toContain("alternativesFor(");
+    expect(source).toContain("onSetGroup");
+    expect(source).toContain("onSwap");
+  });
+
+  it("re-solves after a swap instead of carrying the old quantity over", () => {
+    // `swapFood` replaces the food and nothing else; the quantity on screen is
+    // whatever the render-time `solvePlan` chose for the new one. A planner
+    // that wrote a quantity here would be the predecessor's fruit swap again.
+    const source = planner();
+
+    expect(source).toContain("swapFood(");
+    expect(source).toContain("setItemGroup(");
+    expect(source.indexOf("solvePlan(")).toBeGreaterThan(0);
+    expect(source).not.toMatch(/swapFood\([^)]*quantityG/);
+  });
+
+  it("can price an alternative the plan is not using yet", () => {
+    // The whole point of a group is foods that are *not* on the plate. Their
+    // numbers are in no other store on this device, so the book has to take
+    // the groups' own snapshots or the first swap of the day needs a network.
+    expect(planner()).toContain("groupCompositions(");
+  });
+
+  it("builds the groups from the user's own choices", () => {
+    const source = manager();
+
+    expect(source).toContain("validateGroup(");
+    expect(source).toContain("saveGroup(");
+    expect(source).toContain("deleteGroup(");
+    // The same picker the meal uses: a food choosable in one place and not the
+    // other would make a group that cannot be applied.
+    expect(source).toContain("FoodPicker");
+  });
+
+  it("ships no built-in group", () => {
+    // "Groups are user-definable, not a fixed built-in list." The predecessor's
+    // hardcoded fruit list is the thing this issue exists to delete, and it
+    // would come back as a seed array long before it came back as a feature.
+    for (const source of [manager(), items(), read("src/lib/diet/groups.ts")]) {
+      expect(source).not.toMatch(/DEFAULT_GROUPS|BUILT_IN_GROUPS|FRUIT_GROUP/i);
+      // A shipped group would have to name its members, and the only way to
+      // name a TACO food in code is by id.
+      expect(source).not.toMatch(/tacoId:\s*\d/);
+    }
+  });
+
+  it("has a message for every error the group rules can produce", () => {
+    expect(Object.keys(ptBR.Groups.errors).sort()).toEqual(
+      [...GROUP_ERROR_CODES].sort(),
+    );
+  });
+
+  it("quotes the real group limits rather than numbers typed into sentences", () => {
+    const source = manager();
+
+    expect(source).toContain("GROUP_LIMITS.count.max");
+    expect(source).toContain("GROUP_LIMITS.foods.min");
+    expect(ptBR.Groups.addLimit).toContain("{max, number}");
+    expect(ptBR.Groups.foodsHint).toContain("{min, number}");
+    expect(GROUP_LIMITS.foods.min).toBeLessThan(GROUP_LIMITS.foods.max);
   });
 });
