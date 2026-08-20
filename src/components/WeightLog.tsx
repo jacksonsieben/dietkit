@@ -1,79 +1,73 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Field } from "@/components/Field";
+import { WeightEntryDialog } from "@/components/WeightEntryDialog";
+import { WeightImportDialog } from "@/components/WeightImportDialog";
 import { WeightTrend } from "@/components/WeightTrend";
 import { Link } from "@/i18n/navigation";
 import { calendarDate, todayIsoDate } from "@/lib/date";
 import { getRepository } from "@/lib/storage";
 import type { Id, WeightEntry } from "@/lib/storage/types";
-import { entryOn, loadWeightLog, saveWeightEntry } from "@/lib/weight/log";
 import {
-  WEIGHT_LIMITS,
-  validateWeightForm,
-  type WeightErrorCode,
-  type WeightErrors,
-  type WeightField,
-  type WeightFormInput,
-  type WeightFormValues,
-} from "@/lib/weight/validation";
+  entryOn,
+  importWeightEntries,
+  loadWeightLog,
+  saveWeightEntry,
+} from "@/lib/weight/log";
+import type { WeightFormInput } from "@/lib/weight/validation";
 
 /**
- * The weight log (#23): one row per day, editable and backfillable.
+ * The weight log (#23): the trend on top, one row per day under it, and every
+ * way of changing it behind a button (#57).
  *
  * A client component because these measurements exist only on the device that
  * wrote them — there is nothing for a server to render, and nothing it is
  * allowed to know.
  *
+ * The form used to live permanently at the top of this page, which put three
+ * empty boxes between the user and the thing they opened the page to see. It is
+ * a modal now, and what is left here is the reading view plus the decisions that
+ * are about the log rather than about any one form: which day is already taken,
+ * what a save is allowed to overwrite, and what leaves the device (nothing).
+ *
  * The trend (#24) is rendered from the same `entries` this component already
  * holds, rather than reading the store again — so the line moves the moment a
  * weighing is saved, and there is no second copy of the log to fall behind.
- *
- * The form and the list are one component because editing joins them: pressing
- * *Editar* on a row fills the boxes above. Saving onto a day that already has a
- * weight is the other half of that: a day is a slot, not a stack, so the old
- * value is replaced — and because that is a loss, it is asked about in a
- * `ConfirmDialog` rather than mentioned in advance and then done anyway.
  */
-
-const ERROR_PARAMS: Partial<Record<WeightErrorCode, Record<string, number>>> = {
-  weightRange: WEIGHT_LIMITS.weightKg,
-  noteTooLong: { max: WEIGHT_LIMITS.noteChars },
-};
 
 type Status =
   | "loading"
   | "ready"
   | "saving"
+  | "importing"
   | "savedNew"
   | "savedReplaced"
+  | "imported"
   | "loadFailed"
   | "saveFailed"
+  | "importFailed"
   | "removeFailed";
 
-function emptyForm(today: string): WeightFormValues {
-  return { date: today, weightKg: "", note: "" };
-}
-
 /**
- * The question on screen, if one is being asked.
+ * The dialog on screen over the log, if there is one.
  *
- * One slot rather than a flag per dialog: two of these can never be true at
- * once, and a union makes that unrepresentable instead of merely unlikely. Each
- * variant carries what its wording needs, so the dialog is written from the
- * value that opened it and cannot describe a row that has since changed.
+ * One slot rather than a flag apiece: no two of these can be open at once, and
+ * a union makes that unrepresentable instead of merely unlikely. Each variant
+ * carries what its wording needs, so a dialog is written from the value that
+ * opened it and cannot describe a row that has since changed.
+ *
+ * The entry form is deliberately not in here: `replace` opens *over* it, and
+ * answering that question "não" has to put the user back in the form they
+ * filled in rather than throw it away. So the form has its own slot, and this
+ * one is what is stacked on top of it.
  */
-type Pending =
+type Open =
+  | { kind: "import" }
   | { kind: "replace"; input: WeightFormInput; existing: WeightEntry }
   | { kind: "remove"; entry: WeightEntry };
-
-/** Renders a stored number the way pt-BR writes one — see `toField`. */
-function toField(value: number): string {
-  return String(value).replace(".", ",");
-}
 
 export function WeightLog() {
   const t = useTranslations("Weight");
@@ -87,21 +81,18 @@ export function WeightLog() {
   const [today] = useState(() => todayIsoDate());
 
   const [entries, setEntries] = useState<readonly WeightEntry[]>([]);
-  const [values, setValues] = useState<WeightFormValues>(() => emptyForm(today));
-  const [errors, setErrors] = useState<WeightErrors>({});
   const [status, setStatus] = useState<Status>("loading");
   /** The day the last save landed on, for the confirmation line. */
   const [savedDate, setSavedDate] = useState<string | undefined>(undefined);
+  /** What the last import did, for the same reason. */
+  const [imported, setImported] = useState({ added: 0, replaced: 0 });
+  const [open, setOpen] = useState<Open | undefined>(undefined);
   /**
-   * The row whose *Editar* filled the boxes, if any.
-   *
-   * Separate from "the day in the box already has an entry", which is true the
-   * moment the screen opens on a day that was logged this morning — and a
-   * heading reading "Editando…" over three empty boxes is a lie the user has to
-   * work out for themselves. This is the narrower fact: a row was picked.
+   * The entry form, and the row it was opened from if it was opened by *Editar*.
+   * A wrapper object rather than a bare `WeightEntry | undefined`, because
+   * "closed" and "open on a new weighing" are different states.
    */
-  const [editing, setEditing] = useState<WeightEntry | undefined>(undefined);
-  const [pending, setPending] = useState<Pending | undefined>(undefined);
+  const [form, setForm] = useState<{ entry?: WeightEntry } | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,65 +114,35 @@ export function WeightLog() {
     };
   }, []);
 
-  const update = (field: WeightField) => (value: string) => {
-    setValues((current) => ({ ...current, [field]: value }));
-    // Moving the date makes this a different day's entry, whatever row it
-    // started as, so the heading stops claiming to be editing the old one.
-    if (field === "date") setEditing(undefined);
-    setErrors((current) => {
-      if (!(field in current)) return current;
-      const { [field]: _cleared, ...rest } = current;
-      return rest;
-    });
-    setStatus((current) =>
-      current === "savedNew" || current === "savedReplaced" ? "ready" : current,
-    );
-  };
+  const existingDates = useMemo(
+    () => new Set(entries.map((entry) => entry.date)),
+    [entries],
+  );
 
-  const startEditing = (entry: WeightEntry) => {
-    setValues({
-      date: entry.date,
-      weightKg: toField(entry.weightKg),
-      note: entry.note ?? "",
-    });
-    setErrors({});
-    setEditing(entry);
+  const openForm = (entry?: WeightEntry) => {
+    setForm({ entry });
     setStatus("ready");
   };
 
-  const reset = () => {
-    setValues(emptyForm(today));
-    setErrors({});
-    setEditing(undefined);
-    setStatus("ready");
+  const closeForm = () => {
+    setForm(undefined);
+    setOpen(undefined);
   };
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const result = validateWeightForm(values, today);
-    if (!result.ok) {
-      setErrors(result.errors);
-      setStatus("ready");
-      return;
-    }
-
-    setErrors({});
-
+  const submit = (input: WeightFormInput) => {
     // The day is a slot, so this save would take a measurement out of the log.
     // Ask first — and ask here rather than after writing, because there is
     // nothing to undo with once the old value is gone.
-    const existing = entryOn(entries, result.value.date);
-    if (existing !== undefined) {
-      setPending({ kind: "replace", input: result.value, existing });
+    const existing = entryOn(entries, input.date);
+    if (existing !== undefined && existing.id !== form?.entry?.id) {
+      setOpen({ kind: "replace", input, existing });
       return;
     }
 
-    void save(result.value);
+    void save(input);
   };
 
   const save = async (input: WeightFormInput) => {
-    setPending(undefined);
     setStatus("saving");
 
     try {
@@ -197,16 +158,35 @@ export function WeightLog() {
       // landed in the middle of it.
       setEntries(await loadWeightLog(repository));
       setSavedDate(input.date);
-      setValues(emptyForm(today));
-      setEditing(undefined);
+      closeForm();
       setStatus(replaced ? "savedReplaced" : "savedNew");
     } catch {
       setStatus("saveFailed");
     }
   };
 
+  const runImport = async (rows: readonly WeightFormInput[]) => {
+    setStatus("importing");
+
+    try {
+      const repository = getRepository();
+      const counts = await importWeightEntries(
+        repository,
+        rows,
+        new Date().toISOString(),
+      );
+
+      setEntries(await loadWeightLog(repository));
+      setImported(counts);
+      setOpen(undefined);
+      setStatus("imported");
+    } catch {
+      setStatus("importFailed");
+    }
+  };
+
   const remove = async (id: Id) => {
-    setPending(undefined);
+    setOpen(undefined);
 
     try {
       const repository = getRepository();
@@ -226,8 +206,6 @@ export function WeightLog() {
     return <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>;
   }
 
-  const messageFor = (code: WeightErrorCode) => t(`errors.${code}`, ERROR_PARAMS[code]);
-
   const day = (date: string) =>
     format.dateTime(calendarDate(date), {
       day: "numeric",
@@ -237,114 +215,66 @@ export function WeightLog() {
 
   return (
     <div className="flex flex-col gap-10">
-      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
-        <h2 className="text-sm font-semibold tracking-tight">
-          {editing === undefined
-            ? t("formTitle")
-            : t("editTitle", { date: day(editing.date) })}
-        </h2>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <Field
-            label={t("dateLabel")}
-            hint={t("dateHint")}
-            error={errors.date && messageFor(errors.date)}
-          >
-            {(props) => (
-              <input
-                {...props}
-                type="date"
-                max={today}
-                value={values.date}
-                onChange={(event) => update("date")(event.target.value)}
-              />
-            )}
-          </Field>
-
-          <Field
-            label={t("weightLabel")}
-            hint={t("weightHint")}
-            error={errors.weightKg && messageFor(errors.weightKg)}
-          >
-            {(props) => (
-              <input
-                {...props}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                value={values.weightKg}
-                onChange={(event) => update("weightKg")(event.target.value)}
-              />
-            )}
-          </Field>
-        </div>
-
-        <Field
-          label={t("noteLabel")}
-          hint={t("noteHint")}
-          error={errors.note && messageFor(errors.note)}
-        >
-          {(props) => (
-            <input
-              {...props}
-              type="text"
-              autoComplete="off"
-              maxLength={WEIGHT_LIMITS.noteChars}
-              value={values.note}
-              onChange={(event) => update("note")(event.target.value)}
-            />
-          )}
-        </Field>
-
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="submit"
-            disabled={status === "saving"}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
-            {status === "saving" ? t("saving") : t("save")}
-          </button>
-
-          {values.date === today &&
-          values.weightKg === "" &&
-          values.note === "" ? null : (
-            <button
-              type="button"
-              onClick={reset}
-              className="text-sm underline underline-offset-4"
-            >
-              {t("cancel")}
-            </button>
-          )}
-
-          <p aria-live="polite" className="text-sm">
-            {status === "savedNew" && savedDate !== undefined ? (
-              <span className="opacity-70">{t("savedNew", { date: day(savedDate) })}</span>
-            ) : null}
-            {status === "savedReplaced" && savedDate !== undefined ? (
-              <span className="opacity-70">
-                {t("savedReplaced", { date: day(savedDate) })}
-              </span>
-            ) : null}
-            {status === "saveFailed" ? (
-              <span className="text-red-700 dark:text-red-400">{t("saveError")}</span>
-            ) : null}
-            {status === "removeFailed" ? (
-              <span className="text-red-700 dark:text-red-400">{t("removeError")}</span>
-            ) : null}
-          </p>
-        </div>
-      </form>
-
       <WeightTrend entries={entries} />
 
       <section className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold tracking-tight">{t("listTitle")}</h2>
-          {entries.length === 0 ? null : (
-            <p className="text-xs opacity-60">{t("listCount", { count: entries.length })}</p>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="text-sm font-semibold tracking-tight">{t("listTitle")}</h2>
+            {entries.length === 0 ? null : (
+              <p className="text-xs opacity-60">
+                {t("listCount", { count: entries.length })}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => openForm()}
+              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
+            >
+              {t("add")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen({ kind: "import" });
+                setStatus("ready");
+              }}
+              className="rounded-md border border-black/15 px-4 py-2 text-sm dark:border-white/20"
+            >
+              {t("import.open")}
+            </button>
+          </div>
         </div>
+
+        <p aria-live="polite" className="text-sm empty:hidden">
+          {status === "savedNew" && savedDate !== undefined ? (
+            <span className="opacity-70">{t("savedNew", { date: day(savedDate) })}</span>
+          ) : null}
+          {status === "savedReplaced" && savedDate !== undefined ? (
+            <span className="opacity-70">
+              {t("savedReplaced", { date: day(savedDate) })}
+            </span>
+          ) : null}
+          {status === "imported" ? (
+            <span className="opacity-70">
+              {t("import.done", imported)}
+            </span>
+          ) : null}
+          {status === "saveFailed" ? (
+            <span className="text-red-700 dark:text-red-400">{t("saveError")}</span>
+          ) : null}
+          {status === "importFailed" ? (
+            <span className="text-red-700 dark:text-red-400">
+              {t("import.error")}
+            </span>
+          ) : null}
+          {status === "removeFailed" ? (
+            <span className="text-red-700 dark:text-red-400">{t("removeError")}</span>
+          ) : null}
+        </p>
 
         {entries.length === 0 ? (
           <p className="text-sm opacity-70">{t("listEmpty")}</p>
@@ -369,14 +299,14 @@ export function WeightLog() {
                 <div className="flex items-center gap-3 text-sm">
                   <button
                     type="button"
-                    onClick={() => startEditing(entry)}
+                    onClick={() => openForm(entry)}
                     className="underline underline-offset-4"
                   >
                     {t("edit")}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPending({ kind: "remove", entry })}
+                    onClick={() => setOpen({ kind: "remove", entry })}
                     className="underline underline-offset-4 opacity-70"
                   >
                     {t("remove")}
@@ -397,32 +327,56 @@ export function WeightLog() {
         </p>
       </section>
 
-      {pending?.kind === "replace" ? (
+      {/*
+       * Kept mounted while the replace question is on screen, so answering it
+       * "não" returns to the filled-in form rather than to an empty page.
+       */}
+      {form === undefined ? null : (
+        <WeightEntryDialog
+          today={today}
+          entry={form.entry}
+          saving={status === "saving"}
+          onSubmit={submit}
+          onClose={closeForm}
+        />
+      )}
+
+      {open?.kind === "import" ? (
+        <WeightImportDialog
+          today={today}
+          existingDates={existingDates}
+          importing={status === "importing"}
+          onImport={(rows) => void runImport(rows)}
+          onClose={() => setOpen(undefined)}
+        />
+      ) : null}
+
+      {open?.kind === "replace" ? (
         <ConfirmDialog
-          title={t("replaceTitle", { date: day(pending.input.date) })}
+          title={t("replaceTitle", { date: day(open.input.date) })}
           confirmLabel={t("replaceConfirm")}
           cancelLabel={t("replaceCancel")}
           tone="danger"
-          onConfirm={() => void save(pending.input)}
-          onCancel={() => setPending(undefined)}
+          onConfirm={() => void save(open.input)}
+          onCancel={() => setOpen(undefined)}
         >
           {t("replaceBody", {
-            current: pending.existing.weightKg,
-            next: pending.input.weightKg,
+            current: open.existing.weightKg,
+            next: open.input.weightKg,
           })}
         </ConfirmDialog>
       ) : null}
 
-      {pending?.kind === "remove" ? (
+      {open?.kind === "remove" ? (
         <ConfirmDialog
-          title={t("removeTitle", { date: day(pending.entry.date) })}
+          title={t("removeTitle", { date: day(open.entry.date) })}
           confirmLabel={t("removeConfirm")}
           cancelLabel={t("removeCancel")}
           tone="danger"
-          onConfirm={() => void remove(pending.entry.id)}
-          onCancel={() => setPending(undefined)}
+          onConfirm={() => void remove(open.entry.id)}
+          onCancel={() => setOpen(undefined)}
         >
-          {t("removeBody", { weight: pending.entry.weightKg })}
+          {t("removeBody", { weight: open.entry.weightKg })}
         </ConfirmDialog>
       ) : null}
     </div>

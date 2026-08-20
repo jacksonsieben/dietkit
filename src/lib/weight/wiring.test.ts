@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import ptBR from "../../../messages/pt-BR.json";
+import { CSV_ERROR_CODES } from "./csv";
 import { WEIGHT_ERROR_CODES } from "./validation";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
@@ -38,23 +39,28 @@ describe("weight log wiring", () => {
     // loses a measurement to a keystroke.
     const source = read("src/components/WeightLog.tsx");
 
-    const submit = source.slice(source.indexOf("const onSubmit"));
+    const submit = source.slice(source.indexOf("const submit ="));
     const body = submit.slice(0, submit.indexOf("const save"));
 
     // The occupied day is found before anything is written…
-    expect(body).toContain("entryOn(entries, result.value.date)");
+    expect(body).toContain("entryOn(entries, input.date)");
 
     // …and everything between finding it and the save is the branch that opens
     // the question and leaves. Sliced up to `void save(` rather than to the
     // first `return`, which would be the invalid-input one above and would pass
     // no matter what this branch did.
     const occupied = body.slice(
-      body.indexOf("if (existing !== undefined)"),
+      body.indexOf("if (existing !== undefined"),
       body.indexOf("void save("),
     );
 
     expect(occupied).toContain('kind: "replace"');
     expect(occupied).toContain("return;");
+
+    // …but not when the occupied day is the row being edited. Asking "trocar os
+    // 82,4 kg do dia 17 pelos 82,4 kg do dia 17?" is a question about nothing,
+    // and it would be asked on every correction anyone ever makes.
+    expect(occupied).toContain("existing.id !== form?.entry?.id");
   });
 
   it("quotes both weights in the question, not just the new one", () => {
@@ -71,11 +77,11 @@ describe("weight log wiring", () => {
     // become the easy one.
     const source = read("src/components/WeightLog.tsx");
 
-    expect(source).toContain('setPending({ kind: "remove", entry })');
+    expect(source).toContain('setOpen({ kind: "remove", entry })');
 
-    const dialog = source.slice(source.indexOf('pending?.kind === "remove"'));
+    const dialog = source.slice(source.indexOf('open?.kind === "remove"'));
     const call = dialog.slice(0, dialog.indexOf("</ConfirmDialog>"));
-    expect(call).toContain("void remove(pending.entry.id)");
+    expect(call).toContain("void remove(open.entry.id)");
     expect(call).toContain('tone="danger"');
   });
 
@@ -93,7 +99,7 @@ describe("weight log wiring", () => {
   it("offers a day other than today", () => {
     // Backfilling is half of what the issue asks for, and a date input pinned
     // to today would make the other half unreachable from the screen.
-    const source = read("src/components/WeightLog.tsx");
+    const source = read("src/components/WeightEntryDialog.tsx");
 
     expect(source).toContain('type="date"');
     expect(source).toContain("max={today}");
@@ -118,6 +124,91 @@ describe("weight log wiring", () => {
 
   it("is reachable from the home screen", () => {
     expect(read("src/app/[locale]/page.tsx")).toContain('href="/peso"');
+  });
+
+  it("keeps the form off the page and behind a button", () => {
+    // The page is for reading: the chart and the rows. A form that is always
+    // there puts three empty boxes between the user and the line they opened
+    // the page to see, every visit, for a ten-second errand done once a day.
+    const source = read("src/components/WeightLog.tsx");
+
+    expect(source).toContain("<WeightEntryDialog");
+    expect(source).not.toContain("<form");
+    expect(read("src/components/WeightEntryDialog.tsx")).toContain(
+      'from "@/components/Modal"',
+    );
+  });
+
+  it("puts the chart above the rows", () => {
+    // The trend is the answer to "how is it going", which is the question the
+    // page is opened with. The rows are the evidence, and evidence goes under.
+    const source = read("src/components/WeightLog.tsx");
+
+    expect(source).toContain("<WeightTrend entries={entries} />");
+    expect(source.indexOf("<WeightTrend")).toBeLessThan(source.indexOf("<ul"));
+  });
+
+  it("offers the import from the same place as the form", () => {
+    // A history that can only be typed in one morning at a time is a trend line
+    // that starts empty for everyone who has been weighing themselves for years.
+    const source = read("src/components/WeightLog.tsx");
+
+    expect(source).toContain("<WeightImportDialog");
+    expect(source).toContain('t("import.open")');
+  });
+
+  it("shows the file before it writes any of it", () => {
+    // Picking the wrong file out of a folder should cost a glance, not a
+    // restore, so the parse is rendered and the button is what saves it.
+    const source = read("src/components/WeightImportDialog.tsx");
+
+    expect(source).toContain("parseWeightCsv(");
+    expect(source).not.toContain("getRepository");
+    expect(source).toContain("onImport(parse.rows)");
+  });
+
+  it("reads the file on the device rather than uploading it", () => {
+    // A weight history is the most personal thing this app holds
+    // (docs/DECISIONS.md § D1), and a file input is the one control that makes
+    // shipping it somewhere a one-line mistake.
+    const source = read("src/components/WeightImportDialog.tsx");
+
+    expect(source).toContain("file.text()");
+    expect(source).not.toContain("fetch(");
+    expect(source).not.toContain("FormData");
+  });
+
+  it("asks for the file in Portuguese, including on an English browser", () => {
+    // The control the browser draws for `type="file"` writes its own words —
+    // "Choose File", "No file chosen" — in the browser's language, not the
+    // page's, and no styling can retranslate them. Most people here run Chrome
+    // in English, which would put the only two English words on the screen on
+    // the one control they have to use.
+    const source = read("src/components/WeightImportDialog.tsx");
+
+    expect(source).toContain('className="peer sr-only"');
+    expect(source).toContain('htmlFor={fileId}');
+    expect(source).toContain('t("fileNone")');
+
+    // Not `hidden`, which would take the input out of the tab order with it.
+    expect(source).not.toMatch(/className="[^"]*\bhidden\b[^"]*"[^>]*type="file"/);
+  });
+
+  it("has a message for every reason a line can be left out", () => {
+    // next-intl renders the key path when a message is missing, so a new reason
+    // ships as "Weight.import.reasons.xyz" in the skipped list.
+    for (const reason of [...WEIGHT_ERROR_CODES, "duplicateDate"]) {
+      expect(
+        ptBR.Weight.import.reasons,
+        `no message for ${reason}`,
+      ).toHaveProperty(reason);
+    }
+  });
+
+  it("has a message for every way a file can be refused outright", () => {
+    expect(Object.keys(ptBR.Weight.import.fileErrors).sort()).toEqual(
+      [...CSV_ERROR_CODES].sort(),
+    );
   });
 
   it("renders the day in words rather than as a stored string", () => {

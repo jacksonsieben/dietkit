@@ -91,3 +91,41 @@ export async function removeWeightEntry(
 ): Promise<void> {
   await repository.weight.remove(id);
 }
+
+export interface ImportedWeights {
+  added: number;
+  /** Days that already had a weight, now holding the file's one instead. */
+  replaced: number;
+}
+
+/**
+ * Writes a whole imported file (#57).
+ *
+ * Here rather than in the component for the same reason `saveWeightEntry` is:
+ * the interesting part is what an import does to days that already have a
+ * weight, and the answer has to be the same one the form gives — the day is a
+ * slot, so the imported row takes it. A file is how someone brings years of
+ * history over from another app, and a history that refused to overwrite would
+ * quietly keep whatever three days they had typed here first.
+ *
+ * One `put` per row, in order, rather than a bulk write: the repository has no
+ * bulk, and the number of rows is bounded by how many mornings a person has
+ * stood on a scale. `replaced` is counted so the screen can say what it did
+ * rather than only that it finished.
+ */
+export async function importWeightEntries(
+  repository: Repository,
+  rows: readonly WeightFormInput[],
+  now: IsoTimestamp,
+): Promise<ImportedWeights> {
+  let added = 0;
+  let replaced = 0;
+
+  for (const row of rows) {
+    const saved = await saveWeightEntry(repository, row, now);
+    if (saved.replaced) replaced += 1;
+    else added += 1;
+  }
+
+  return { added, replaced };
+}
