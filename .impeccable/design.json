@@ -69,17 +69,22 @@
           "case": "upper only"
         },
         {
-          "name": "Geist Sans",
+          "name": "Space Grotesk",
           "source": "next/font/google",
-          "var": "--font-geist-sans"
+          "licence": "SIL OFL",
+          "var": "--font-sans-face",
+          "why": "Drawn from a monospace skeleton, so its squared letterforms share a family of shapes with the dot panel. Chosen against Ndot, NType82 and Lettera Mono LL on the running screens; those three are unlicensable or unbought."
         },
         {
-          "name": "Geist Mono",
+          "name": "Space Mono",
           "source": "next/font/google",
-          "var": "--font-geist-mono",
+          "licence": "SIL OFL",
+          "var": "--font-mono-face",
+          "weights": [400, 700],
           "numeric": "tabular-nums"
         }
       ],
+      "rootSize": "106.25% (17px default), a percentage so it multiplies the reader's own base size",
       "displayFit": "min(26px, (min(100vw, 48rem) - 3rem) / (digits * 6))",
       "i18n": "every visible string comes from next-intl; react/jsx-no-literals noStrings is enforced on src/**/*.tsx"
     },

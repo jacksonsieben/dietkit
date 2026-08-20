@@ -1,6 +1,6 @@
 import { SerwistProvider } from "@serwist/next/react";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, Space_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
@@ -13,14 +13,33 @@ import { routing } from "@/i18n/routing";
 
 import "../globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/*
+ * The app is set in Space Grotesk, chosen against four others on the running
+ * screens rather than on a specimen sheet.
+ *
+ * It is the one candidate that is both right for this world and actually
+ * shippable. The faces the direction points at — Nothing's own Ndot and
+ * NType82 — are brand assets that are not sold, and Lettera Mono LL is a
+ * commercial licence this project has not bought; Space Grotesk is SIL OFL, so
+ * it can ship in a build that anyone can host. What makes it right rather than
+ * merely free is that it was drawn from a monospace skeleton: the wide, flat,
+ * squared-off letterforms belong to the same family of shapes as the dot panel
+ * they sit under, which is exactly the continuity Geist could not give.
+ *
+ * Space Mono is its sibling by the same hand, so the numeric readouts and the
+ * running text are one system rather than two.
+ */
+const sans = Space_Grotesk({
+  variable: "--font-sans-face",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const mono = Space_Mono({
+  variable: "--font-mono-face",
   subsets: ["latin"],
+  // Space Mono ships two weights only. 600 in the type scale resolves upward
+  // to 700 rather than being synthesised, which is why no 500 is requested.
+  weight: ["400", "700"],
 });
 
 export function generateStaticParams() {
@@ -68,7 +87,7 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/*

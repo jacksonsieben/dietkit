@@ -22,28 +22,28 @@ typography:
     weight: n/a
     tracking: 6 cells per character
   headline:
-    family: Geist Sans
+    family: Space Grotesk
     size: 1.5rem
     weight: 600
     tracking: -0.025em
   title:
-    family: Geist Sans
+    family: Space Grotesk
     size: 1.125rem
     weight: 600
     tracking: -0.025em
   body:
-    family: Geist Sans
+    family: Space Grotesk
     size: 0.875rem
     weight: 400
     tracking: normal
   label:
-    family: Geist Sans
+    family: Space Grotesk
     size: 0.75rem
     weight: 500
     tracking: 0.22em
     transform: uppercase
   data:
-    family: Geist Mono
+    family: Space Mono
     size: 0.75rem
     weight: 400
     numeric: tabular-nums
@@ -150,9 +150,27 @@ past its own aperture. Made equal, the number stops being a number and becomes
 texture. Everything is expressed in `em` against the pitch, so `fontSize` is the
 single dial for the whole panel. There is no lowercase — `glyphFor` upper-cases.
 
-**Geist Sans** is every word on the screen. **Geist Mono** is for figures that
-sit in a column next to other figures; `font-variant-numeric: tabular-nums` is
-applied to it, to tables, and to anything marked `[data-numeric]`.
+**Space Grotesk** is every word on the screen, and it is here because the faces
+this direction actually points at cannot be had. Nothing's Ndot and NType82 are
+brand assets that are not sold at any price, and Lettera Mono LL is a commercial
+Lineto licence this project has not bought; all three were compared against the
+running screens and none of them may ship. Space Grotesk is SIL OFL, so it can
+be served by anyone who hosts this build. What earns it the job rather than
+merely permitting it is that it was drawn from a monospace skeleton: wide, flat,
+squared-off letterforms out of the same family of shapes as the dot panel above
+them, which is the continuity the previous face could not give.
+
+**Space Mono**, by the same hand, is for figures that sit in a column next to
+other figures; `font-variant-numeric: tabular-nums` is applied to it, to tables,
+and to anything marked `[data-numeric]`. It ships two weights, so a 600 in the
+ramp below resolves up to 700 rather than being synthesised.
+
+The root size is `106.25%` — 17px against a default browser. Space Grotesk
+carries a smaller x-height than the face it replaced, and dropped in one-for-one
+it read a step smaller on every screen. A percentage rather than a pixel value,
+so it multiplies whatever base size the reader has asked their browser for
+instead of overriding it; everything else is sized in rem, so the one number
+moves the type and the rhythm around it together.
 
 The ramp, in the order it appears on a screen:
 
@@ -164,7 +182,7 @@ The ramp, in the order it appears on a screen:
 | Title | 1.125rem / 600 / `-0.025em` | The diet's name |
 | Label | 0.75rem / 500 / `0.22em` / uppercase | The legend over every readout |
 | Body | 0.875rem / 400 | Every sentence |
-| Data | Geist Mono 0.75rem, tabular | The reading beside a macro strip |
+| Data | Space Mono 0.75rem, tabular | The reading beside a macro strip |
 | Tab | 0.5625rem / `0.14em` / uppercase | The five slots |
 
 The display pitch is fitted, not fluid: `min(26px, (min(100vw, 48rem) - 3rem) /
