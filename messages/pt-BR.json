@@ -249,6 +249,21 @@
     "removeError": "Não foi possível apagar. Tente de novo.",
     "profileLink": "Ver o perfil",
     "energyLink": "Ver o gasto de energia",
+    "trend": {
+      "title": "Tendência",
+      "lead": "A linha é a média dos últimos 7 dias. Os pontos claros são o que a balança marcou em cada manhã — o peso do dia oscila com água e sal, e é a linha que mostra para onde você está indo.",
+      "empty": "Anote pelo menos dois dias e a tendência aparece aqui.",
+      "currentLabel": "Média atual",
+      "currentValue": "{weight, number} kg",
+      "thin": "Ainda com {count, plural, one {# pesagem} other {# pesagens}} na média — ela fica mais firme conforme a semana enche.",
+      "changeDown": "{weight, number} kg a menos em {days, plural, one {# dia} other {# dias}}.",
+      "changeUp": "{weight, number} kg a mais em {days, plural, one {# dia} other {# dias}}.",
+      "changeFlat": "Sem mudança na média em {days, plural, one {# dia} other {# dias}}.",
+      "axisRange": "{low, number} – {high, number} kg",
+      "chartLabel": "Gráfico do peso de {from} a {to}. A média dos últimos 7 dias está em {weight, number} kg.",
+      "legendAverage": "Média de 7 dias",
+      "legendRaw": "Pesagem do dia"
+    },
     "errors": {
       "required": "Preencha este campo.",
       "notANumber": "Use apenas números — 82 ou 82,4.",

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { calendarDate, todayIsoDate } from "./date";
+import { calendarDate, daysBetween, todayIsoDate } from "./date";
 
 const originalTz = process.env.TZ;
 
@@ -61,5 +61,32 @@ describe("calendarDate", () => {
     const date = calendarDate("2026-08-19");
 
     expect([date.getHours(), date.getMinutes()]).toEqual([0, 0]);
+  });
+});
+
+describe("daysBetween", () => {
+  it("counts the days from one calendar day to another", () => {
+    expect(daysBetween("2026-08-01", "2026-08-08")).toBe(7);
+  });
+
+  it("goes negative backwards", () => {
+    expect(daysBetween("2026-08-08", "2026-08-01")).toBe(-7);
+  });
+
+  it("is zero for the same day", () => {
+    expect(daysBetween("2026-08-08", "2026-08-08")).toBe(0);
+  });
+
+  it("crosses a month and a leap day without drifting", () => {
+    expect(daysBetween("2028-02-27", "2028-03-01")).toBe(3);
+  });
+
+  it("returns whole days across a daylight saving change", () => {
+    // The clocks moving makes one local day 23 hours long, and subtracting two
+    // local `Date`s across it yields 6.958… — a week the moving average would
+    // then measure with a fraction of a day.
+    process.env.TZ = "America/New_York";
+
+    expect(daysBetween("2026-03-05", "2026-03-12")).toBe(7);
   });
 });
