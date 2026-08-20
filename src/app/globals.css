@@ -1,41 +1,117 @@
 @import "tailwindcss";
 
 /*
- * `color-scheme` is what native controls read, and it is not implied by the
- * palette below. Without it the browser paints every widget it owns — the
- * `<select>` popup, the date picker, scrollbars — from its own light defaults,
- * while the text inside them inherits `--foreground`. In dark mode that is
- * #ededed on white: a dropdown you cannot read, and one that never appears in
- * a screenshot of the page because the popup is drawn outside it.
+ * The palette is two values and one warning.
  *
- * Declared next to the palette, and switched by the same media query, so the
- * two cannot drift apart.
+ * Black and white are the ground and the ink, and they are pure: #000 and #fff,
+ * not the softened near-blacks a screenshot of any other app is made of. The
+ * direction's whole legibility argument rests on absolute contrast, which is
+ * also the right answer for the scene this app is used in — a phone held at
+ * arm's length over a kitchen scale, or in a gym, where the ambient light is
+ * whatever it happens to be.
+ *
+ * Red is the only hue in the system and it is never decorative. It marks one
+ * thing: something is off — over target, overdue, off plan. Because it carries
+ * meaning it never carries it alone; every red mark in this codebase sits next
+ * to a word or a change in dot density, so the 8% of men who do not see it lose
+ * nothing (see PRODUCT.md, Accessibility).
+ *
+ * `--nd-red` is the mark: a fill or a lit segment, held to the 3:1 that
+ * non-text UI needs. `--nd-red-ink` is the same signal as type, lightened on
+ * the dark ground to clear 4.5:1 — 5.19:1 on white, 6.35:1 on black. They are
+ * two tokens because one value cannot do both jobs on both grounds.
  */
 :root {
   color-scheme: light;
-  --background: #ffffff;
-  --foreground: #171717;
-}
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --nd-ground: #ffffff;
+  --nd-ink: #000000;
+  --nd-red: #d71921;
+  --nd-red-ink: #d71921;
+
+  /*
+   * An unlit cell. This is a light system, not an ink one: a dot that is off is
+   * dimmer, not absent, and the visible grid behind the lit dots is what makes
+   * a panel read as hardware. Never used for text — see `--nd-dim` for that.
+   */
+  --nd-unlit: #d4d4d4;
+
+  /*
+   * The only secondary ink in the system, and the only grey any text may take.
+   * Tone in this world comes from dot density (`--nd-screen` below), not from
+   * fading the type: a screen read at arm's length has no contrast to spend.
+   * 5.33:1 on white, 6.08:1 on black.
+   */
+  --nd-dim: #6b6b6b;
+
+  --background: var(--nd-ground);
+  --foreground: var(--nd-ink);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --background: #0a0a0a;
-    --foreground: #ededed;
+
+    --nd-ground: #000000;
+    --nd-ink: #ffffff;
+    --nd-red-ink: #ff4a52;
+    --nd-unlit: #262626;
+    --nd-dim: #8a8a8a;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-nd-ground: var(--nd-ground);
+  --color-nd-ink: var(--nd-ink);
+  --color-nd-red: var(--nd-red);
+  --color-nd-red-ink: var(--nd-red-ink);
+  --color-nd-unlit: var(--nd-unlit);
+  --color-nd-dim: var(--nd-dim);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/*
+ * The parts of the page the browser draws.
+ *
+ * A caret, a selection and a focus ring all ship with defaults that belong to
+ * no design system, and in a world this reduced they are the loudest colour on
+ * screen. The caret and the selection take the accent — the one place red is
+ * allowed to mean nothing but "here you are" — and the focus ring is a hard
+ * two-pixel square of ink, which is the same edge every other element in this
+ * direction has.
+ */
+::selection {
+  background: var(--nd-red);
+  color: #ffffff;
+}
+
+:where(input, textarea) {
+  caret-color: var(--nd-red);
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--nd-ink);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+/* On an inverted surface the ink ring disappears into the fill. */
+.nd-invert :where(a, button, [tabindex]):focus-visible {
+  outline-color: var(--nd-ground);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-unlit) transparent;
 }
 
 /*
@@ -49,4 +125,130 @@ select,
 select option {
   background-color: var(--background);
   color: var(--foreground);
+}
+
+/*
+ * Digits that line up. Every number in this app sits in a column next to
+ * another number, and proportional figures make those columns wobble by a pixel
+ * per row — the sort of thing that reads as sloppiness without ever being
+ * identified as a font setting.
+ */
+.font-mono,
+table,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Dot matrix -------------------------------------------------------- */
+
+/*
+ * See src/components/dot/DotText.tsx. `--dm-advance` is the cell width in
+ * columns and `--dm-rows` the box height; both arrive from the face so this
+ * stylesheet never holds a second copy of the metrics.
+ */
+.dm {
+  display: inline-flex;
+  vertical-align: baseline;
+  line-height: 0;
+}
+
+.dm-cell {
+  position: relative;
+  display: block;
+  flex: none;
+  inline-size: calc(var(--dm-advance) * 1em);
+  block-size: calc(var(--dm-rows) * 1em);
+  font-style: normal;
+}
+
+.dm-cell::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: var(--dm-dot);
+  block-size: var(--dm-dot);
+  border-radius: 50%;
+  box-shadow: var(--dm-dots);
+}
+
+/*
+ * The unlit grid. Tiled at exactly one cell so it runs unbroken from the first
+ * character to the last, which is what makes a word read as one panel rather
+ * than as separate letters.
+ */
+.dm-display .dm-cell {
+  background-image: radial-gradient(
+    circle at center,
+    var(--nd-unlit) 0 var(--dm-unlit),
+    transparent var(--dm-unlit)
+  );
+  background-size: 1em 1em;
+}
+
+/* ---- Glyph strip ------------------------------------------------------- */
+
+/*
+ * A row of segments that light to show how much of a target a plan accounts
+ * for — the direction's light-as-quantity idea, applied to the one question
+ * the home screen exists to answer.
+ *
+ * The shortfall is the moving part. When a macro is short, a single pulse
+ * travels across the unlit segments; when it is met, the strip is still. That
+ * makes "not there yet" a thing the screen does rather than a thing it says,
+ * readable from across a kitchen, and it is the only animation in the app.
+ */
+.nd-seg {
+  background: var(--nd-unlit);
+}
+
+.nd-seg[data-lit="on"] {
+  background: var(--nd-ink);
+}
+
+.nd-seg[data-lit="over"] {
+  background: var(--nd-red);
+}
+
+.nd-seg[data-lit="short"] {
+  animation: nd-seek 2200ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  animation-delay: calc(var(--nd-seg-index) * 55ms);
+}
+
+@keyframes nd-seek {
+  0%,
+  55%,
+  100% {
+    background: var(--nd-unlit);
+  }
+  12% {
+    background: var(--nd-ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nd-seg[data-lit="short"] {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---- Dot screen -------------------------------------------------------- */
+
+/*
+ * Tone without grey. An intermediate surface value in this world is a field of
+ * full-value dots at a fixed pitch, averaged by the eye — the same material the
+ * type is made of, so a shaded panel and a lit numeral belong to one system.
+ */
+.nd-screen {
+  background-image: radial-gradient(
+    circle at center,
+    var(--nd-unlit) 0 0.8px,
+    transparent 0.8px
+  );
+  background-size: 4px 4px;
 }

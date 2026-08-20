@@ -192,11 +192,11 @@ describe("profile form wiring", () => {
     expect(config).toContain('{ url: "/energia", revision }');
   });
 
-  it("is reachable from the home page", () => {
-    const home = read("src/app/[locale]/page.tsx");
+  it("is reachable from the screen that holds everything outside the loop", () => {
+    const more = read("src/app/[locale]/mais/page.tsx");
 
-    expect(home).toContain('href="/perfil"');
-    expect(home).toContain('href="/energia"');
+    expect(more).toContain('href: "/perfil"');
+    expect(more).toContain('href: "/energia"');
   });
 
   it("puts the health notice beside the body-metrics input", () => {

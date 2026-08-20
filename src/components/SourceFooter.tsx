@@ -24,8 +24,12 @@ export function SourceFooter() {
   const legal = useTranslations("Legal");
 
   return (
-    <footer className="mt-auto border-t border-black/10 px-6 py-6 text-xs leading-relaxed opacity-60 dark:border-white/15">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+    // `text-nd-dim` rather than `opacity-60`: in a two-value palette a faded
+    // black is a grey that belongs to neither value, and it stops being legible
+    // the moment it lands on the dotted ground. The one dim token is contrast-
+    // checked against both grounds; opacity is not checked against anything.
+    <footer className="mt-auto border-t border-nd-unlit px-6 py-6 text-xs leading-relaxed text-nd-dim">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
           <p>
             {t("credit", {
@@ -41,7 +45,10 @@ export function SourceFooter() {
           </Link>
         </div>
 
-        <nav className="flex flex-wrap gap-x-6 gap-y-1">
+        <nav
+          aria-label={legal("navLabel")}
+          className="flex flex-wrap gap-x-6 gap-y-1"
+        >
           {LEGAL_ROUTES.map((route) => (
             <Link
               key={route.href}
