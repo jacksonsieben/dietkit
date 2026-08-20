@@ -54,10 +54,21 @@ export default async function Home({ params }: PageProps<"/[locale]">) {
         <Link href="/importar" className="text-sm underline underline-offset-4">
           {t("importLink")}
         </Link>
+
+        <Link href="/backup" className="text-sm underline underline-offset-4">
+          {t("backupLink")}
+        </Link>
       </div>
 
+      {/*
+       * The durability half of local-first, said on the way in rather than
+       * discovered on the way out (#26). "Nothing leaves your device" is
+       * reassurance; "and so nothing is anywhere else" is the part that costs
+       * someone a year of logs if it is left unsaid.
+       */}
       <p className="text-sm opacity-60">
-        {t("underConstruction")} {t("privacyReassurance")}
+        {t("underConstruction")} {t("privacyReassurance")}{" "}
+        {t("dataLocation")}
       </p>
     </main>
   );

@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
+import { BackupReminder } from "@/components/BackupReminder";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { SourceFooter } from "@/components/SourceFooter";
 import { resolveLocale } from "@/i18n/locale";
@@ -83,6 +84,7 @@ export default async function LocaleLayout({
             reloadOnOnline={false}
           >
             {children}
+            <BackupReminder />
             <InstallPrompt />
             {/* Not per page — see SourceFooter. The TACO licence condition holds
                 for every screen, so the credit lives where every screen gets it. */}
