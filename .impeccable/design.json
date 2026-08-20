@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-20T13:29:01Z",
+  "title": "Dot Instrument",
+  "extensions": {
+    "colorMeta": {
+      "mode": "dual",
+      "strategy": "re-picked, not inverted",
+      "tokens": {
+        "ground": {
+          "light": "#ffffff",
+          "dark": "#000000",
+          "role": "surface"
+        },
+        "ink": {
+          "light": "#000000",
+          "dark": "#ffffff",
+          "role": "type, rules, lit segments, inverted fills"
+        },
+        "red": {
+          "light": "#d71921",
+          "dark": "#d71921",
+          "role": "non-text mark; held to 3:1"
+        },
+        "redInk": {
+          "light": "#d71921",
+          "dark": "#ff4a52",
+          "role": "the same signal as type",
+          "contrast": {
+            "onGround": 5.19,
+            "onGroundDark": 6.35
+          }
+        },
+        "unlit": {
+          "light": "#d4d4d4",
+          "dark": "#262626",
+          "role": "a cell that is off; never text"
+        },
+        "dim": {
+          "light": "#6b6b6b",
+          "dark": "#8a8a8a",
+          "role": "the only secondary ink",
+          "contrast": {
+            "onGround": 5.33,
+            "onGroundDark": 6.08
+          }
+        }
+      },
+      "rules": [
+        "Red is the only hue and it always means 'off target'.",
+        "Red never carries meaning alone; a word or a density change says it too.",
+        "Intermediate tone is dot density (.nd-screen), never grey fill and never opacity."
+      ]
+    },
+    "typographyMeta": {
+      "faces": [
+        {
+          "name": "Dot matrix",
+          "source": "built in src/components/dot",
+          "why": "Ndot and NType82 are proprietary and cannot ship",
+          "metrics": {
+            "glyphCols": 5,
+            "glyphRows": 7,
+            "cellRows": 10,
+            "advance": 6,
+            "litDotEm": 0.76,
+            "unlitDotEm": 0.44
+          },
+          "case": "upper only"
+        },
+        {
+          "name": "Geist Sans",
+          "source": "next/font/google",
+          "var": "--font-geist-sans"
+        },
+        {
+          "name": "Geist Mono",
+          "source": "next/font/google",
+          "var": "--font-geist-mono",
+          "numeric": "tabular-nums"
+        }
+      ],
+      "displayFit": "min(26px, (min(100vw, 48rem) - 3rem) / (digits * 6))",
+      "i18n": "every visible string comes from next-intl; react/jsx-no-literals noStrings is enforced on src/**/*.tsx"
+    },
+    "shadows": {
+      "policy": "none",
+      "note": "No shadow, blur, gradient, translucency or layered surface anywhere. Separation is rules, inversion, or dot density."
+    },
+    "motion": {
+      "policy": "one authored animation in the app",
+      "animations": [
+        {
+          "name": "nd-seek",
+          "trigger": "a macro strip whose target is not yet met",
+          "duration": "2200ms",
+          "easing": "cubic-bezier(0.16, 1, 0.3, 1)",
+          "stagger": "55ms per segment",
+          "reducedMotion": "animation removed; all transitions clamped to 1ms"
+        }
+      ]
+    },
+    "breakpoints": {
+      "policy": "one column at every width",
+      "column": "48rem",
+      "gutter": "1.5rem",
+      "note": "The desktop view is the phone view with air around it. No sidebar, no second column, no panel reflow."
+    }
+  },
+  "components": [
+    {
+      "name": "Action",
+      "file": "src/components/Today.tsx",
+      "description": "The only button: an inverted block, and the only filled element on a screen besides lit segments.",
+      "backgroundColor": "{colors.ink}",
+      "textColor": "{colors.ground}",
+      "typography": "{typography.body}",
+      "rounded": "{rounded}",
+      "padding": "0.75rem 1.25rem"
+    },
+    {
+      "name": "Rule",
+      "file": "src/components/Today.tsx",
+      "description": "A 2px ink line. The world here is ruled sheets, not floating boxes.",
+      "backgroundColor": "{colors.ink}",
+      "height": "2px",
+      "width": "100%",
+      "rounded": "{rounded}"
+    },
+    {
+      "name": "Segment",
+      "file": "src/app/globals.css",
+      "description": "The atom of the system. State is a string — off, on, over, short — never a boolean.",
+      "backgroundColor": "{colors.unlit}",
+      "height": "1.25rem",
+      "rounded": "{rounded}",
+      "states": {
+        "off": "{colors.unlit}",
+        "on": "{colors.ink}",
+        "over": "{colors.red}",
+        "short": "nd-seek pulse"
+      }
+    },
+    {
+      "name": "GlyphBar",
+      "file": "src/components/GlyphBar.tsx",
+      "description": "Label and mono reading on one baseline, a full-width strip of segments, a status line. The strip is aria-hidden; the status line says the same fact in words.",
+      "textColor": "{colors.ink}",
+      "typography": "{typography.label}",
+      "height": "1.25rem",
+      "rounded": "{rounded}"
+    },
+    {
+      "name": "MealLamps",
+      "file": "src/components/Today.tsx",
+      "description": "One fixed-width lamp per meal, lit if the meal has food in it. Fixed-width because a stretched strip would read as a proportion.",
+      "backgroundColor": "{colors.unlit}",
+      "height": "1.25rem",
+      "width": "2rem",
+      "rounded": "{rounded}"
+    },
+    {
+      "name": "DotText",
+      "file": "src/components/dot/DotText.tsx",
+      "description": "The dot panel. Dots are aria-hidden and the real string sits in an sr-only span, so the panel renders the text rather than duplicating it.",
+      "textColor": "{colors.ink}",
+      "typography": "{typography.display}",
+      "rounded": "{rounded}"
+    },
+    {
+      "name": "TabSlot",
+      "file": "src/components/AppChrome.tsx",
+      "description": "Pictogram over label over a lamp. The active slot inverts and lights its lamp; inactive slots keep the lamp's space so nothing shifts.",
+      "backgroundColor": "{colors.ground}",
+      "textColor": "{colors.ink}",
+      "typography": "{typography.label}",
+      "height": "4.25rem",
+      "rounded": "{rounded}"
+    }
+  ],
+  "narrative": {
+    "northStar": "An instrument, not a document.",
+    "overview": "DietKit reports the state of one person's body and one day's plan. An instrument shows quantity as light: lamps that are on or off, digits built from dots, a rule where a card would be. The visual world is Nothing OS, pinned by the user and followed literally — the dot face is really built on a 5x7 cell, and the tab pictograms are drawn on that same grid. Reading order is the loop the product is: target, then how far the plan has got with it, then the body that says whether any of it is working.",
+    "keyCharacteristics": [
+      "Two values and one red; every intermediate tone is dot density.",
+      "Quantity is rendered as light, never as a filled progress container.",
+      "Zero radius, zero shadow, zero gradient. Rules and inversion do all separation.",
+      "State is carried at least twice — by light and by words.",
+      "One authored motion in the whole app, stilled under prefers-reduced-motion.",
+      "One column at every width; the desktop view is the phone view with air around it."
+    ],
+    "rules": [
+      "Red means something is off target, and never carries that alone.",
+      "--nd-dim is the entire secondary-ink budget; below it, remove the text.",
+      "A shaded surface is .nd-screen dots, never a grey fill and never opacity.",
+      "Pass .nd-seg a state name, never a boolean — a boolean renders unlit.",
+      "Every visible string lives in messages/pt-BR.json."
+    ],
+    "dos": [
+      "Carry state by light and by words.",
+      "Reach for a rule before a container.",
+      "Give a quantity a readout: lamps if countable, a dot panel if it is the answer.",
+      "Size a dot panel from one fontSize; everything inside is in em."
+    ],
+    "donts": [
+      "No second hue.",
+      "No faded type as a hierarchy device.",
+      "No radius, shadow or gradient, including the subtle kind.",
+      "No second animation.",
+      "No rendering the same number in two different voices.",
+      "No stretching a small-count indicator to full width."
+    ],
+    "notCanonized": "The uppercase letter-spaced labels above headings read as eyebrows, which the craft floor bans. They are kept as a carried exception because a legend over a readout is native to the pinned instrument world — not promoted to house style, and still wrong in any other visual world in this codebase. Separately, /dieta, /peso, /alimentos, /perfil and /energia still carry the previous amber/emerald convention and are not described by this document."
+  }
+}

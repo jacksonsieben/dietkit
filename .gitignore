@@ -44,3 +44,8 @@ test-results/
 # Serwist — public/sw.js is built from src/sw.ts by `serwist build`
 public/sw.js
 public/sw.js.map
+
+# Impeccable working directory. The review captures and comps are local scratch;
+# `design.json` is the machine-readable half of DESIGN.md and is tracked.
+.impeccable/*
+!.impeccable/design.json

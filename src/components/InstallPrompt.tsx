@@ -120,21 +120,23 @@ export function InstallPrompt() {
   };
 
   return (
-    <aside className="border-t border-black/10 px-6 py-4 dark:border-white/15">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <aside className="border-t-2 border-nd-ink px-6 py-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium">{t("title")}</p>
-          <p className="text-xs opacity-70">
+          <p className="text-sm font-medium tracking-[0.08em] uppercase">
+            {t("title")}
+          </p>
+          <p className="text-xs text-nd-dim">
             {showsPrompt ? t("body") : t("iosBody")}
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-4">
           {showsPrompt ? (
             <button
               type="button"
               onClick={install}
-              className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background"
+              className="nd-invert bg-nd-ink px-4 py-2 text-xs font-medium tracking-[0.08em] text-nd-ground uppercase"
             >
               {t("action")}
             </button>
@@ -142,7 +144,7 @@ export function InstallPrompt() {
           <button
             type="button"
             onClick={dismiss}
-            className="text-xs underline underline-offset-4 opacity-60"
+            className="text-xs text-nd-dim underline underline-offset-4"
           >
             {t("dismiss")}
           </button>

@@ -107,13 +107,16 @@ describe("backup wiring", () => {
     expect(read("src/app/[locale]/layout.tsx")).toContain("<BackupReminder />");
   });
 
-  it("says on the home screen that the data lives on this device", () => {
+  it("says where the data lives, next to the way to get a copy of it", () => {
     // The issue's last condition, and the one that costs nothing to forget:
-    // "onboarding states plainly that data lives on this device".
-    const home = read("src/app/[locale]/page.tsx");
+    // "onboarding states plainly that data lives on this device". It is said on
+    // `/mais` now rather than on the home screen, in the same breath as the
+    // backup link — which is stronger than where it used to sit, because the
+    // warning and the remedy are one paragraph apart.
+    const more = read("src/app/[locale]/mais/page.tsx");
 
-    expect(home).toContain('href="/backup"');
-    expect(home).toContain('t("dataLocation")');
-    expect(ptBR.Home.dataLocation).toContain("neste navegador");
+    expect(more).toContain('href: "/backup"');
+    expect(more).toContain('t(group.lead)');
+    expect(ptBR.More.dataLead).toContain("neste navegador");
   });
 });

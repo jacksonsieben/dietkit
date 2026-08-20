@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
-import { backupUrgency, isBackupDue, type BackupUrgency } from "@/lib/backup/reminder";
+import {
+  backupUrgency,
+  isBackupDue,
+  type BackupUrgency,
+} from "@/lib/backup/reminder";
 import { getRepository } from "@/lib/storage";
 
 /**
@@ -85,26 +89,30 @@ export function BackupReminder() {
   };
 
   return (
-    <aside className="border-t border-amber-600/40 bg-amber-500/10 px-6 py-4 dark:border-amber-400/40">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    // Red, which this palette spends nowhere else but on something that has
+    // gone past where it should be. An overdue backup qualifies: the failure it
+    // warns about is total and silent, and it is the only condition in the app
+    // where the right reaction is to stop and deal with it.
+    <aside className="border-t-2 border-nd-red px-6 py-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium">
+          <p className="text-sm font-medium tracking-[0.08em] text-nd-red-ink uppercase">
             {urgency === "never" ? t("titleNever") : t("titleStale")}
           </p>
-          <p className="text-xs opacity-70">{t("body")}</p>
+          <p className="text-xs text-nd-dim">{t("body")}</p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-4">
           <Link
             href={BACKUP_PATH}
-            className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background"
+            className="nd-invert bg-nd-ink px-4 py-2 text-xs font-medium tracking-[0.08em] text-nd-ground uppercase"
           >
             {t("action")}
           </Link>
           <button
             type="button"
             onClick={() => void dismiss()}
-            className="text-xs underline underline-offset-4 opacity-60"
+            className="text-xs text-nd-dim underline underline-offset-4"
           >
             {t("dismiss")}
           </button>

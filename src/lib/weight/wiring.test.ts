@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { TABS } from "@/lib/nav/tabs";
+
 import ptBR from "../../../messages/pt-BR.json";
 import { CSV_ERROR_CODES } from "./csv";
 import { WEIGHT_ERROR_CODES } from "./validation";
@@ -122,8 +124,12 @@ describe("weight log wiring", () => {
     expect(source).not.toContain("navigator.sendBeacon");
   });
 
-  it("is reachable from the home screen", () => {
-    expect(read("src/app/[locale]/page.tsx")).toContain('href="/peso"');
+  it("is reachable without hunting for it", () => {
+    // The home screen stopped being a list of links when the shell grew a tab
+    // bar, so the claim moved with it: the weight log is one of the five slots,
+    // and the day's screen points at it as well.
+    expect(TABS).toContainEqual({ id: "weight", href: "/peso" });
+    expect(read("src/components/Today.tsx")).toContain('href="/peso"');
   });
 
   it("keeps the form off the page and behind a button", () => {

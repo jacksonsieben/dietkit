@@ -95,7 +95,10 @@ describe("import wiring", () => {
     expect(source).not.toContain("dexie");
   });
 
-  it("is reachable from the home screen", () => {
-    expect(read("src/app/[locale]/page.tsx")).toContain('href="/importar"');
+  it("is reachable from the screen that holds everything outside the loop", () => {
+    // Importing is a once-ever errand, so it left the home screen for `/mais`
+    // when the home screen became the day. It still has a way in, which is the
+    // whole of what this test ever claimed.
+    expect(read("src/app/[locale]/mais/page.tsx")).toContain('href: "/importar"');
   });
 });

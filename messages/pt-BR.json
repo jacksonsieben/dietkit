@@ -26,19 +26,6 @@
     "retry": "Tentar de novo",
     "backHome": "Voltar ao início"
   },
-  "Home": {
-    "heading": "DietKit",
-    "underConstruction": "Em construção.",
-    "privacyReassurance": "Nenhum dado pessoal sai do seu aparelho.",
-    "profileLink": "Começar pelo perfil",
-    "energyLink": "Ver o gasto de energia",
-    "foodsLink": "Buscar alimentos",
-    "planLink": "Montar as refeições",
-    "weightLink": "Anotar o peso",
-    "importLink": "Importar do app antigo",
-    "dataLocation": "Tudo o que você anotar fica guardado só aqui, neste navegador — por isso vale baixar um backup de vez em quando.",
-    "backupLink": "Backup dos dados"
-  },
   "NotFound": {
     "heading": "Página não encontrada",
     "body": "O endereço que você abriu não existe.",
@@ -75,7 +62,8 @@
     "privacyLink": "Privacidade",
     "termsLink": "Termos de uso",
     "healthLink": "Aviso de saúde",
-    "alsoRead": "Leia também:"
+    "alsoRead": "Leia também:",
+    "navLabel": "Letra miúda"
   },
   "Privacy": {
     "title": "Aviso de privacidade",
@@ -783,5 +771,97 @@
       "action": "Fazer backup",
       "dismiss": "Agora não"
     }
+  },
+  "Nav": {
+    "label": "Seções do app",
+    "today": "Hoje",
+    "diet": "Dieta",
+    "training": "Treino",
+    "weight": "Peso",
+    "more": "Mais",
+    "soon": "em breve",
+    "plate": {
+      "today": "HOJE",
+      "diet": "DIETA",
+      "weight": "PESO",
+      "more": "MAIS",
+      "foods": "ALIMENTOS",
+      "myFoods": "MEUS",
+      "groups": "GRUPOS",
+      "profile": "PERFIL",
+      "energy": "ENERGIA",
+      "backup": "BACKUP",
+      "import": "IMPORTAR",
+      "sources": "FONTES",
+      "privacy": "PRIVACIDADE",
+      "terms": "TERMOS",
+      "health": "SAÚDE",
+      "offline": "SEM REDE",
+      "notFound": "PERDIDO"
+    },
+    "backupDue": "Backup atrasado"
+  },
+  "More": {
+    "title": "Mais",
+    "lead": "O resto do app: o que define suas metas, o que entra e sai deste aparelho, e a letra miúda.",
+    "targets": "Metas e corpo",
+    "targetsLead": "O que transforma o seu peso em kcal e gramas por dia.",
+    "profile": "Perfil",
+    "profileHint": "Altura, nascimento, sexo e nível de atividade.",
+    "energy": "Gasto de energia",
+    "energyHint": "O cálculo por trás das metas, passo a passo.",
+    "data": "Seus dados",
+    "dataLead": "Tudo o que você anota fica guardado só aqui, neste navegador — nada disso está em outro lugar, por isso vale baixar um backup de vez em quando.",
+    "backup": "Backup",
+    "backupHint": "Baixar um arquivo com tudo, ou restaurar de um.",
+    "import": "Importar do app antigo",
+    "importHint": "Traz a dieta e o histórico de peso de uma exportação anterior.",
+    "legal": "Origem e letra miúda",
+    "legalLead": "De onde vêm os números e o que este app não é.",
+    "sources": "Fontes dos dados",
+    "sourcesHint": "A tabela TACO e como ela é creditada.",
+    "health": "Aviso de saúde",
+    "healthHint": "Este app não substitui nutricionista nem médico.",
+    "privacy": "Privacidade",
+    "privacyHint": "O que é guardado, onde, e por quanto tempo.",
+    "terms": "Termos de uso",
+    "termsHint": "As condições de uso do app."
+  },
+  "Today": {
+    "needsProfile": {
+      "title": "Comece pelo perfil",
+      "body": "Altura, data de nascimento, sexo e nível de atividade. É o que transforma o seu peso em uma meta de energia — sem isso o app não tem o que calcular.",
+      "action": "Preencher o perfil"
+    },
+    "needsWeight": {
+      "title": "Falta anotar o seu peso",
+      "body": "A meta é calculada sobre o peso de agora, não sobre um número guardado uma vez no perfil. Anote o primeiro e o resto aparece aqui.",
+      "action": "Anotar o peso"
+    },
+    "targetCaption": "Meta de hoje",
+    "energyUnit": "kcal por dia",
+    "macros": "A meta, macro a macro",
+    "macroReading": "{actual, number} de {target, number} g",
+    "macroShort": "faltam {value, number} g",
+    "macroOver": "{value, number} g acima",
+    "macroMet": "fecha",
+    "toggleHint": "Toque em um macro para ver quanto falta.",
+    "noPlanTitle": "Ainda não há uma dieta montada",
+    "noPlanBody": "As metas acima já estão calculadas. Falta dizer em quantas refeições elas se dividem e o que entra em cada uma.",
+    "noPlanAction": "Montar a dieta",
+    "planTitle": "A dieta de hoje",
+    "planMeals": "{filled, number} de {total, number} refeições com comida dentro",
+    "planAction": "Abrir a dieta",
+    "planMet": "O plano fecha com a meta.",
+    "planMissed": "O plano ainda não fecha com a meta.",
+    "bodyTitle": "O corpo",
+    "bodyUnit": "kg",
+    "bodyMeasured": "medido em {date}",
+    "bodyChangeDown": "−{value} kg em {days, number} dias",
+    "bodyChangeUp": "+{value} kg em {days, number} dias",
+    "bodyChangeNone": "sem tendência ainda — anote mais um dia",
+    "bodyAction": "Anotar o peso de hoje",
+    "loading": "Lendo o que está salvo neste aparelho…",
+    "loadError": "Não foi possível ler seus dados neste aparelho."
   }
 }

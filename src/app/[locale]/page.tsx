@@ -1,6 +1,7 @@
+import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
-import { Link } from "@/i18n/navigation";
+import { Today } from "@/components/Today";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 
@@ -8,68 +9,35 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
+export async function generateMetadata({
+  params,
+}: PageProps<"/[locale]">): Promise<Metadata> {
+  const locale = resolveLocale((await params).locale);
+  const t = await getTranslations({ locale, namespace: "App" });
+
+  return { description: t("tagline") };
+}
+
+/**
+ * The home screen is now one thing: today.
+ *
+ * What stood here was a list of every route in the app, which the user
+ * described as "everything just thrown out on the first screen". The links did
+ * not disappear — the four daily ones became the tab bar and the rest became
+ * `/mais` — but the first screen stopped being a directory and became the
+ * answer to the question the app is opened to ask.
+ *
+ * Server shell, client body, like every other personal-data screen here: this
+ * file holds no data and prerenders, and everything on it arrives from
+ * IndexedDB inside `Today`.
+ */
 export default async function Home({ params }: PageProps<"/[locale]">) {
   const locale = resolveLocale((await params).locale);
   setRequestLocale(locale);
 
-  const t = await getTranslations("Home");
-  const app = await getTranslations("App");
-
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 px-6 py-16">
-      <div className="flex flex-col gap-3">
-        <h1 className="font-mono text-4xl font-semibold tracking-tight">
-          {t("heading")}
-        </h1>
-        <p className="text-lg text-balance opacity-80">{app("tagline")}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
-        <Link
-          href="/perfil"
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-        >
-          {t("profileLink")}
-        </Link>
-
-        <Link href="/energia" className="text-sm underline underline-offset-4">
-          {t("energyLink")}
-        </Link>
-
-        <Link
-          href="/alimentos"
-          className="text-sm underline underline-offset-4"
-        >
-          {t("foodsLink")}
-        </Link>
-
-        <Link href="/dieta" className="text-sm underline underline-offset-4">
-          {t("planLink")}
-        </Link>
-
-        <Link href="/peso" className="text-sm underline underline-offset-4">
-          {t("weightLink")}
-        </Link>
-
-        <Link href="/importar" className="text-sm underline underline-offset-4">
-          {t("importLink")}
-        </Link>
-
-        <Link href="/backup" className="text-sm underline underline-offset-4">
-          {t("backupLink")}
-        </Link>
-      </div>
-
-      {/*
-       * The durability half of local-first, said on the way in rather than
-       * discovered on the way out (#26). "Nothing leaves your device" is
-       * reassurance; "and so nothing is anywhere else" is the part that costs
-       * someone a year of logs if it is left unsaid.
-       */}
-      <p className="text-sm opacity-60">
-        {t("underConstruction")} {t("privacyReassurance")}{" "}
-        {t("dataLocation")}
-      </p>
+    <main className="flex flex-1 flex-col">
+      <Today />
     </main>
   );
 }
