@@ -19,3 +19,19 @@ export function todayIsoDate(now: Date = new Date()): IsoDate {
 
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * An `IsoDate` as a `Date` positioned in this device's timezone.
+ *
+ * `new Date("2026-08-19")` is parsed as UTC midnight, which in Brazil is the
+ * evening of the *18th* — so a date rendered through `Intl` would print the day
+ * before the one it was logged on. Passing the parts separately builds the
+ * local midnight instead, which is the day the string names.
+ *
+ * Only for display. Nothing stores one of these: the log is keyed on the
+ * `YYYY-MM-DD` string precisely so the day cannot drift.
+ */
+export function calendarDate(date: IsoDate): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
+}

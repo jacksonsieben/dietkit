@@ -47,10 +47,11 @@ export default async function Home({ params }: PageProps<"/[locale]">) {
           {t("planLink")}
         </Link>
 
-        <Link
-          href="/importar"
-          className="text-sm underline underline-offset-4"
-        >
+        <Link href="/peso" className="text-sm underline underline-offset-4">
+          {t("weightLink")}
+        </Link>
+
+        <Link href="/importar" className="text-sm underline underline-offset-4">
           {t("importLink")}
         </Link>
       </div>
