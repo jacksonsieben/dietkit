@@ -69,8 +69,27 @@
   --color-nd-red-ink: var(--nd-red-ink);
   --color-nd-unlit: var(--nd-unlit);
   --color-nd-dim: var(--nd-dim);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-face);
+  --font-mono: var(--font-mono-face);
+}
+
+/*
+ * The root size, and therefore the whole scale.
+ *
+ * Space Grotesk has a smaller x-height than Geist at the same nominal size, so
+ * dropping it in one-for-one made every screen read a step smaller than it had
+ * — the type looked correct in a specimen and undersized in a kitchen. 106.25%
+ * is 17px against a default browser, which puts the x-height back where it was
+ * and leaves the face a little larger than the app has ever been.
+ *
+ * A percentage, not a pixel value: this multiplies whatever the reader has set
+ * as their browser's base size instead of overriding it, so someone who has
+ * asked their phone for larger text still gets it. Everything in the app is
+ * sized in rem, so this one number moves the type and the rhythm around it
+ * together rather than pushing bigger words into unchanged gaps.
+ */
+html {
+  font-size: 106.25%;
 }
 
 body {
