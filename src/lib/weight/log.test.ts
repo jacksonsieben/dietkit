@@ -6,7 +6,13 @@ import { createDietKitDatabase } from "@/lib/storage/dexie/db";
 import { createDexieRepository } from "@/lib/storage/dexie/repository";
 import type { Repository } from "@/lib/storage";
 
-import { entryOn, loadWeightLog, removeWeightEntry, saveWeightEntry } from "./log";
+import {
+  entryOn,
+  importWeightEntries,
+  loadWeightLog,
+  removeWeightEntry,
+  saveWeightEntry,
+} from "./log";
 
 /**
  * Against the Dexie adapter through `fake-indexeddb`, not the in-memory one:
@@ -213,5 +219,52 @@ describe("removeWeightEntry", () => {
 
     expect(again.replaced).toBe(false);
     expect((await repository.weight.getByDate("2026-08-18"))?.weightKg).toBe(84);
+  });
+});
+
+describe("importWeightEntries", () => {
+  it("writes every row of the file", async () => {
+    const { added, replaced } = await importWeightEntries(
+      repository,
+      [
+        { date: "2026-08-17", weightKg: 82.4 },
+        { date: "2026-08-18", weightKg: 82.1 },
+      ],
+      NOW,
+    );
+
+    expect({ added, replaced }).toEqual({ added: 2, replaced: 0 });
+    expect(await loadWeightLog(repository)).toHaveLength(2);
+  });
+
+  it("gives an imported day to the file, the same as the form would", async () => {
+    // A day is a slot whoever fills it. An import that skipped occupied days
+    // would leave a two-year history full of holes wherever the user had
+    // already typed something here.
+    await saveWeightEntry(repository, { date: "2026-08-17", weightKg: 90 }, NOW);
+
+    const { added, replaced } = await importWeightEntries(
+      repository,
+      [
+        { date: "2026-08-17", weightKg: 82.4 },
+        { date: "2026-08-18", weightKg: 82.1 },
+      ],
+      "2026-08-20T09:00:00.000Z",
+    );
+
+    expect({ added, replaced }).toEqual({ added: 1, replaced: 1 });
+    expect(await repository.weight.getByDate("2026-08-17")).toMatchObject({
+      weightKg: 82.4,
+    });
+  });
+
+  it("leaves the log untouched when the file had nothing in it", async () => {
+    await saveWeightEntry(repository, { date: "2026-08-17", weightKg: 90 }, NOW);
+
+    expect(await importWeightEntries(repository, [], NOW)).toEqual({
+      added: 0,
+      replaced: 0,
+    });
+    expect(await loadWeightLog(repository)).toHaveLength(1);
   });
 });

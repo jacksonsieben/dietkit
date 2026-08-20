@@ -272,6 +272,42 @@
       "future": "Não dá para anotar uma pesagem que ainda não aconteceu.",
       "ancientDate": "Confira o ano — essa data é antiga demais para ser uma pesagem sua.",
       "noteTooLong": "A observação passa de {max, number} caracteres."
+    },
+    "add": "Anotar pesagem",
+    "import": {
+      "open": "Importar CSV",
+      "title": "Importar pesagens de um arquivo",
+      "lead": "Serve para trazer o histórico de outro aplicativo ou de uma planilha. Precisa de uma coluna com a data e outra com o peso; se o arquivo não tiver cabeçalho, é essa a ordem esperada. Nada sai deste aparelho: o arquivo é lido aqui mesmo.",
+      "fileLabel": "Escolher arquivo CSV",
+      "fileNone": "Nenhum arquivo escolhido",
+      "fileHint": "Uma linha por dia, como 05/01/2026;81,7. Aceita ponto e vírgula, vírgula ou tabulação separando as colunas, e vírgula ou ponto no decimal.",
+      "reading": "Lendo o arquivo…",
+      "readError": "Não foi possível ler esse arquivo. Escolha outro.",
+      "fileErrors": {
+        "empty": "Esse arquivo está vazio.",
+        "noColumns": "Esse arquivo tem uma coluna só. São necessárias pelo menos duas: a data e o peso."
+      },
+      "ready": "{count, plural, one {# pesagem pronta para importar} other {# pesagens prontas para importar}}.",
+      "nothing": "Nenhuma linha deste arquivo pôde ser lida. Confira se as colunas são a data e o peso.",
+      "replacing": "{count, plural, one {# dia já anotado aqui será substituído pelo do arquivo} other {# dias já anotados aqui serão substituídos pelos do arquivo}}.",
+      "skipped": "{count, plural, one {# linha ficou de fora} other {# linhas ficaram de fora}}:",
+      "skippedLine": "Linha {line, number}: {reason}",
+      "skippedMore": "e mais {count, number}.",
+      "confirm": "Importar {count, plural, =0 {pesagens} one {# pesagem} other {# pesagens}}",
+      "cancel": "Cancelar",
+      "importing": "Importando…",
+      "done": "{added, plural, =0 {Nenhuma pesagem nova} one {# pesagem importada} other {# pesagens importadas}} e {replaced, plural, =0 {nenhum dia substituído} one {# dia substituído} other {# dias substituídos}}.",
+      "error": "Não foi possível importar. Tente de novo.",
+      "reasons": {
+        "required": "falta a data ou o peso.",
+        "notANumber": "o peso não é um número.",
+        "weightRange": "o peso está fora de {min, number} a {max, number} kg.",
+        "notADate": "a data não deu para entender.",
+        "future": "a data ainda não chegou.",
+        "ancientDate": "a data é antiga demais para ser uma pesagem sua.",
+        "noteTooLong": "a observação passa de {max, number} caracteres.",
+        "duplicateDate": "esse dia aparece de novo mais abaixo no arquivo."
+      }
     }
   },
   "Energy": {
