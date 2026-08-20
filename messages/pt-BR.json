@@ -35,7 +35,9 @@
     "foodsLink": "Buscar alimentos",
     "planLink": "Montar as refeições",
     "weightLink": "Anotar o peso",
-    "importLink": "Importar do app antigo"
+    "importLink": "Importar do app antigo",
+    "dataLocation": "Tudo o que você anotar fica guardado só aqui, neste navegador — por isso vale baixar um backup de vez em quando.",
+    "backupLink": "Backup dos dados"
   },
   "NotFound": {
     "heading": "Página não encontrada",
@@ -708,5 +710,78 @@
     },
     "defaulted": "A chave “{key}” não existia nessa versão do app antigo; ficou com o valor de fábrica.",
     "defaultedTitle": "Do arquivo antigo"
+  },
+  "Backup": {
+    "title": "Backup dos seus dados",
+    "lead": "Tudo o que você anota no DietKit fica guardado só neste aparelho. Baixar um backup de vez em quando é a única forma de não perder o histórico se você limpar os dados do navegador, trocar de celular ou perder o aparelho.",
+    "link": "Fazer backup",
+    "export": {
+      "heading": "Baixar uma cópia",
+      "body": "Gera um arquivo com o perfil, o histórico de peso, as dietas, seus alimentos e as configurações. Guarde onde você não vai perder: o Drive, o e-mail, uma conversa salva.",
+      "empty": "Ainda não há nada para salvar. Volte aqui depois de anotar algumas pesagens ou montar uma dieta.",
+      "action": "Baixar backup",
+      "working": "Preparando o arquivo…",
+      "done": "Backup gerado: {name}. Confira se o arquivo chegou onde você guardou.",
+      "failed": "Não foi possível gerar o backup. Tente de novo.",
+      "lastNever": "Você ainda não fez nenhum backup.",
+      "lastAt": "Último backup em {date}."
+    },
+    "restore": {
+      "heading": "Restaurar de um backup",
+      "body": "Restaurar apaga tudo o que está neste aparelho e coloca o conteúdo do arquivo no lugar. Você vê o que vai entrar e o que vai sair antes de confirmar.",
+      "fileLabel": "Escolher arquivo de backup",
+      "fileNone": "Nenhum arquivo escolhido",
+      "fileHint": "Um arquivo .json gerado pelo próprio DietKit.",
+      "reading": "Lendo o arquivo…",
+      "readError": "Não foi possível ler esse arquivo. Escolha outro.",
+      "errors": {
+        "notJson": "Esse arquivo não é um backup do DietKit.",
+        "notSnapshot": "Esse arquivo até parece um backup, mas está com o conteúdo danificado. Se você tiver outra cópia, tente por ela.",
+        "futureVersion": "Esse backup foi feito por uma versão mais nova do DietKit. Atualize o aplicativo e tente de novo."
+      },
+      "compare": "O que muda",
+      "device": "Neste aparelho agora",
+      "file": "No arquivo",
+      "rows": {
+        "profile": "Perfil",
+        "goal": "Objetivo e macros",
+        "weight": "Pesagens",
+        "diets": "Dietas",
+        "customFoods": "Meus alimentos",
+        "groups": "Grupos de substituição"
+      },
+      "yes": "sim",
+      "no": "não",
+      "count": "{count, number}",
+      "weightWithRange": "{count, number} ({from} a {to})",
+      "exportedAt": "Backup feito em {date}.",
+      "exportedUnknown": "Esse arquivo não diz quando foi feito.",
+      "dropsHeading": "{count, plural, one {# registro do arquivo não pôde ser lido e ficará de fora} other {# registros do arquivo não puderam ser lidos e ficarão de fora}}:",
+      "dropsMore": "e mais {count, number}.",
+      "drops": {
+        "profile": "o perfil",
+        "weight": "uma pesagem",
+        "diet": "uma dieta",
+        "customFood": "um alimento seu",
+        "group": "um grupo de substituição",
+        "goal": "o objetivo e os macros"
+      },
+      "dropNamed": "{what}: {subject}",
+      "action": "Restaurar deste arquivo",
+      "working": "Restaurando…",
+      "done": "Pronto. Este aparelho agora tem o conteúdo do arquivo.",
+      "failed": "Não foi possível restaurar. Nada foi alterado neste aparelho.",
+      "confirmTitle": "Substituir tudo neste aparelho?",
+      "confirmBody": "O que está aqui agora será apagado e não tem como voltar atrás. Se ainda não baixou um backup do que está neste aparelho, feche isto e baixe primeiro.",
+      "confirmAction": "Apagar e restaurar",
+      "confirmCancel": "Cancelar"
+    },
+    "reminder": {
+      "titleNever": "Faça um backup dos seus dados",
+      "titleStale": "Seus dados mudaram desde o último backup",
+      "body": "Tudo fica só neste aparelho. Se você limpar os dados do navegador ou trocar de celular, seu histórico vai junto.",
+      "action": "Fazer backup",
+      "dismiss": "Agora não"
+    }
   }
 }
