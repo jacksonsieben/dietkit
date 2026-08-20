@@ -97,6 +97,9 @@ forward to v1.5 rather than sitting in v2.
 - Opt-in encrypted sync and cross-device continuity — candidate for pulling forward.
 - Sharing a plan with a nutritionist or coach.
 - Shared/community pool for custom foods.
+- Nutrition facts from a barcode — researched and costed in
+  [SPIKE-BARCODE-LOOKUP.md](SPIKE-BARCODE-LOOKUP.md); the verdict is an imported
+  Open Food Facts subset served from our own route, with no WASM scanner.
 
 ---
 
