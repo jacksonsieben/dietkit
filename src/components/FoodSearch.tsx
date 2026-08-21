@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Field } from "@/components/Field";
-import { Link } from "@/i18n/navigation";
+import { TextLink } from "@/components/nd/kit";
 import type { NutrientSentinel } from "@/lib/db/nutrients";
 import type { FoodSearchBody } from "@/lib/foods/endpoint";
 import type { FoodSearchResult } from "@/lib/db/foods";
@@ -137,18 +137,18 @@ export function FoodSearch() {
       {/* Offered before anyone has searched and after, because the moment
           someone needs it is the moment the box came back with nothing — and
           telling them then, only then, would mean they had already given up. */}
-      <p className="text-xs leading-relaxed opacity-60">
+      <p className="text-xs leading-relaxed text-nd-dim">
         {t("missingNote")}{" "}
-        <Link href="/alimentos/meus" className="underline underline-offset-4">
+        <TextLink href="/alimentos/meus" className="text-xs">
           {t("manageLink")}
-        </Link>
+        </TextLink>
       </p>
 
-      <p className="text-xs leading-relaxed opacity-60">
+      <p className="text-xs leading-relaxed text-nd-dim">
         {t("serverNote")}{" "}
-        <Link href="/privacidade" className="underline underline-offset-4">
+        <TextLink href="/privacidade" className="text-xs">
           {t("privacyLink")}
-        </Link>
+        </TextLink>
       </p>
     </div>
   );
@@ -196,21 +196,23 @@ function Status({
 
   if (!searchable) {
     return (
-      <p className="text-sm opacity-60">
+      <p className="text-sm text-nd-dim">
         {t("minLength", { min: MIN_QUERY_LENGTH })}
       </p>
     );
   }
 
   if (!answer) {
-    return <p className="text-sm opacity-60">{t("searching")}</p>;
+    return <p className="text-sm text-nd-dim">{t("searching")}</p>;
   }
 
   // Only when neither half arrived is there nothing to show. One half is still
   // an answer, with a line above it saying which half is missing.
   if (!answer.taco.ok && !answer.custom.ok) {
     return (
-      <p className="text-sm text-red-700 dark:text-red-400">{t("failed")}</p>
+      <p className="border-l-2 border-nd-red pl-4 text-sm text-nd-red-ink">
+        {t("failed")}
+      </p>
     );
   }
 
@@ -220,19 +222,27 @@ function Status({
 
   return (
     <div className="flex flex-col gap-3">
+      {/*
+        A rail in ink rather than red. Half an answer is a degraded result, not
+        a wrong one: the numbers on screen are still correct, there are simply
+        fewer of them than the user asked for. Red is reserved in this palette
+        for something being off, and spending it on "the network is down" is how
+        it stops meaning anything by the time a target is actually blown. Both
+        halves gone is the case below, and that one does take the red.
+      */}
       {!answer.taco.ok ? (
-        <p className="text-sm text-amber-700 dark:text-amber-400">
+        <p className="border-l-2 border-nd-ink pl-4 text-sm">
           {t("tacoUnavailable")}
         </p>
       ) : null}
       {!answer.custom.ok ? (
-        <p className="text-sm text-amber-700 dark:text-amber-400">
+        <p className="border-l-2 border-nd-ink pl-4 text-sm">
           {t("deviceUnavailable")}
         </p>
       ) : null}
 
       {listings.length === 0 ? (
-        <p className="text-sm opacity-80">{t("empty")}</p>
+        <p className="text-sm text-nd-dim">{t("empty")}</p>
       ) : (
         <Results
           listings={listings}
@@ -258,11 +268,11 @@ function Results({
 
   return (
     <div className="flex flex-col gap-3">
-      <p aria-live="polite" className="text-sm opacity-60">
+      <p aria-live="polite" className="text-sm text-nd-dim">
         {t("resultCount", { count: listings.length })}
       </p>
 
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {listings.map((listing) =>
           listing.source === "custom" ? (
             <CustomCard key={listing.key} food={listing.food} />
@@ -279,12 +289,12 @@ function Results({
         Measured on the TACO half alone — the device's foods are never truncated.
       */}
       {tacoCount === DEFAULT_LIMIT ? (
-        <p className="text-xs opacity-60">
+        <p className="text-xs text-nd-dim">
           {t("resultLimit", { limit: DEFAULT_LIMIT })}
         </p>
       ) : null}
 
-      <p className="text-xs leading-relaxed opacity-60">{t("legend")}</p>
+      <p className="text-xs leading-relaxed text-nd-dim">{t("legend")}</p>
     </div>
   );
 }
@@ -311,9 +321,9 @@ function FoodCard({ food }: { food: FoodSearchResult }) {
   }
 
   return (
-    <li className="rounded-md border border-black/10 px-4 py-3 dark:border-white/15">
+    <li className="border-t border-nd-unlit py-4 first:border-t-0 first:pt-0">
       <p className="font-medium">{food.description}</p>
-      <p className="text-xs opacity-60">
+      <p className="text-xs text-nd-dim">
         {food.groupName} · {t("per100g")}
       </p>
 
@@ -350,8 +360,8 @@ function FoodCard({ food }: { food: FoodSearchResult }) {
  * Visually distinguished on purpose (#17): these numbers were typed off a
  * package by a person, and the ones above were measured by a laboratory and
  * published. Presenting them identically would let a mistyped label pass for a
- * citation. The border and the badge say which is which; the fibre column is
- * missing rather than zero, because the form does not ask for it.
+ * citation. The badge says which is which; the fibre column is missing rather
+ * than zero, because the form does not ask for it.
  */
 function CustomCard({ food }: { food: CustomFood }) {
   const t = useTranslations("Foods");
@@ -359,15 +369,20 @@ function CustomCard({ food }: { food: CustomFood }) {
   const grams = (value: number) => t("gramsValue", { value });
 
   return (
-    <li className="rounded-md border border-sky-600/40 bg-sky-500/5 px-4 py-3 dark:border-sky-400/40">
+    <li className="border-t border-nd-unlit py-4 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-medium">{food.name}</p>
-        <span className="rounded-full border border-sky-600/40 px-2 py-0.5 text-xs text-sky-800 dark:border-sky-400/40 dark:text-sky-300">
+        {/* The badge carries the whole distinction now that the tinted card is
+            gone. It can: in a list of ruled rows it is the only filled block on
+            the screen, which is a louder mark than the pale blue border ever
+            was, and it survives being printed, photographed or read by someone
+            who does not see the hue it used to rely on. */}
+        <span className="nd-invert bg-nd-ink px-2 py-0.5 text-xs font-medium tracking-[0.08em] text-nd-ground uppercase">
           {t("mine")}
         </span>
       </div>
 
-      <p className="text-xs opacity-60">
+      <p className="text-xs text-nd-dim">
         {[
           food.brand,
           t("per100g"),
@@ -395,8 +410,10 @@ function CustomCard({ food }: { food: CustomFood }) {
 function Cell({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-2 sm:flex-col sm:justify-start">
-      <dt className="text-xs opacity-60">{label}</dt>
-      <dd className="font-mono tabular-nums">{value}</dd>
+      <dt className="text-xs text-nd-dim">{label}</dt>
+      <dd className="font-mono" data-numeric="">
+        {value}
+      </dd>
     </div>
   );
 }

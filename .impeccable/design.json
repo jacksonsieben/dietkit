@@ -151,6 +151,26 @@
       "what": "An aside, not an intention: underlined running-text link. Action/ActionButton is the filled block; Ghost is the outlined one; this is neither."
     },
     {
+      "name": "Ghost",
+      "file": "src/components/nd/kit.tsx",
+      "what": "The secondary action: an ink outline at text-xs, uppercase, smaller than Action in every dimension. For a control a row needs but the screen is not about — add a meal, remove an item. A destructive one is not drawn in red: red means a number is off, and a deletion someone asked for is not a fault."
+    },
+    {
+      "name": "SmallButton",
+      "file": "src/components/FoodPicker.tsx",
+      "what": "A Ghost shrunk to px-2 py-1 — the control a row carries, as opposed to the one a section carries. Four side by side in a list row still read as smaller than the section's one Action."
+    },
+    {
+      "name": "Field",
+      "file": "src/components/Field.tsx",
+      "what": "The world's control: label, input, hint and error as one unit. At rest it is an unlit cell — --nd-unlit border, opaque ground, no fill — and focus lands the hard 2px ink ring globals.css gives every focusable thing. aria-invalid swaps the border to --nd-red and the error sentence says the same thing in words. CONTROL_CLASS and CONTROL_BOX are the same string minus w-full, split because width belongs to the caller and Tailwind resolves conflicting utilities by stylesheet order, not attribute order."
+    },
+    {
+      "name": "RuledRow",
+      "file": "src/components/CustomFoodManager.tsx",
+      "what": "How every list in this world is drawn: rows separated by `border-t border-nd-unlit` with `first:border-t-0 first:pt-0`, stacked on a phone and turning at `sm` via `sm:flex-row sm:items-baseline sm:justify-between sm:gap-x-6`, with `min-w-0` on the text column and `sm:shrink-0` on the actions. Written as a breakpoint and never as flex-wrap: under flex-wrap whether a row's buttons sit on the name's baseline depends on that row's own meta-text length, so two neighbouring rows in one list disagree."
+    },
+    {
       "name": "Segment",
       "file": "src/app/globals.css",
       "description": "The atom of the system. State is a string — off, on, over, short — never a boolean.",

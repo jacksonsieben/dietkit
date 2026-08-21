@@ -4,7 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { Field } from "@/components/Field";
-import { Link } from "@/i18n/navigation";
+import { SmallButton } from "@/components/FoodPicker";
+import { ActionButton, Legend, Rule, TextLink } from "@/components/nd/kit";
 import {
   CUSTOM_FOOD_LIMITS,
   EMPTY_CUSTOM_FOOD_FORM,
@@ -163,12 +164,12 @@ export function CustomFoodManager() {
   };
 
   if (status === "loading") {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   if (status === "loadFailed") {
     return (
-      <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>
+      <p className="text-sm text-nd-red-ink">{t("loadError")}</p>
     );
   }
 
@@ -180,11 +181,11 @@ export function CustomFoodManager() {
   return (
     <div className="flex flex-col gap-10">
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
-        <h2 className="text-sm font-semibold tracking-tight">
+        <Legend as="h2">
           {editing === undefined
             ? t("formTitle")
             : t("editTitle", { name: nameOf(foods, editing, values.name) })}
-        </h2>
+        </Legend>
 
         <Field
           label={t("nameLabel")}
@@ -251,10 +252,10 @@ export function CustomFoodManager() {
           the open, while the boxes are still being filled.
         */}
         <div className="flex flex-col gap-1">
-          <p className="font-mono text-sm tabular-nums">
+          <p className="font-mono text-sm" data-numeric="">
             {kcal === undefined ? null : t("energyPreview", { value: kcal })}
           </p>
-          <p className="text-xs opacity-60">{t("energyPreviewHint")}</p>
+          <p className="text-xs text-nd-dim">{t("energyPreviewHint")}</p>
         </div>
 
         <Field
@@ -275,13 +276,9 @@ export function CustomFoodManager() {
         </Field>
 
         <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="submit"
-            disabled={status === "saving"}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
+          <ActionButton type="submit" disabled={status === "saving"}>
             {status === "saving" ? t("saving") : t("save")}
-          </button>
+          </ActionButton>
 
           {editing === undefined ? null : (
             <button
@@ -295,27 +292,23 @@ export function CustomFoodManager() {
 
           <p aria-live="polite" className="text-sm">
             {status === "saved" ? (
-              <span className="opacity-70">{t("saved")}</span>
+              <span className="text-nd-dim">{t("saved")}</span>
             ) : null}
             {status === "saveFailed" ? (
-              <span className="text-red-700 dark:text-red-400">
-                {t("saveError")}
-              </span>
+              <span className="text-nd-red-ink">{t("saveError")}</span>
             ) : null}
             {status === "removeFailed" ? (
-              <span className="text-red-700 dark:text-red-400">
-                {t("removeError")}
-              </span>
+              <span className="text-nd-red-ink">{t("removeError")}</span>
             ) : null}
           </p>
         </div>
       </form>
 
       <section className="flex flex-col gap-4">
+        <Rule />
+
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold tracking-tight">
-            {t("listTitle")}
-          </h2>
+          <Legend as="h2">{t("listTitle")}</Legend>
           {/*
             Hidden at zero on purpose: the empty state right below already says
             there is nothing here, and a counter next to it would say it twice
@@ -323,24 +316,24 @@ export function CustomFoodManager() {
             asks for and not what anyone writes.
           */}
           {foods.length === 0 ? null : (
-            <p className="text-xs opacity-60">
+            <p className="text-xs text-nd-dim" data-numeric="">
               {t("listCount", { count: foods.length })}
             </p>
           )}
         </div>
 
         {foods.length === 0 ? (
-          <p className="text-sm opacity-70">{t("listEmpty")}</p>
+          <p className="text-sm text-nd-dim">{t("listEmpty")}</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col">
             {foods.map((food) => (
               <li
                 key={food.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 rounded-md border border-black/10 px-4 py-3 dark:border-white/15"
+                className="flex flex-col gap-2 border-t border-nd-unlit py-3 first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-x-6"
               >
                 <div className="flex min-w-0 flex-col gap-1">
                   <p className="font-medium">{food.name}</p>
-                  <p className="text-xs opacity-60">
+                  <p className="text-xs text-nd-dim">
                     {[
                       food.brand,
                       t("macros", {
@@ -358,43 +351,39 @@ export function CustomFoodManager() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 text-sm">
+                {/*
+                  All four of these are the same kind of thing — available, not
+                  intended — so they are all the same outlined block. The one
+                  that deletes is not drawn in red: red here means a number is
+                  off, and a confirmation someone asked for by pressing *Remover*
+                  is not a fault. The warning sentence beside it is what says
+                  this one does not come back.
+                */}
+                <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
                   {confirming === food.id ? (
                     <>
-                      <span className="text-xs opacity-60">
+                      <span className="text-xs text-nd-dim">
                         {t("removeWarning")}
                       </span>
-                      <button
-                        type="button"
+                      <SmallButton
+                        label={t("removeConfirm")}
                         onClick={() => void remove(food.id)}
-                        className="text-red-700 underline underline-offset-4 dark:text-red-400"
-                      >
-                        {t("removeConfirm")}
-                      </button>
-                      <button
-                        type="button"
+                      />
+                      <SmallButton
+                        label={t("removeCancel")}
                         onClick={() => setConfirming(undefined)}
-                        className="underline underline-offset-4"
-                      >
-                        {t("removeCancel")}
-                      </button>
+                      />
                     </>
                   ) : (
                     <>
-                      <button
-                        type="button"
+                      <SmallButton
+                        label={t("edit")}
                         onClick={() => startEditing(food)}
-                        className="underline underline-offset-4"
-                      >
-                        {t("edit")}
-                      </button>
-                      <button
-                        type="button"
+                      />
+                      <SmallButton
+                        label={t("remove")}
                         onClick={() => setConfirming(food.id)}
-                        className="underline underline-offset-4 opacity-70"
-                      >
-                        {t("remove")}
-                      </button>
+                      />
                     </>
                   )}
                 </div>
@@ -403,13 +392,13 @@ export function CustomFoodManager() {
           </ul>
         )}
 
-        <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
-          <Link href="/alimentos" className="underline underline-offset-4">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-nd-dim">
+          <TextLink href="/alimentos" className="text-xs">
             {t("searchLink")}
-          </Link>
-          <Link href="/alimentos/grupos" className="underline underline-offset-4">
+          </TextLink>
+          <TextLink href="/alimentos/grupos" className="text-xs">
             {t("groupsLink")}
-          </Link>
+          </TextLink>
         </p>
       </section>
     </div>
