@@ -24,9 +24,24 @@ export type Segment =
 /** Enough to read a tenth at a glance, few enough to stay legible on a phone. */
 export const SEGMENT_COUNT = 24;
 
+export interface SegmentOptions {
+  /** How many segments the strip is drawn from. */
+  count?: number;
+  /**
+   * Draw the shortfall still rather than pulsing.
+   *
+   * The pulse is the only animation in the app, and it belongs to the day,
+   * because the day is what you are trying to close. A screen that repeats it
+   * once per meal has thirty strips seeking at once and has taught the reader
+   * to ignore all of them — so a strip that is *not* the verdict asks for the
+   * same arithmetic with the motion taken out.
+   */
+  quiet?: boolean;
+}
+
 export function segmentsFor(
   line: MacroLine,
-  count: number = SEGMENT_COUNT,
+  { count = SEGMENT_COUNT, quiet = false }: SegmentOptions = {},
 ): Segment[] {
   // A target of zero is not a plan anyone made; it happens to a plan whose
   // targets have not been derived yet, and the honest strip for it is dark.
@@ -35,7 +50,7 @@ export function segmentsFor(
   const ratio = line.actual / line.target;
   const lit = litCount(ratio, count);
   const over = line.state === "over" ? overCount(ratio, count) : 0;
-  const rest: Segment = line.state === "under" ? "short" : "off";
+  const rest: Segment = line.state === "under" && !quiet ? "short" : "off";
 
   return Array.from({ length: count }, (_unused, index) => {
     if (index >= lit) return rest;

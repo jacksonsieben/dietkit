@@ -1,7 +1,5 @@
-import type { CSSProperties } from "react";
-
+import { Strip } from "@/components/nd/Strip";
 import type { MacroLine } from "@/lib/diet/reconcile";
-import { segmentsFor } from "@/lib/today/segments";
 
 /**
  * One macro, read as a strip of lamps.
@@ -35,13 +33,7 @@ interface GlyphBarProps {
   line: MacroLine;
 }
 
-interface SegmentStyle extends CSSProperties {
-  "--nd-seg-index": number;
-}
-
 export function GlyphBar({ label, reading, status, line }: GlyphBarProps) {
-  const segments = segmentsFor(line);
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-4">
@@ -53,19 +45,7 @@ export function GlyphBar({ label, reading, status, line }: GlyphBarProps) {
         </span>
       </div>
 
-      {/* The strip itself is decoration over the two sentences around it: it
-          repeats what `reading` and `status` already say, so it is hidden from
-          assistive technology rather than read out segment by segment. */}
-      <div aria-hidden="true" className="flex gap-[3px]">
-        {segments.map((segment, index) => (
-          <span
-            key={index}
-            className="nd-seg h-5 flex-1"
-            data-lit={segment}
-            style={{ "--nd-seg-index": index } as SegmentStyle}
-          />
-        ))}
-      </div>
+      <Strip line={line} />
 
       <span className={statusClass(line)}>{status}</span>
     </div>

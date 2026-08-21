@@ -9,11 +9,19 @@ import {
 } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { displayFontSize, DotText } from "@/components/dot/DotText";
 import { CONTROL_CLASS } from "@/components/Field";
 import { MacroPanel } from "@/components/MacroPanel";
 import { type FoodChoice } from "@/components/FoodPicker";
 import { MealItems } from "@/components/MealItems";
-import { Link } from "@/i18n/navigation";
+import {
+  Action,
+  ActionButton,
+  Ghost,
+  Legend,
+  Rule,
+  TextLink,
+} from "@/components/nd/kit";
 import { todayIsoDate } from "@/lib/date";
 import { buildFoodBook, usedTacoFoods } from "@/lib/diet/composition";
 import { distributeTargets, sharePercents } from "@/lib/diet/distribute";
@@ -44,11 +52,7 @@ import {
   type MealErrorCode,
 } from "@/lib/diet/meals";
 import { loadPlan, newPlan, savePlan } from "@/lib/diet/plan";
-import {
-  planKnowsItsWeight,
-  rebasePlan,
-  weightDrift,
-} from "@/lib/diet/rebase";
+import { planKnowsItsWeight, rebasePlan, weightDrift } from "@/lib/diet/rebase";
 import { reconcileDay } from "@/lib/diet/reconcile";
 import { applySolution, solvePlan } from "@/lib/diet/solve";
 import { loadGoal } from "@/lib/energy/goal";
@@ -130,7 +134,6 @@ type MealErrors = Record<Id, { name?: MealErrorCode; share?: MealErrorCode }>;
 
 export function MealPlanner() {
   const t = useTranslations("Plan");
-  const format = useFormatter();
 
   const [loaded, setLoaded] = useState<Loaded | undefined>(undefined);
   const [missing, setMissing] = useState<"profile" | "weight" | undefined>(
@@ -229,35 +232,26 @@ export function MealPlanner() {
   }, []);
 
   if (status === "loading") {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   if (status === "loadFailed") {
-    return (
-      <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>
-    );
+    return <p className="text-sm text-nd-red-ink">{t("loadError")}</p>;
   }
 
   if (missing) {
     return (
-      <div className="flex flex-col items-start gap-4">
-        <p className="text-sm opacity-80">
+      <section className="flex flex-col items-start gap-4">
+        <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
           {missing === "profile" ? t("missingProfile") : t("missingWeight")}
         </p>
-        <Link
-          href="/perfil"
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-        >
-          {t("missingLink")}
-        </Link>
-      </div>
+        <Action href="/perfil">{t("missingLink")}</Action>
+      </section>
     );
   }
 
   if (!loaded) {
-    return (
-      <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>
-    );
+    return <p className="text-sm text-nd-red-ink">{t("loadError")}</p>;
   }
 
   const meals = loaded.plan.meals;
@@ -433,7 +427,10 @@ export function MealPlanner() {
         ...current,
         plan: {
           ...current.plan,
-          tacoFoods: snapshot === undefined ? current.plan.tacoFoods : [...known, snapshot],
+          tacoFoods:
+            snapshot === undefined
+              ? current.plan.tacoFoods
+              : [...known, snapshot],
           meals: swapFood(current.plan.meals, mealId, itemId, food),
         },
       };
@@ -521,16 +518,25 @@ export function MealPlanner() {
     }
   };
 
-  const kcal = (value: number) => format.number(Math.round(value));
+  const dayKcal = String(Math.round(targets.kcal));
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-8">
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium opacity-70">{t("targetLabel")}</h2>
-        <p className="font-mono text-3xl font-semibold tracking-tight">
-          {t("kcalPerDay", { kcal: kcal(targets.kcal) })}
-        </p>
-        <p className="font-mono text-sm opacity-70">
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-10">
+      {/* The same number, drawn the same way, as the one the home screen opens
+          with. It was set in mono type here and in dots there, which is the
+          charter's "no rendering the same number in two different voices" —
+          and worse than a style inconsistency, it read as two instruments
+          reporting on the same day. */}
+      <section className="flex flex-col gap-3">
+        <Legend as="h2">{t("targetLabel")}</Legend>
+        <DotText
+          className="block"
+          style={{ fontSize: displayFontSize(dayKcal) }}
+        >
+          {dayKcal}
+        </DotText>
+        <p className="text-sm tracking-[0.08em] uppercase">{t("energyUnit")}</p>
+        <p className="font-mono text-sm text-nd-dim" data-numeric="">
           {t("targetMacros", {
             protein: targets.proteinG,
             carb: targets.carbG,
@@ -540,14 +546,12 @@ export function MealPlanner() {
         {/* Absent on a plan written before the weight was recorded, or one
             imported from the predecessor — see `weightDrift`. */}
         {planKnowsItsWeight(loaded.plan) ? (
-          <p className="text-xs opacity-60">
+          <p className="text-xs text-nd-dim">
             {t("basedOn", { weight: loaded.plan.basedOnWeightKg })}
           </p>
         ) : null}
 
-        <Link href="/energia" className="text-sm underline underline-offset-4">
-          {t("energyLink")}
-        </Link>
+        <TextLink href="/energia">{t("energyLink")}</TextLink>
 
         {/*
          * The loop closing: the plan says what body it was written for, and
@@ -556,39 +560,45 @@ export function MealPlanner() {
          * why a plan that silently followed the weight would be worse than one
          * that goes stale visibly.
          */}
+        {/* The one panel on this screen that is a surface rather than a rule,
+            because it is the one thing here that arrived on its own and has to
+            be found. Its tone is a field of dots at 4px pitch — the charter's
+            only intermediate value, and the same material the readout above it
+            is made of — never a tinted fill. */}
         {drift === undefined ? null : (
-          <div className="mt-2 flex flex-col items-start gap-3 rounded-lg border border-black/10 bg-black/[0.03] p-4 dark:border-white/15 dark:bg-white/[0.04]">
-            <p className="text-sm">
+          <div className="nd-screen mt-2 flex flex-col items-start gap-3 border border-nd-ink p-4">
+            <p className="max-w-prose text-sm leading-relaxed">
               {t(drift.deltaKg < 0 ? "driftDown" : "driftUp", {
                 from: drift.fromKg,
                 to: drift.toKg,
                 delta: Math.abs(drift.deltaKg),
               })}
             </p>
-            <button
-              type="button"
-              onClick={rebase}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-            >
+            <ActionButton type="button" onClick={rebase}>
               {t("rebase", { weight: drift.toKg })}
-            </button>
+            </ActionButton>
           </div>
         )}
       </section>
 
+      <Rule />
+
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold tracking-tight">
-            {t("mealsHeading")}
-          </h2>
-          <p className="text-xs opacity-60">
+          <Legend as="h2">{t("mealsHeading")}</Legend>
+          <p className="font-mono text-xs text-nd-dim" data-numeric="">
             {t("mealCount", { count: meals.length })}
           </p>
         </div>
 
-        <p className="text-xs opacity-60">{t("shareNote")}</p>
+        <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+          {t("shareNote")}
+        </p>
 
-        <ul className="flex flex-col gap-3">
+        {/* No gap: the meals are separated by a hairline each, not by air.
+            Cards would make eight equally-weighted boxes out of a list whose
+            whole point is that it is one day read top to bottom. */}
+        <ul className="flex flex-col">
           {meals.map((meal, index) => (
             <MealRow
               key={meal.id}
@@ -620,34 +630,23 @@ export function MealPlanner() {
                   apply(setItemGroup(meals, meal.id, itemId, groupId))
                 }
                 onSwap={(itemId, food) => onSwapFood(meal.id, itemId, food)}
-                onRemove={(itemId) =>
-                  apply(removeItem(meals, meal.id, itemId))
-                }
+                onRemove={(itemId) => apply(removeItem(meals, meal.id, itemId))}
               />
             </MealRow>
           ))}
         </ul>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={onAdd}
-            disabled={!canAddMeal(meals)}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm dark:border-white/20 disabled:opacity-40"
-          >
+          <Ghost type="button" onClick={onAdd} disabled={!canAddMeal(meals)}>
             {t("add")}
-          </button>
+          </Ghost>
 
-          <button
-            type="button"
-            onClick={() => apply(evenShares(meals))}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm dark:border-white/20"
-          >
+          <Ghost type="button" onClick={() => apply(evenShares(meals))}>
             {t("even")}
-          </button>
+          </Ghost>
 
           {canAddMeal(meals) ? null : (
-            <p className="text-xs opacity-60">
+            <p className="text-xs text-nd-dim">
               {t("addLimit", { max: MEAL_LIMITS.count.max })}
             </p>
           )}
@@ -659,48 +658,48 @@ export function MealPlanner() {
           what makes that claim falsifiable by the person using the app (#21).
           It is a section rather than a modal or a tab because a reconciliation
           you have to go and look for is one nobody looks for. */}
-      <section className="flex flex-col gap-2 border-t border-black/10 pt-4 dark:border-white/15">
-        <h2 className="text-sm font-medium opacity-70">{t("totalLabel")}</h2>
+      <Rule />
+
+      <div className="flex flex-col gap-6">
         <MacroPanel
-          heading={t("reconcile.dayHeading")}
+          heading={t("totalLabel")}
           reconciliation={reconcileDay(solved)}
         />
-        <p className="text-xs opacity-60">{t("roundingNote")}</p>
-      </section>
+        <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+          {t("roundingNote")}
+        </p>
+      </div>
+
+      <Rule />
 
       <div className="flex flex-wrap items-center gap-4">
-        <button
-          type="submit"
-          disabled={status === "saving"}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-        >
+        <ActionButton type="submit" disabled={status === "saving"}>
           {status === "saving" ? t("saving") : t("save")}
-        </button>
+        </ActionButton>
 
         <p aria-live="polite" className="text-sm">
           {status === "saved" ? (
-            <span className="opacity-70">{t("saved")}</span>
+            <span className="text-nd-dim">{t("saved")}</span>
           ) : null}
           {status === "saveFailed" ? (
-            <span className="text-red-700 dark:text-red-400">
-              {t("saveError")}
-            </span>
+            <span className="text-nd-red-ink">{t("saveError")}</span>
           ) : null}
           {dirty && status !== "saveFailed" ? (
-            <span className="opacity-60">{t("unsaved")}</span>
+            <span className="text-nd-dim">{t("unsaved")}</span>
           ) : null}
         </p>
       </div>
 
       <div className="flex flex-col items-start gap-2">
-        <p className="text-xs opacity-60">{t("itemsNote")}</p>
-        <p className="text-xs opacity-60">{t("groupsNote")}</p>
-        <Link
-          href="/alimentos/grupos"
-          className="text-xs underline underline-offset-4"
-        >
+        <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+          {t("itemsNote")}
+        </p>
+        <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+          {t("groupsNote")}
+        </p>
+        <TextLink href="/alimentos/grupos" className="text-xs">
           {t("groupsLink")}
-        </Link>
+        </TextLink>
       </div>
     </form>
   );
@@ -764,8 +763,21 @@ function MealRow({
     });
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-black/10 px-4 py-3 dark:border-white/15">
+    <li className="flex flex-col gap-3 border-t border-nd-unlit py-5 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-end gap-3">
+        {/* The meal's place in the day, as a two-digit index. Not decoration:
+            this list is ordered and reorderable, the order is what the two
+            move buttons change, and a row that can be moved should say where
+            it currently is. Hidden from assistive technology because both
+            labels below already carry the position in words. */}
+        <span
+          aria-hidden="true"
+          className="pb-2 font-mono text-xs text-nd-dim"
+          data-numeric=""
+        >
+          {String(position).padStart(2, "0")}
+        </span>
+
         <div className="flex min-w-40 flex-1 flex-col gap-1">
           <label htmlFor={nameId} className="sr-only">
             {t("nameLabel", { position })}
@@ -783,7 +795,7 @@ function MealRow({
           />
         </div>
 
-        <div className="flex w-28 flex-col gap-1">
+        <div className="flex w-24 flex-col gap-1">
           <label htmlFor={shareId} className="sr-only">
             {t("shareLabel", { position })}
           </label>
@@ -806,13 +818,13 @@ function MealRow({
       </div>
 
       {error ? (
-        <p id={errorId} className="text-xs text-red-700 dark:text-red-400">
+        <p id={errorId} className="text-xs text-nd-red-ink">
           {message(error)}
         </p>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="font-mono text-xs opacity-70">
+        <p className="font-mono text-xs text-nd-dim" data-numeric="">
           {t("macros", {
             protein: format.number(targets.proteinG),
             carb: format.number(targets.carbG),
@@ -825,23 +837,24 @@ function MealRow({
         <div className="flex items-center gap-2">
           <RowButton
             label={t("moveUp")}
+            name={t("moveUpLabel", { position })}
             disabled={first}
             onClick={() => onMove(-1)}
           />
           <RowButton
             label={t("moveDown")}
+            name={t("moveDownLabel", { position })}
             disabled={last}
             onClick={() => onMove(1)}
           />
-          <button
+          <Ghost
             type="button"
             onClick={onRemove}
             disabled={!removable}
             title={removable ? undefined : t("removeLimit")}
-            className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/20 disabled:opacity-40"
           >
             {t("remove")}
-          </button>
+          </Ghost>
         </div>
       </div>
 
@@ -850,23 +863,34 @@ function MealRow({
   );
 }
 
+/**
+ * Reorder and remove are the same kind of thing — available, not intended — so
+ * they are all one outlined block. This wrapper survives only because the two
+ * move buttons take a plain `onClick(offset)` and reading `<RowButton>` at the
+ * call site says what the row does; it adds nothing else to `Ghost`.
+ */
 function RowButton({
   label,
+  name,
   disabled,
   onClick,
 }: {
   label: string;
+  /**
+   * What the button is called when it is read rather than seen.
+   *
+   * The visible word is one syllable because three of these sit on one line of
+   * a phone and "Mover para baixo" wrapped every one of them onto two; the
+   * accessible name says which meal is moving, because a screen reader lands on
+   * the button without the row around it.
+   */
+  name: string;
   disabled: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/20 disabled:opacity-40"
-    >
+    <Ghost type="button" onClick={onClick} disabled={disabled} aria-label={name}>
       {label}
-    </button>
+    </Ghost>
   );
 }

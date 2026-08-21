@@ -95,6 +95,28 @@ describe("import wiring", () => {
     expect(source).not.toContain("dexie");
   });
 
+  it("asks for the file in the page's own language", () => {
+    // The native file input labels itself from the *browser's* locale, not the
+    // page's: on a Portuguese screen it read "Choose File — No file chosen", in
+    // a typeface nothing else here uses, and no border or padding on the input
+    // reaches inside it. `FileField` is the replacement, and it is a wiring fact
+    // rather than a styling one — the words come from `messages/pt-BR.json`.
+    const source = component();
+
+    expect(source).toContain("<FileField");
+    expect(source).not.toMatch(/type="file"/);
+    expect(messages.fileAction).toBeTypeOf("string");
+    expect(messages.fileEmpty).toBeTypeOf("string");
+
+    // Invisible, not absent. `sr-only` keeps the input focusable and keeps the
+    // label bound to it, which `display: none` and `hidden` both destroy — and
+    // an import that only works with a mouse is an import half the point of.
+    const control = read("src/components/nd/FileField.tsx");
+
+    expect(control).toContain('className="peer sr-only"');
+    expect(control).not.toMatch(/type="file"[^>]*\shidden/);
+  });
+
   it("is reachable from the screen that holds everything outside the loop", () => {
     // Importing is a once-ever errand, so it left the home screen for `/mais`
     // when the home screen became the day. It still has a way in, which is the

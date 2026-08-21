@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { CONTROL_CLASS } from "@/components/Field";
+import { Ghost } from "@/components/nd/kit";
 import type { FoodSearchResult } from "@/lib/db/foods";
 import { compositionFromResult } from "@/lib/diet/composition";
 import type { FoodSearchBody } from "@/lib/foods/endpoint";
@@ -99,10 +100,10 @@ export function FoodPicker({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-black/15 px-3 py-3 dark:border-white/20">
+    <div className="flex flex-col gap-3 border border-nd-ink px-3 py-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="flex min-w-48 flex-1 flex-col gap-1">
-          <label htmlFor={inputId} className="text-xs opacity-60">
+          <label htmlFor={inputId} className="text-xs text-nd-dim">
             {t("searchLabel")}
           </label>
           <input
@@ -122,13 +123,13 @@ export function FoodPicker({
       </div>
 
       {asked === undefined ? (
-        <p className="text-xs opacity-60">
+        <p className="text-xs text-nd-dim">
           {t("searchMin", { min: MIN_QUERY_LENGTH })}
         </p>
       ) : answer?.query !== asked ? (
-        <p className="text-xs opacity-60">{t("searching")}</p>
+        <p className="text-xs text-nd-dim">{t("searching")}</p>
       ) : answer.listings.length === 0 ? (
-        <p className="text-xs opacity-60">{t("searchEmpty")}</p>
+        <p className="text-xs text-nd-dim">{t("searchEmpty")}</p>
       ) : (
         <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto">
           {answer.listings.map((listing) => (
@@ -177,18 +178,20 @@ function PickRow({
   const usable = listing.source === "custom" || composition !== undefined;
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10">
+    <li className="flex flex-wrap items-center justify-between gap-2 px-2 py-1 hover:bg-nd-unlit">
       <span className="flex flex-wrap items-baseline gap-2 text-sm">
         {name}
+        {/* A source, not a status: which shelf this food came off. It was
+            blue, which was a second hue in a world that has one. */}
         {listing.source === "custom" ? (
-          <span className="rounded-full border border-sky-600/40 px-2 py-0.5 text-xs text-sky-800 dark:border-sky-400/40 dark:text-sky-300">
+          <span className="border border-nd-ink px-1.5 py-0.5 text-[0.625rem] font-medium tracking-[0.12em] uppercase">
             {t("mine")}
           </span>
         ) : null}
       </span>
 
       {already ? (
-        <span className="text-xs opacity-60">{t("alreadyAdded")}</span>
+        <span className="text-xs text-nd-dim">{t("alreadyAdded")}</span>
       ) : usable ? (
         <SmallButton
           label={t("addThis")}
@@ -205,7 +208,7 @@ function PickRow({
           }
         />
       ) : (
-        <span className="text-xs opacity-60">{t("unusableFood")}</span>
+        <span className="text-xs text-nd-dim">{t("unusableFood")}</span>
       )}
     </li>
   );
@@ -237,6 +240,11 @@ async function readCustom(terms: readonly string[]): Promise<CustomFood[]> {
   }
 }
 
+/**
+ * The outline button at list scale — a `Ghost` with the padding pulled in, kept
+ * as its own name because three screens call it and they all mean "the small
+ * one beside a row".
+ */
 export function SmallButton({
   label,
   disabled,
@@ -247,13 +255,13 @@ export function SmallButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Ghost
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/20 disabled:opacity-40"
+      className="px-2 py-1"
     >
       {label}
-    </button>
+    </Ghost>
   );
 }

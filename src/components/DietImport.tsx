@@ -3,7 +3,8 @@
 import { useState, type ChangeEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
-import { Link } from "@/i18n/navigation";
+import { FileField } from "@/components/nd/FileField";
+import { Action, ActionButton, Legend, TextLink } from "@/components/nd/kit";
 import { todayIsoDate } from "@/lib/date";
 import { PREDECESSOR_CATALOGUE } from "@/lib/import/catalogue.data";
 import {
@@ -35,6 +36,14 @@ import { getRepository } from "@/lib/storage";
  * is where that is said, in a list the user reads before anything is written,
  * rather than in a toast after.
  */
+
+/**
+ * Every list on this screen: the summary, the notes, the conflicts, the
+ * refusals. They are all the same thing — a run of short statements about the
+ * file — so they are drawn the same, and the marker is left as a disc because
+ * a dot is the one mark this world was already made of.
+ */
+const LIST = "flex list-disc flex-col gap-1 pl-5 text-sm marker:text-nd-dim";
 
 type Stage =
   | "choosing"
@@ -130,23 +139,14 @@ export function DietImport() {
   if (stage === "done") {
     return (
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-semibold tracking-tight">
-          {t("doneTitle")}
-        </h2>
-        <p className="text-sm leading-relaxed opacity-80">{t("doneLead")}</p>
+        <Legend as="h2">{t("doneTitle")}</Legend>
+        <p className="max-w-prose text-sm leading-relaxed">{t("doneLead")}</p>
 
         {review === undefined ? null : <Notes notes={review.result.notes} />}
 
         <div className="flex flex-wrap items-center gap-4">
-          <Link
-            href="/dieta"
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-          >
-            {t("planLink")}
-          </Link>
-          <Link href="/perfil" className="text-sm underline underline-offset-4">
-            {t("profileLink")}
-          </Link>
+          <Action href="/dieta">{t("planLink")}</Action>
+          <TextLink href="/perfil">{t("profileLink")}</TextLink>
         </div>
       </section>
     );
@@ -154,43 +154,39 @@ export function DietImport() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="import-file" className="text-sm font-medium">
-          {t("fileLabel")}
-        </label>
-        <input
-          id="import-file"
-          type="file"
-          accept="application/json,.json"
-          onChange={(event) => void onFile(event)}
-          className="w-full rounded-md border border-black/15 bg-background px-3 py-2 text-sm text-foreground dark:border-white/20"
-        />
-        <p className="text-xs opacity-60">{t("fileHint")}</p>
-      </div>
+      <FileField
+        id="import-file"
+        accept="application/json,.json"
+        label={t("fileLabel")}
+        hint={t("fileHint")}
+        action={t("fileAction")}
+        empty={t("fileEmpty")}
+        onChange={(event) => void onFile(event)}
+      />
 
       {stage === "reading" ? (
-        <p className="text-sm opacity-60">{t("reading")}</p>
+        <p className="text-sm text-nd-dim">{t("reading")}</p>
       ) : null}
 
       {stage === "fetching" ? (
-        <p className="text-sm opacity-60">{t("fetching")}</p>
+        <p className="text-sm text-nd-dim">{t("fetching")}</p>
       ) : null}
 
       {stage === "readFailed" ? (
-        <p className="text-sm text-red-700 dark:text-red-400">
-          {t("readError")}
-        </p>
+        <p className="text-sm text-nd-red-ink">{t("readError")}</p>
       ) : null}
 
+      {/* A file this app refuses is the same kind of event as a macro that
+          misses its target, and gets the same left rail: red is never the only
+          thing carrying it — the heading and every line below say what is
+          wrong in words. */}
       {stage === "invalid" ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold tracking-tight">
-            {t("invalidTitle")}
-          </h2>
-          <p className="text-sm leading-relaxed opacity-80">
+        <section className="flex flex-col gap-3 border-l-2 border-nd-red pl-4">
+          <Legend as="h2">{t("invalidTitle")}</Legend>
+          <p className="max-w-prose text-sm leading-relaxed text-nd-red-ink">
             {t("invalidLead")}
           </p>
-          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm opacity-80">
+          <ul className={LIST}>
             {issues.map((issue) => (
               <li key={`${issue.code}-${issue.key}`}>
                 {t(`issues.${issue.code}`, { key: issue.key })}
@@ -203,10 +199,10 @@ export function DietImport() {
       {review === undefined ? null : (
         <section className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
-            <h2 className="text-sm font-semibold tracking-tight">
-              {t("reviewTitle")}
-            </h2>
-            <p className="text-sm opacity-70">{t("reviewLead")}</p>
+            <Legend as="h2">{t("reviewTitle")}</Legend>
+            <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+              {t("reviewLead")}
+            </p>
           </div>
 
           <Summary result={review.result} />
@@ -214,11 +210,9 @@ export function DietImport() {
           {review.conflicts.profile ||
           review.conflicts.goal ||
           review.conflicts.diets > 0 ? (
-            <section className="flex flex-col gap-2 rounded-md border border-amber-600/40 px-4 py-3">
-              <h3 className="text-sm font-semibold tracking-tight">
-                {t("conflictsTitle")}
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm opacity-80">
+            <section className="flex flex-col gap-2 border-l-2 border-nd-red pl-4">
+              <Legend as="h3">{t("conflictsTitle")}</Legend>
+              <ul className={LIST}>
                 {review.conflicts.profile ? <li>{t("conflictProfile")}</li> : null}
                 {review.conflicts.goal ? <li>{t("conflictGoal")}</li> : null}
                 {review.conflicts.diets > 0 ? (
@@ -230,10 +224,8 @@ export function DietImport() {
 
           {review.defaulted.length === 0 ? null : (
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-semibold tracking-tight">
-                {t("defaultedTitle")}
-              </h3>
-              <ul className="flex list-disc flex-col gap-1 pl-5 text-sm opacity-80">
+              <Legend as="h3">{t("defaultedTitle")}</Legend>
+              <ul className={LIST}>
                 {review.defaulted.map((key) => (
                   <li key={key}>{t("defaulted", { key })}</li>
                 ))}
@@ -244,20 +236,17 @@ export function DietImport() {
           <Notes notes={review.result.notes} />
 
           <div className="flex flex-wrap items-center gap-4">
-            <button
+            <ActionButton
               type="button"
               onClick={() => void confirm()}
               disabled={stage === "saving"}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-40"
             >
               {stage === "saving" ? t("saving") : t("confirm")}
-            </button>
+            </ActionButton>
           </div>
 
           {stage === "saveFailed" ? (
-            <p className="text-sm text-red-700 dark:text-red-400">
-              {t("saveError")}
-            </p>
+            <p className="text-sm text-nd-red-ink">{t("saveError")}</p>
           ) : null}
         </section>
       )}
@@ -274,7 +263,7 @@ function Summary({ result }: { result: ImportResult }) {
   );
 
   return (
-    <ul className="flex list-disc flex-col gap-1 pl-5 text-sm opacity-80">
+    <ul className={LIST}>
       <li>
         {t("summaryDiet", {
           name: result.diet.name,
@@ -330,14 +319,16 @@ function Notes({ notes }: { notes: readonly ImportNote[] }) {
 
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-sm font-semibold tracking-tight">{t("notesTitle")}</h3>
+      <Legend as="h3">{t("notesTitle")}</Legend>
 
       {notes.length === 0 ? (
-        <p className="text-sm opacity-70">{t("notesEmpty")}</p>
+        <p className="text-sm text-nd-dim">{t("notesEmpty")}</p>
       ) : (
         <>
-          <p className="text-sm opacity-70">{t("notesLead")}</p>
-          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm opacity-80">
+          <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+            {t("notesLead")}
+          </p>
+          <ul className={LIST}>
             {notes.map((note, index) => (
               <li key={`${note.code}-${note.subject ?? ""}-${index}`}>
                 {t(`notes.${note.code}`, {

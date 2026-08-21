@@ -3,9 +3,9 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
-import { DotText } from "@/components/dot/DotText";
+import { displayFontSize, DotText } from "@/components/dot/DotText";
 import { GlyphBar } from "@/components/GlyphBar";
-import { Link } from "@/i18n/navigation";
+import { Action, Legend, Notice, Rule, Shell } from "@/components/nd/kit";
 import { todayIsoDate, calendarDate } from "@/lib/date";
 import type { MacroLine, ReconcileMacro } from "@/lib/diet/reconcile";
 import { getRepository } from "@/lib/storage";
@@ -107,22 +107,10 @@ function Ready({ state }: { state: Extract<TodayState, { status: "ready" }> }) {
           screen is for, and it is drawn in dots rather than set in type so it
           reads as an instrument's output rather than as a sentence. */}
       <section className="flex flex-col gap-3">
-        <h1 className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
-          {t("targetCaption")}
-        </h1>
+        <Legend as="h1">{t("targetCaption")}</Legend>
         <DotText
           className="block"
-          style={{
-            // One dial for the whole panel (see DotText): the cell pitch is the
-            // font size, so the width of the number decides it. `48rem` and
-            // `3rem` are the column's own cap and its two gutters — without them
-            // the panel would keep sizing itself against a 1400 px window it is
-            // not allowed to use. The `26px` ceiling is what a real display
-            // does: the pitch stops growing, so a three-digit target is a
-            // visibly shorter panel than a four-digit one rather than the same
-            // block of light with fatter dots in it.
-            fontSize: `min(26px, calc((min(100vw, 48rem) - 3rem) / ${String(kcal).length * 6}))`,
-          }}
+          style={{ fontSize: displayFontSize(String(kcal)) }}
         >
           {String(kcal)}
         </DotText>
@@ -132,9 +120,7 @@ function Ready({ state }: { state: Extract<TodayState, { status: "ready" }> }) {
       <Rule />
 
       <section className="flex flex-col gap-6">
-        <h2 className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
-          {t("macros")}
-        </h2>
+        <Legend as="h2">{t("macros")}</Legend>
         {MACRO_ORDER.map((macro) => {
           const target = Math.round(state.targets[macro]);
           const line =
@@ -171,9 +157,7 @@ function Ready({ state }: { state: Extract<TodayState, { status: "ready" }> }) {
           </>
         ) : (
           <>
-            <h2 className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
-              {t("planTitle")}
-            </h2>
+            <Legend as="h2">{t("planTitle")}</Legend>
             <p className="text-lg font-semibold tracking-tight">
               {state.plan.name}
             </p>
@@ -208,9 +192,7 @@ function Ready({ state }: { state: Extract<TodayState, { status: "ready" }> }) {
       {/* The body, last: it is the evidence that the rest of it is working, and
           it is the thing the user changes least often. */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
-          {t("bodyTitle")}
-        </h2>
+        <Legend as="h2">{t("bodyTitle")}</Legend>
         {/* The same shape as the headline — label, readout, unit — one size
             down. Both numbers in the loop are measurements of the same body,
             and rendering one as light and the other as ordinary running text
@@ -266,44 +248,6 @@ function MealLamps({ filled, total }: { filled: number; total: number }) {
 
 interface LampStyle extends CSSProperties {
   "--nd-seg-index": number;
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 py-10">
-      {children}
-    </div>
-  );
-}
-
-function Notice({ children }: { children: React.ReactNode }) {
-  return (
-    <Shell>
-      <p className="text-sm text-nd-dim">{children}</p>
-    </Shell>
-  );
-}
-
-/** A rule, not a card: the world here is ruled sheets, not floating boxes. */
-function Rule() {
-  return <hr className="border-0 border-t-2 border-nd-ink" />;
-}
-
-function Action({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="nd-invert inline-flex w-fit items-center bg-nd-ink px-5 py-3 text-sm font-medium tracking-[0.08em] text-nd-ground uppercase"
-    >
-      {children}
-    </Link>
-  );
 }
 
 /**

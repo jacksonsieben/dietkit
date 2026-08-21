@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { MealPlanner } from "@/components/MealPlanner";
+import { Legend, Shell } from "@/components/nd/kit";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 
@@ -33,15 +34,17 @@ export default async function PlanPage({
   const t = await getTranslations("Plan");
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
-      <div className="flex flex-col gap-3">
-        <h1 className="font-mono text-3xl font-semibold tracking-tight">
-          {t("title")}
-        </h1>
-        <p className="text-sm opacity-70">{t("lead")}</p>
-      </div>
+    <main className="flex flex-1 flex-col">
+      <Shell>
+        <div className="flex flex-col gap-3">
+          <Legend as="h1">{t("title")}</Legend>
+          <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+            {t("lead")}
+          </p>
+        </div>
 
-      <MealPlanner />
+        <MealPlanner />
+      </Shell>
     </main>
   );
 }

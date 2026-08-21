@@ -77,6 +77,28 @@ function cellStyle(dots: readonly Dot[]): CellStyle {
   return { "--dm-dots": shadows(dots) };
 }
 
+/**
+ * The one dial, worked out for a panel that has to fit the column.
+ *
+ * `DotText` scales entirely from `fontSize`, so fitting a readout to the page
+ * is arithmetic on the string's length rather than a layout problem — but the
+ * arithmetic has to know the column, not the window: left to `100vw` alone a
+ * four-digit target would size itself against a 1400 px desktop it is never
+ * allowed to occupy. `48rem` and `3rem` are the charter's column and its two
+ * gutters.
+ *
+ * The ceiling is what a real display does. Past it the pitch stops growing, so
+ * a three-digit number is a visibly shorter panel than a four-digit one rather
+ * than the same block of light with fatter dots in it — which is the honest
+ * picture, because those are not the same quantity.
+ *
+ * Exported because two screens draw the same number this way, and the day they
+ * disagree about the fit is the day one of them looks broken.
+ */
+export function displayFontSize(text: string, maxPx = 26): string {
+  return `min(${maxPx}px, calc((min(100vw, 48rem) - 3rem) / ${text.length * ADVANCE}))`;
+}
+
 export interface DotTextProps {
   children: string;
   /**

@@ -81,8 +81,8 @@ describe("reconcile", () => {
 
   it("judges energy against what the gram tolerance is worth, not against grams", () => {
     // A day 20 kcal off is a day whose macros are within a gram or two of
-    // target. Holding energy to the gram band would paint every solved plan
-    // amber for a difference the solver was never asked to remove.
+    // target. Holding energy to the gram band would mark every solved plan
+    // off-target for a difference the solver was never asked to remove.
     const nearly = reconcile(macros(), macros({ kcal: 2000 + TOLERANCE.gramsG * 4 }));
     expect(lineFor(nearly, "kcal").state).toBe("on");
 

@@ -248,13 +248,50 @@ lighter grey — a border in this world is a structural line or it is absent.
 
 ## Components
 
+The shared vocabulary lives in `src/components/nd/kit.tsx` — `Shell`, `Notice`,
+`Rule`, `Hairline`, `Legend`, `Action`, `ActionButton`, `TextLink` and `Ghost`.
+A screen that reaches for a raw `<button className="bg-nd-ink …">` has forked
+the button; import it instead.
+
 **Action** — the only button. An inverted block: ink ground, ground text,
 uppercase at `0.08em`, `0.75rem 1.25rem`, `w-fit`. It is deliberately the only
 filled element on a screen besides lit segments, so "the thing to do next" is
-findable without reading.
+findable without reading. `Action` is the link form, `ActionButton` the button
+form; they share one class string so they cannot drift apart.
+
+**Ghost** — the secondary action: an ink outline at `text-xs`, uppercase,
+smaller than `Action` in every dimension. Used where a row needs a control that
+must not compete with the screen's one intention — add a meal, remove an item.
+
+**FileField** — the file input, in `src/components/nd/FileField.tsx` because it
+holds state and `kit.tsx` has to stay importable from a server component. The
+native control is the one widget a browser draws in its own voice, labelled from
+the *browser's* locale rather than the page's — "Choose File / No file chosen" on
+a Portuguese screen. The input stays, hidden with `sr-only` so it keeps focus and
+its label, and a `<label>` drawn as an `Action` opens the dialog. The chosen
+filename sits beside it in mono.
+
+**TextLink** — an aside, not an intention. Underlined running text at the
+paragraph's own size. If a link deserves a filled block it is an `Action`; if it
+deserves an outline it is a `Ghost`; everything else is this.
 
 **Rule** — `<hr>` with the border zeroed and `border-top: 2px` ink. Sections are
-divided by these; nothing is wrapped in a card.
+divided by these; nothing is wrapped in a card. `Hairline` is its quiet
+counterpart at 1px `--nd-unlit`, and it is *only* for separating repeated rows
+of the same kind — a list of meals, a list of entries. A hairline between two
+different sections is a rule that lost its nerve.
+
+**Legend** — the tiny letter-spaced uppercase label above a readout, rendered as
+whatever heading level the document needs via `as`. It is the carried exception
+recorded at the foot of this document; because it is a single component, the
+exception has exactly one implementation.
+
+**Strip** — a bare row of `flex-1` segments with no label, no reading and no
+status line, `aria-hidden` in full. It is what a `GlyphBar` becomes when the
+words beside it already exist elsewhere on the row. It takes `quiet`, which
+draws a shortfall still rather than seeking: the one animation in the app
+belongs to the day's verdict, and a screen that repeats it once per meal has
+thirty strips pulsing at once and has taught the reader to ignore all of them.
 
 **Segment (`.nd-seg`)** — the atom of the whole system: a rectangle that is
 lit, unlit, over, or seeking. Its state is a *string*, never a boolean, because
@@ -337,6 +374,8 @@ panels label things, and it is a typographic system rather than a decorative
 kicker. **This is recorded as a carried exception, not promoted to house style:**
 in any other visual world in this codebase, an eyebrow is still wrong.
 
-Also outside this document: `/dieta`, `/peso`, `/alimentos`, `/perfil` and
-`/energia` still carry the previous amber/emerald convention. They are not yet
-part of this world and nothing above describes them.
+Separately, `/peso`, `/alimentos`, `/perfil` and `/energia` still carry the
+previous amber/emerald convention. They are not yet part of this world and
+nothing above describes them. `/dieta` and `/importar` were brought over with
+the day panel and the meal panel; `/peso` still has no chart vocabulary in this
+world, which is a decision owed rather than an omission.

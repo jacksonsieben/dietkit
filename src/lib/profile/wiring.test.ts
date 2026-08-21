@@ -160,8 +160,13 @@ describe("profile form wiring", () => {
     // be opaque is the string that reaches an element — not the literal source.
     const piece = (name: string) =>
       new RegExp(`^const ${name} = "([^"]*)"`, "m").exec(shared)?.[1] ?? "";
-    const controlClass = /^export const CONTROL_CLASS = `([^`]*)`/m
-      .exec(shared)?.[1]
+    const template = (name: string) =>
+      new RegExp("^export const " + name + " = `([^`]*)`", "m").exec(shared)?.[1] ?? "";
+    // Two levels: `CONTROL_CLASS` is `CONTROL_BOX` plus a width, and the box is
+    // where the colours are. Resolving both is what keeps this test about the
+    // string an element receives rather than about how the file is spelled.
+    const controlClass = template("CONTROL_CLASS")
+      .replace("${CONTROL_BOX}", template("CONTROL_BOX"))
       .replace("${FRAME}", piece("FRAME"))
       .replace("${BORDER}", piece("BORDER"));
 
