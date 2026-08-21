@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { Modal } from "@/components/Modal";
+import { ActionButton, Ghost } from "@/components/nd/kit";
 
 /**
  * The app's modal question: something is about to overwrite or destroy what is
@@ -20,11 +21,6 @@ import { Modal } from "@/components/Modal";
  */
 
 export type ConfirmTone = "default" | "danger";
-
-const CONFIRM_CLASS: Record<ConfirmTone, string> = {
-  default: "bg-foreground text-background",
-  danger: "bg-red-700 text-white dark:bg-red-600",
-};
 
 export function ConfirmDialog({
   title,
@@ -45,9 +41,31 @@ export function ConfirmDialog({
   onCancel: () => void;
   children: ReactNode;
 }) {
+  /*
+   * Which answer is drawn as the filled block, and it is not always the one
+   * that agrees (#68).
+   *
+   * This used to be a red *Excluir* against a plain *Cancelar*, and red is not
+   * available for it any more: in this palette red means a number is off
+   * target, and a deletion someone asked for by pressing *Excluir* is not a
+   * fault. Spending the one warning colour on it would leave nothing to say
+   * with when a number really is wrong.
+   *
+   * So the distinction moves to which answer the screen is recommending, which
+   * is what the filled block has meant everywhere else in this world. On an
+   * ordinary question that is the one that proceeds. On a question about losing
+   * a measurement it is *Manter* — and since `showModal()` focuses the first
+   * focusable element and the cancel is written first, the filled button and
+   * the focused button are the same button. Someone answering with the keyboard
+   * and someone answering with their eyes get the same recommendation.
+   */
+  const dangerous = tone === "danger";
+  const Confirm = dangerous ? Ghost : ActionButton;
+  const Cancel = dangerous ? ActionButton : Ghost;
+
   return (
     <Modal title={title} role="alertdialog" onClose={onCancel}>
-      <div className="text-sm opacity-80">{children}</div>
+      <div className="text-sm leading-relaxed">{children}</div>
 
       <div className="flex flex-wrap items-center justify-end gap-3">
         {/*
@@ -56,22 +74,14 @@ export function ConfirmDialog({
          * key that changes nothing, not on the one that agrees to it.
          */}
         {cancelLabel === undefined ? null : (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md px-4 py-2 text-sm underline underline-offset-4"
-          >
+          <Cancel type="button" onClick={onCancel}>
             {cancelLabel}
-          </button>
+          </Cancel>
         )}
 
-        <button
-          type="button"
-          onClick={onConfirm}
-          className={`rounded-md px-4 py-2 text-sm font-medium ${CONFIRM_CLASS[tone]}`}
-        >
+        <Confirm type="button" onClick={onConfirm}>
           {confirmLabel}
-        </button>
+        </Confirm>
       </div>
     </Modal>
   );

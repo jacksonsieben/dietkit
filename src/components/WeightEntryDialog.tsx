@@ -5,6 +5,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { Field } from "@/components/Field";
 import { Modal } from "@/components/Modal";
+import { ActionButton, Ghost } from "@/components/nd/kit";
 import { calendarDate } from "@/lib/date";
 import type { WeightEntry } from "@/lib/storage/types";
 import {
@@ -176,22 +177,20 @@ export function WeightEntryDialog({
           )}
         </Field>
 
+        {/*
+          Cancel first in the DOM, so `showModal()`'s focus does not land on the
+          save — but `data-autofocus` on the weight box moves it there anyway,
+          which is the right answer for a form: the reader opened this to type a
+          number, not to answer a question.
+        */}
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-4 py-2 text-sm underline underline-offset-4"
-          >
+          <Ghost type="button" onClick={onClose}>
             {t("cancel")}
-          </button>
+          </Ghost>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
+          <ActionButton type="submit" disabled={saving}>
             {saving ? t("saving") : t("save")}
-          </button>
+          </ActionButton>
         </div>
       </form>
     </Modal>

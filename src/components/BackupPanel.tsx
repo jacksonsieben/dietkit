@@ -4,6 +4,8 @@ import { useCallback, useEffect, useId, useState, type ChangeEvent } from "react
 import { useFormatter, useTranslations } from "next-intl";
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { FileField } from "@/components/nd/FileField";
+import { ActionButton, Legend, Rule } from "@/components/nd/kit";
 import {
   BACKUP_ACCEPT,
   BACKUP_MIME,
@@ -105,12 +107,19 @@ function Row({
   file: string;
 }) {
   return (
-    <tr className="border-t border-black/10 dark:border-white/15">
-      <th scope="row" className="py-1.5 pr-3 text-left font-normal opacity-70">
+    <tr className="border-t border-nd-unlit">
+      <th scope="row" className="py-1.5 pr-3 text-left font-normal">
         {label}
       </th>
-      <td className="py-1.5 pr-3 tabular-nums opacity-60">{device}</td>
-      <td className="py-1.5 tabular-nums font-medium">{file}</td>
+      {/* `data-numeric` rather than `tabular-nums`: the figures are what make
+          this a comparison, and the rule that lines them up lives in one place
+          in globals.css so every table in the app agrees about it. */}
+      <td className="py-1.5 pr-3 text-nd-dim" data-numeric>
+        {device}
+      </td>
+      <td className="py-1.5 font-medium" data-numeric>
+        {file}
+      </td>
     </tr>
   );
 }
@@ -125,7 +134,6 @@ export function BackupPanel() {
   const [exporting, setExporting] = useState<Exporting>({ kind: "idle" });
   const [restore, setRestore] = useState<Restoring>({ kind: "choosing" });
   const [confirming, setConfirming] = useState(false);
-  const [chosen, setChosen] = useState<string | undefined>(undefined);
   const fileId = useId();
 
   /**
@@ -185,7 +193,6 @@ export function BackupPanel() {
     const file = event.target.files?.[0];
     if (file === undefined) return;
 
-    setChosen(file.name);
     setRestore({ kind: "reading" });
 
     void (async () => {
@@ -245,113 +252,98 @@ export function BackupPanel() {
   return (
     <div className="flex flex-col gap-10">
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">
-          {t("export.heading")}
-        </h2>
-        <p className="text-sm leading-relaxed opacity-70">{t("export.body")}</p>
+        <Legend as="h2">{t("export.heading")}</Legend>
+        <p className="text-sm leading-relaxed text-nd-dim">{t("export.body")}</p>
 
         {device === undefined ? null : (
-          <p className="text-xs opacity-60">
+          <p className="text-xs text-nd-dim">
             {device.settings.lastBackupAt === undefined
               ? t("export.lastNever")
               : t("export.lastAt", { date: day(device.settings.lastBackupAt) })}
           </p>
         )}
 
-        {empty ? <p className="text-sm opacity-70">{t("export.empty")}</p> : null}
+        {empty ? (
+          <p className="text-sm text-nd-dim">{t("export.empty")}</p>
+        ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <ActionButton
             type="button"
             onClick={download}
-            disabled={exporting.kind === "working" || device === undefined || empty}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
+            disabled={
+              exporting.kind === "working" || device === undefined || empty
+            }
           >
-            {exporting.kind === "working" ? t("export.working") : t("export.action")}
-          </button>
+            {exporting.kind === "working"
+              ? t("export.working")
+              : t("export.action")}
+          </ActionButton>
         </div>
 
-        {/* Announced rather than merely drawn: the button that started this is
-            where the eye already is, and on a phone the message lands below it. */}
+        {/*
+          Announced rather than merely drawn: the button that started this is
+          where the eye already is, and on a phone the message lands below it.
+
+          A finished export is not drawn in green. This world has one colour
+          besides ink, it means a number is off target, and a second colour for
+          "fine" would make the absence of green start to read as a warning on
+          every other screen. Success is a sentence in ink; only the failure
+          takes red, because a backup that did not happen is a real fault.
+        */}
         <p aria-live="polite" className="text-sm">
           {exporting.kind === "done" ? (
-            <span className="text-green-700 dark:text-green-400">
-              {t("export.done", { name: exporting.name })}
-            </span>
+            <span>{t("export.done", { name: exporting.name })}</span>
           ) : null}
           {exporting.kind === "failed" ? (
-            <span className="text-red-700 dark:text-red-400">
-              {t("export.failed")}
-            </span>
+            <span className="text-nd-red-ink">{t("export.failed")}</span>
           ) : null}
         </p>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold tracking-tight">
-          {t("restore.heading")}
-        </h2>
-        <p className="text-sm leading-relaxed opacity-70">{t("restore.body")}</p>
+      <Rule />
 
-        {/*
-         * Hidden input behind a real label, because the control the browser
-         * draws for `type="file"` writes "Choose File" and "No file chosen" in
-         * the browser's language rather than the page's — the same fix as the
-         * CSV import, and for the same reason.
-         */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              id={fileId}
-              type="file"
-              accept={BACKUP_ACCEPT}
-              onChange={pick}
-              className="peer sr-only"
-            />
-            <label
-              htmlFor={fileId}
-              className="cursor-pointer rounded-md border border-black/15 px-4 py-2 text-sm font-medium peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-current dark:border-white/20"
-            >
-              {t("restore.fileLabel")}
-            </label>
-            <span className="min-w-0 flex-1 truncate text-sm opacity-70">
-              {chosen ?? t("restore.fileNone")}
-            </span>
-          </div>
-          <p className="text-xs opacity-60">{t("restore.fileHint")}</p>
-        </div>
+      <section className="flex flex-col gap-3">
+        <Legend as="h2">{t("restore.heading")}</Legend>
+        <p className="text-sm leading-relaxed text-nd-dim">
+          {t("restore.body")}
+        </p>
+
+        <FileField
+          id={fileId}
+          accept={BACKUP_ACCEPT}
+          label={t("restore.fileLabel")}
+          hint={t("restore.fileHint")}
+          action={t("restore.fileAction")}
+          empty={t("restore.fileEmpty")}
+          onChange={pick}
+        />
 
         <div aria-live="polite" className="flex flex-col gap-3">
           {restore.kind === "reading" ? (
-            <p className="text-sm opacity-60">{t("restore.reading")}</p>
+            <p className="text-sm text-nd-dim">{t("restore.reading")}</p>
           ) : null}
 
           {restore.kind === "unreadable" ? (
-            <p className="text-sm text-red-700 dark:text-red-400">
-              {t("restore.readError")}
-            </p>
+            <p className="text-sm text-nd-red-ink">{t("restore.readError")}</p>
           ) : null}
 
           {restore.kind === "invalid" ? (
-            <p className="text-sm text-red-700 dark:text-red-400">
+            <p className="text-sm text-nd-red-ink">
               {t(`restore.errors.${restore.error}`)}
             </p>
           ) : null}
 
           {restore.kind === "saving" ? (
-            <p className="text-sm opacity-60">{t("restore.working")}</p>
+            <p className="text-sm text-nd-dim">{t("restore.working")}</p>
           ) : null}
 
           {restore.kind === "done" ? (
-            <p className="text-sm text-green-700 dark:text-green-400">
-              {t("restore.done")}
-            </p>
+            <p className="text-sm">{t("restore.done")}</p>
           ) : null}
 
           {restore.kind === "failed" ? (
-            <p className="text-sm text-red-700 dark:text-red-400">
-              {t("restore.failed")}
-            </p>
+            <p className="text-sm text-nd-red-ink">{t("restore.failed")}</p>
           ) : null}
         </div>
 
@@ -412,8 +404,8 @@ function ReviewPanel({
   const t = useTranslations("Backup.restore");
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-black/10 p-4 dark:border-white/15">
-      <p className="text-sm opacity-70">
+    <div className="flex flex-col gap-4 border-t border-nd-unlit pt-4">
+      <p className="text-sm text-nd-dim">
         {file.exportedAt === undefined
           ? t("exportedUnknown")
           : t("exportedAt", { date: day(file.exportedAt) })}
@@ -423,7 +415,7 @@ function ReviewPanel({
         <table className="w-full text-sm">
           <caption className="sr-only">{t("compare")}</caption>
           <thead>
-            <tr className="text-xs uppercase tracking-wide opacity-50">
+            <tr className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
               <th scope="col" className="pb-1 pr-3 text-left font-medium">
                 {t("compare")}
               </th>
@@ -472,13 +464,18 @@ function ReviewPanel({
 
       {drops.length === 0 ? null : (
         <div className="flex flex-col gap-1">
-          <p className="text-sm text-amber-800 dark:text-amber-300">
+          {/*
+            What the file cannot carry over. Red, because this is the one thing
+            on the screen that is genuinely off — data that exists now and will
+            not exist after the button below is pressed.
+          */}
+          <p className="text-sm text-nd-red-ink">
             {t("dropsHeading", { count: drops.length })}
           </p>
           {/* Named one by one, in the order the file had them: "3 registros"
               tells nobody whether the missing one was last Tuesday's weight or
               their only diet. */}
-          <ul className="flex flex-col gap-0.5 text-xs opacity-70">
+          <ul className="flex flex-col gap-0.5 text-xs text-nd-dim">
             {drops.slice(0, DROPS_SHOWN).map((drop, index) => (
               <li key={`${drop.kind}-${drop.subject ?? index}`}>
                 {drop.subject === undefined
@@ -496,14 +493,17 @@ function ReviewPanel({
         </div>
       )}
 
+      {/*
+        Not a red button. Restoring is what the reader came to this screen to
+        do — it is the intention, so it is the filled block, the same one every
+        other screen uses for the thing it is for. The confirmation it opens is
+        where the cost gets stated, and that dialog draws *Manter* as the filled
+        answer, which is where the hesitation belongs.
+      */}
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={onRestore}
-          className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white dark:bg-red-600"
-        >
+        <ActionButton type="button" onClick={onRestore}>
           {t("action")}
-        </button>
+        </ActionButton>
       </div>
     </div>
   );

@@ -271,3 +271,24 @@ table,
   );
   background-size: 4px 4px;
 }
+
+/*
+ * The same idea turned up: a halftone dense enough to actually screen what is
+ * behind it, for the backdrop of a modal.
+ *
+ * A scrim is normally ink at 60% alpha, which this palette has no word for —
+ * the whole point of `--nd-unlit` and `--nd-dim` being real values is that a
+ * faded ink is a different colour on every ground it lands on. So the backdrop
+ * dims by density instead: full-value ink dots of radius 1.2px on a 3px pitch,
+ * which is ~50% coverage, and at that coverage the page underneath reads as
+ * texture rather than as text. It is present — a modal is a layer over a page,
+ * not a navigation — but it is unmistakably not the layer you are on.
+ */
+.nd-modal::backdrop {
+  background-image: radial-gradient(
+    circle at center,
+    var(--nd-ink) 0 1.2px,
+    transparent 1.2px
+  );
+  background-size: 3px 3px;
+}

@@ -84,12 +84,14 @@ describe("backup wiring", () => {
   it("labels the file input itself, not the browser's control", () => {
     // Chrome writes "Choose File" / "No file chosen" in the *browser's* locale,
     // not the page's — a pt-BR page with English chrome in the middle of it.
-    // Same fix as the CSV import: hide the input, label it ourselves.
+    // Same fix as the CSV import, and since #68 literally the same component:
+    // three screens hand-rolling one workaround is three places for it to rot.
     const source = panel();
 
-    expect(source).toContain('className="peer sr-only"');
-    expect(source).toContain("htmlFor={fileId}");
-    expect(source).toContain('{chosen ?? t("restore.fileNone")}');
+    expect(source).toContain("<FileField");
+    expect(source).not.toMatch(/type="file"/);
+    expect(ptBR.Backup.restore.fileAction).toBeTypeOf("string");
+    expect(ptBR.Backup.restore.fileEmpty).toBeTypeOf("string");
   });
 
   it("keeps the reminder off the page it points at", () => {

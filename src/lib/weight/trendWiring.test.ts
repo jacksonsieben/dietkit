@@ -22,7 +22,7 @@ describe("weight trend wiring", () => {
 
     expect(source).toContain("d={geometry.averagePath}");
     expect(source).toContain("cy={point.y}");
-    expect(source).toMatch(/<circle[\s\S]*?opacity=\{0\.25\}/);
+    expect(source).toMatch(/<circle[\s\S]*?fill="var\(--nd-unlit\)"/);
   });
 
   it("keeps the raw weighings on the chart rather than dropping them", () => {
@@ -32,10 +32,16 @@ describe("weight trend wiring", () => {
   });
 
   it("gives the line more weight than the dots", () => {
+    // The hierarchy is a change of colour, not of alpha (#68). Ink for the
+    // average, `--nd-unlit` for the mornings — both real values in both themes,
+    // where ink at 25% is a value that is in neither palette and lands as a
+    // different grey on white than it does on black.
     const source = read("src/components/WeightTrend.tsx");
 
-    const opacity = /opacity=\{([\d.]+)\}/.exec(source);
-    expect(Number(opacity?.[1])).toBeLessThan(1);
+    expect(source).toMatch(
+      /d=\{geometry\.averagePath\}[\s\S]*?stroke="currentColor"/,
+    );
+    expect(source).not.toMatch(/opacity=/);
   });
 
   it("renders the trend from the log's own entries", () => {
@@ -48,9 +54,11 @@ describe("weight trend wiring", () => {
 
   it("says out loud that the line is the seven-day average", () => {
     // A smoothed series presented as "your weight" is a lie by omission — the
-    // number on the screen is not what any morning's scale said.
+    // number on the screen is not what any morning's scale said. The lead
+    // paragraph carries that alone since #68: the chart used to repeat it in a
+    // small legend beside the title, which put the same claim on the screen
+    // twice and left the reader working out whether the two agreed.
     expect(ptBR.Weight.trend.lead).toContain("7 dias");
-    expect(ptBR.Weight.trend.legendAverage).toContain("7 dias");
   });
 
   it("has a message for every branch the change line can take", () => {

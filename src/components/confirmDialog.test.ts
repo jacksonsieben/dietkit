@@ -50,8 +50,29 @@ describe("ConfirmDialog", () => {
 
   it("draws a destructive answer differently from an ordinary one", () => {
     // Two buttons that look the same make the reader work out which one is the
-    // one that loses data.
-    const danger = CODE.slice(CODE.indexOf("const CONFIRM_CLASS"));
-    expect(danger.slice(0, danger.indexOf("};"))).toContain("red");
+    // one that loses data. The difference is which answer is the filled block,
+    // not colour: red in this palette means a number is off target, and a
+    // deletion someone asked for is not a fault.
+    expect(CODE).toContain('const dangerous = tone === "danger"');
+    expect(CODE).toContain("const Confirm = dangerous ? Ghost : ActionButton");
+    expect(CODE).toContain("const Cancel = dangerous ? ActionButton : Ghost");
+  });
+
+  it("never spends the warning colour on a button", () => {
+    // The one red in this app is for a number that is over target. A dialog
+    // that borrows it teaches the reader that red means "careful", after which
+    // it no longer means anything on the screens that need it.
+    expect(CODE).not.toMatch(/red/i);
+  });
+
+  it("recommends keeping the data, to the eye and to the keyboard alike", () => {
+    // `showModal()` focuses the first focusable element and the cancel is
+    // written first, so on a destructive question the filled button and the
+    // focused button are the same button. If these two ever disagree, the
+    // keyboard user is being pointed at a different answer from everyone else.
+    expect(CODE.indexOf("{cancelLabel}")).toBeLessThan(
+      CODE.indexOf("{confirmLabel}"),
+    );
+    expect(CODE).toContain("const Cancel = dangerous ? ActionButton : Ghost");
   });
 });

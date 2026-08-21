@@ -7,7 +7,8 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { WeightEntryDialog } from "@/components/WeightEntryDialog";
 import { WeightImportDialog } from "@/components/WeightImportDialog";
 import { WeightTrend } from "@/components/WeightTrend";
-import { Link } from "@/i18n/navigation";
+import { SmallButton } from "@/components/FoodPicker";
+import { ActionButton, Ghost, Legend, Rule, TextLink } from "@/components/nd/kit";
 import { calendarDate, todayIsoDate } from "@/lib/date";
 import { getRepository } from "@/lib/storage";
 import type { Id, WeightEntry } from "@/lib/storage/types";
@@ -199,11 +200,11 @@ export function WeightLog() {
   };
 
   if (status === "loading") {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   if (status === "loadFailed") {
-    return <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>;
+    return <p className="text-sm text-nd-red-ink">{t("loadError")}</p>;
   }
 
   const day = (date: string) =>
@@ -217,113 +218,115 @@ export function WeightLog() {
     <div className="flex flex-col gap-10">
       <WeightTrend entries={entries} />
 
+      <Rule />
+
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 className="text-sm font-semibold tracking-tight">{t("listTitle")}</h2>
+            <Legend as="h2">{t("listTitle")}</Legend>
             {entries.length === 0 ? null : (
-              <p className="text-xs opacity-60">
+              <p className="text-xs text-nd-dim" data-numeric>
                 {t("listCount", { count: entries.length })}
               </p>
             )}
           </div>
 
+          {/*
+            One filled block and one outline, because only one of these is what
+            someone came here to do. Typing this morning's number is the reason
+            the screen exists; pulling a year out of a scale's CSV export is a
+            thing that is available.
+          */}
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => openForm()}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-            >
+            <ActionButton type="button" onClick={() => openForm()}>
               {t("add")}
-            </button>
-            <button
+            </ActionButton>
+            <Ghost
               type="button"
               onClick={() => {
                 setOpen({ kind: "import" });
                 setStatus("ready");
               }}
-              className="rounded-md border border-black/15 px-4 py-2 text-sm dark:border-white/20"
             >
               {t("import.open")}
-            </button>
+            </Ghost>
           </div>
         </div>
 
         <p aria-live="polite" className="text-sm empty:hidden">
           {status === "savedNew" && savedDate !== undefined ? (
-            <span className="opacity-70">{t("savedNew", { date: day(savedDate) })}</span>
+            <span className="text-nd-dim">
+              {t("savedNew", { date: day(savedDate) })}
+            </span>
           ) : null}
           {status === "savedReplaced" && savedDate !== undefined ? (
-            <span className="opacity-70">
+            <span className="text-nd-dim">
               {t("savedReplaced", { date: day(savedDate) })}
             </span>
           ) : null}
           {status === "imported" ? (
-            <span className="opacity-70">
-              {t("import.done", imported)}
-            </span>
+            <span className="text-nd-dim">{t("import.done", imported)}</span>
           ) : null}
           {status === "saveFailed" ? (
-            <span className="text-red-700 dark:text-red-400">{t("saveError")}</span>
+            <span className="text-nd-red-ink">{t("saveError")}</span>
           ) : null}
           {status === "importFailed" ? (
-            <span className="text-red-700 dark:text-red-400">
-              {t("import.error")}
-            </span>
+            <span className="text-nd-red-ink">{t("import.error")}</span>
           ) : null}
           {status === "removeFailed" ? (
-            <span className="text-red-700 dark:text-red-400">{t("removeError")}</span>
+            <span className="text-nd-red-ink">{t("removeError")}</span>
           ) : null}
         </p>
 
         {entries.length === 0 ? (
-          <p className="text-sm opacity-70">{t("listEmpty")}</p>
+          <p className="text-sm text-nd-dim">{t("listEmpty")}</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col">
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 rounded-md border border-black/10 px-4 py-3 dark:border-white/15"
+                className="flex flex-col gap-2 border-t border-nd-unlit py-3 first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-x-6"
               >
                 <div className="flex min-w-0 flex-col gap-1">
-                  <p className="font-medium">
+                  <p className="font-medium" data-numeric>
                     {t("entryWeight", { weight: entry.weightKg })}
                   </p>
-                  <p className="text-xs opacity-60">
+                  <p className="text-xs text-nd-dim">
                     {[day(entry.date), entry.note, backfilledOn(entry, t, day)]
                       .filter((part) => part !== undefined)
                       .join(" · ")}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 text-sm">
-                  <button
-                    type="button"
+                {/*
+                  Both outlined, including the one that deletes. A red *Excluir*
+                  would spend this palette's only warning colour on something
+                  that is not a fault — the reader asked for it — and leave
+                  nothing to say with when a number really is over target. What
+                  says this one does not come back is the dialog it opens.
+                */}
+                <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
+                  <SmallButton
+                    label={t("edit")}
                     onClick={() => openForm(entry)}
-                    className="underline underline-offset-4"
-                  >
-                    {t("edit")}
-                  </button>
-                  <button
-                    type="button"
+                  />
+                  <SmallButton
+                    label={t("remove")}
                     onClick={() => setOpen({ kind: "remove", entry })}
-                    className="underline underline-offset-4 opacity-70"
-                  >
-                    {t("remove")}
-                  </button>
+                  />
                 </div>
               </li>
             ))}
           </ul>
         )}
 
-        <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-60">
-          <Link href="/perfil" className="underline underline-offset-4">
+        <p className="flex flex-wrap gap-x-4 gap-y-1">
+          <TextLink href="/perfil" className="text-xs">
             {t("profileLink")}
-          </Link>
-          <Link href="/energia" className="underline underline-offset-4">
+          </TextLink>
+          <TextLink href="/energia" className="text-xs">
             {t("energyLink")}
-          </Link>
+          </TextLink>
         </p>
       </section>
 
