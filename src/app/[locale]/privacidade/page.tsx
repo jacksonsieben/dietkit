@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
-import { LegalPage, LegalSection } from "@/components/LegalPage";
+import { LegalPage, LegalSection, Prose } from "@/components/LegalPage";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 import { LEGAL_CONTACT } from "@/lib/legal";
@@ -42,31 +42,33 @@ export default async function Privacy({
 
   return (
     <LegalPage current="/privacidade" title={t("title")}>
-      <p className="opacity-80">{t("lead")}</p>
+      <Prose>
+        <p>{t("lead")}</p>
+      </Prose>
 
       <LegalSection heading={t("deviceHeading")}>
-        <p className="opacity-80">{t("deviceBody")}</p>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm opacity-80">
+        <p>{t("deviceBody")}</p>
+        <ul>
           <li>{t("deviceProfile")}</li>
           <li>{t("deviceWeight")}</li>
           <li>{t("deviceDiets")}</li>
           <li>{t("deviceFoods")}</li>
           <li>{t("deviceSettings")}</li>
         </ul>
-        <p className="opacity-80">{t("deviceNote")}</p>
+        <p>{t("deviceNote")}</p>
       </LegalSection>
 
       <LegalSection heading={t("serverHeading")}>
-        <p className="opacity-80">{t("serverBody")}</p>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm opacity-80">
+        <p>{t("serverBody")}</p>
+        <ul>
           <li>{t("serverSearch")}</li>
           <li>{t("serverLogs")}</li>
         </ul>
-        <p className="opacity-80">{t("serverNote")}</p>
+        <p>{t("serverNote")}</p>
       </LegalSection>
 
       <LegalSection heading={t("noneHeading")}>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm opacity-80">
+        <ul>
           <li>{t("noneAccounts")}</li>
           <li>{t("noneCookies")}</li>
           <li>{t("noneAnalytics")}</li>
@@ -75,30 +77,30 @@ export default async function Privacy({
       </LegalSection>
 
       <LegalSection heading={t("rightsHeading")}>
-        <p className="opacity-80">{t("rightsBody")}</p>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm opacity-80">
+        <p>{t("rightsBody")}</p>
+        <ul>
           <li>{t("rightsAccess")}</li>
           <li>{t("rightsExport")}</li>
           <li>{t("rightsDelete")}</li>
         </ul>
-        <p className="text-sm opacity-80">{t("rightsLogs")}</p>
+        <p>{t("rightsLogs")}</p>
       </LegalSection>
 
       <LegalSection heading={t("riskHeading")}>
-        <p className="opacity-80">{t("riskBody")}</p>
+        <p>{t("riskBody")}</p>
       </LegalSection>
 
       <LegalSection heading={t("changesHeading")}>
-        <p className="opacity-80">{t("changesBody")}</p>
+        <p>{t("changesBody")}</p>
       </LegalSection>
 
       <LegalSection heading={t("contactHeading")}>
-        <p className="opacity-80">{t("contactBody")}</p>
+        <p>{t("contactBody")}</p>
         <a
           href={LEGAL_CONTACT.url}
           rel="noreferrer"
           target="_blank"
-          className="self-start font-mono text-sm underline underline-offset-4"
+          className="w-fit underline underline-offset-4"
         >
           {LEGAL_CONTACT.label}
         </a>

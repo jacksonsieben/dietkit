@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { DotText, displayFontSize } from "@/components/dot/DotText";
 import { MacroTargets } from "@/components/MacroTargets";
+import { Action, Hairline, Legend, Rule } from "@/components/nd/kit";
 import { Link } from "@/i18n/navigation";
 import { todayIsoDate } from "@/lib/date";
 import { loadEnergySummary, type EnergyState } from "@/lib/energy/summary";
@@ -58,13 +60,13 @@ export function EnergyResult() {
   }, []);
 
   if (status === "loading") {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   if (status === "failed" || !state) {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>
+        <p className="text-sm text-nd-red-ink">{t("loadError")}</p>
         <ProfileLink label={t("editLink")} />
       </div>
     );
@@ -73,7 +75,7 @@ export function EnergyResult() {
   if (state.status === "missing") {
     return (
       <div className="flex flex-col items-start gap-4">
-        <p className="text-sm opacity-80">
+        <p className="max-w-prose text-sm leading-relaxed">
           {state.needs === "profile" ? t("missingProfile") : t("missingWeight")}
         </p>
         <ProfileLink label={t("missingLink")} />
@@ -92,20 +94,42 @@ export function EnergyResult() {
     maximumFractionDigits: 3,
   });
 
+  /*
+   * The Display panel's string. Rounded, not formatted: `DotText` lights one
+   * 5x7 cell per character and there is no group separator in the charter, so
+   * a locale that writes "2.380" would ask it for a glyph it does not have.
+   */
+  const tdee = String(Math.round(summary.totalDailyEnergyExpenditure));
+
   const levelName = summary.level
     ? profile(`activityLevelShort.${summary.level.id}`)
     : t("factorCustom");
 
   return (
     <div className="flex flex-col gap-10">
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium opacity-70">{t("tdeeLabel")}</h2>
-        <p className="font-mono text-4xl font-semibold tracking-tight">
-          {t("kcalPerDay", { kcal: kcal(summary.totalDailyEnergyExpenditure) })}
-        </p>
+      {/*
+        The screen's one Display readout, and the reason the screen exists.
+        /hoje puts the *target* in dots; this puts the *expenditure*, which is
+        the number the target is derived from — same body, same instrument, so
+        the same face at the same fitted pitch. Setting the source in running
+        type and the result in dots would say they came off two machines.
+
+        `String(...)` rather than the formatted string on purpose: below ten
+        thousand there is no group separator to lose, and `kcal()` would hand
+        the charter a full stop or a thin space to light depending on locale.
+      */}
+      <section className="flex flex-col gap-3">
+        <Legend as="h2">{t("tdeeLabel")}</Legend>
+        <DotText
+          className="block"
+          style={{ fontSize: displayFontSize(tdee) }}
+        >
+          {tdee}
+        </DotText>
+        <p className="text-sm tracking-[0.08em] uppercase">{t("energyUnit")}</p>
         {/* The arithmetic, spelled out. Someone comparing us with another
             calculator needs the two inputs, not just the total. */}
-        <p className="font-mono text-sm opacity-70">
+        <p className="text-sm text-nd-dim" data-numeric>
           {t("equation", {
             bmr: kcal(summary.basalMetabolicRate),
             factor,
@@ -114,64 +138,80 @@ export function EnergyResult() {
         </p>
       </section>
 
+      <Rule />
+
       <section className="grid gap-6 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium opacity-70">{t("bmrLabel")}</h3>
-          <p className="font-mono text-xl">
+          <Legend as="h3">{t("bmrLabel")}</Legend>
+          <p className="text-lg font-semibold tracking-[-0.025em]" data-numeric>
             {t("kcalPerDay", { kcal: kcal(summary.basalMetabolicRate) })}
           </p>
-          <p className="text-xs opacity-60">
+          <p className="text-xs leading-relaxed text-nd-dim">
             {t("bmrNote", {
               weight: format.number(summary.weightKg),
               height: format.number(summary.heightCm),
               age: summary.ageYears,
             })}
           </p>
-          <p className="text-xs opacity-60">
+          <p className="text-xs text-nd-dim">
             {t("weighedOn", { date: formatDay(format, summary.weighedOn) })}
           </p>
         </div>
 
         <div className="flex flex-col gap-1">
-          <h3 className="text-sm font-medium opacity-70">{t("factorLabel")}</h3>
-          <p className="font-mono text-xl">{factor}</p>
-          <p className="text-xs opacity-60">{levelName}</p>
+          <Legend as="h3">{t("factorLabel")}</Legend>
+          <p className="text-lg font-semibold tracking-[-0.025em]" data-numeric>
+            {factor}
+          </p>
+          <p className="text-xs text-nd-dim">{levelName}</p>
         </div>
       </section>
 
+      <Rule />
+
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium opacity-70">{t("ladderHeading")}</h2>
+        <Legend as="h2">{t("ladderHeading")}</Legend>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-black/15 text-left dark:border-white/20">
-                <th className="py-2 pr-4 font-medium">{t("ladderLevelColumn")}</th>
-                <th className="py-2 pr-4 font-medium">{t("ladderFactorColumn")}</th>
-                <th className="py-2 font-medium">{t("ladderResultColumn")}</th>
+              <tr className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
+                <th scope="col" className="pb-1 pr-3 text-left font-medium">
+                  {t("ladderLevelColumn")}
+                </th>
+                <th scope="col" className="pb-1 pr-3 text-left font-medium">
+                  {t("ladderFactorColumn")}
+                </th>
+                <th scope="col" className="pb-1 text-left font-medium">
+                  {t("ladderResultColumn")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {summary.ladder.map((row) => (
-                <tr
-                  key={row.level.id}
-                  className="border-b border-black/5 last:border-0 dark:border-white/10"
-                >
-                  <td className="py-2 pr-4">
+                <tr key={row.level.id} className="border-t border-nd-unlit">
+                  <th scope="row" className="py-1.5 pr-3 text-left font-normal">
                     {profile(`activityLevelShort.${row.level.id}`)}
                     {row.current && (
-                      <span className="ml-2 text-xs opacity-60">
+                      <span className="ml-2 text-xs tracking-[0.14em] text-nd-dim uppercase">
                         {t("ladderCurrent")}
                       </span>
                     )}
-                  </td>
-                  <td className="py-2 pr-4 font-mono">
+                  </th>
+                  <td className="py-1.5 pr-3 text-nd-dim" data-numeric>
                     {format.number(row.level.factor, {
                       minimumFractionDigits: 1,
                       maximumFractionDigits: 3,
                     })}
                   </td>
-                  <td className="py-2 font-mono">
+                  {/* The reader's own row set in ink and the rest dim: the
+                      point of the table is the distance between them, and a
+                      column of eight identical weights makes that a search
+                      rather than a glance. */}
+                  <td
+                    className={row.current ? "py-1.5 font-medium" : "py-1.5"}
+                    data-numeric
+                  >
                     {t("kcalPerDay", { kcal: kcal(row.tdee) })}
                   </td>
                 </tr>
@@ -179,12 +219,18 @@ export function EnergyResult() {
             </tbody>
           </table>
         </div>
+
+        <Hairline />
+
+        <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+          <span className="font-medium text-nd-ink">
+            {t("disagreementHeading")}
+          </span>{" "}
+          {t("disagreement")}
+        </p>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium opacity-70">{t("disagreementHeading")}</h2>
-        <p className="text-sm opacity-80">{t("disagreement")}</p>
-      </section>
+      <Rule />
 
       {/* The expenditure is the input to the split, so the split lives here
           rather than on a page of its own: the grams below are only meaningful
@@ -192,9 +238,11 @@ export function EnergyResult() {
           let someone change the goal without seeing what it was applied to. */}
       <MacroTargets summary={summary} />
 
+      <Rule />
+
       <div className="flex flex-col gap-4">
         <ProfileLink label={t("editLink")} />
-        <p className="text-xs opacity-60">
+        <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
           {t("disclaimer")}{" "}
           <Link href="/saude" className="underline underline-offset-4">
             {t("disclaimerLink")}
@@ -206,14 +254,7 @@ export function EnergyResult() {
 }
 
 function ProfileLink({ label }: { label: string }) {
-  return (
-    <Link
-      href="/perfil"
-      className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-    >
-      {label}
-    </Link>
-  );
+  return <Action href="/perfil">{label}</Action>;
 }
 
 function formatDay(format: ReturnType<typeof useFormatter>, day: string): string {

@@ -1,19 +1,28 @@
 import { useTranslations } from "next-intl";
 
-import { Link } from "@/i18n/navigation";
+import { Legend, Shell, TextLink } from "@/components/nd/kit";
 
+/**
+ * A route that does not exist.
+ *
+ * `AppChrome` still frames it, so the plate above reads DIETKIT — `plateKey`
+ * has no entry for an unknown path and the fallback is the app's own name,
+ * which is the honest answer here rather than an accident. The tab bar below is
+ * live, so this screen is a dead end for about a second.
+ */
 export default function NotFound() {
   const t = useTranslations("NotFound");
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-4 px-6 py-16">
-      <h1 className="font-mono text-2xl font-semibold tracking-tight">
-        {t("heading")}
-      </h1>
-      <p className="opacity-70">{t("body")}</p>
-      <Link href="/" className="text-sm underline underline-offset-4">
-        {t("backHome")}
-      </Link>
+    <main className="flex flex-1 flex-col justify-center">
+      <Shell>
+        <div className="flex flex-col gap-3">
+          <Legend as="h1">{t("heading")}</Legend>
+          <p className="max-w-prose text-sm leading-relaxed">{t("body")}</p>
+        </div>
+
+        <TextLink href="/">{t("backHome")}</TextLink>
+      </Shell>
     </main>
   );
 }

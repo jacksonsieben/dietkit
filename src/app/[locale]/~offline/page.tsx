@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { RetryButton } from "@/components/RetryButton";
-import { Link } from "@/i18n/navigation";
+import { Legend, Shell, TextLink } from "@/components/nd/kit";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 
@@ -28,19 +28,21 @@ export default async function OfflinePage({
   const t = await getTranslations("Offline");
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-5 px-6 py-16">
-      <h1 className="font-mono text-3xl font-semibold tracking-tight">
-        {t("heading")}
-      </h1>
-      <p className="opacity-80">{t("body")}</p>
-      <p className="text-sm opacity-60">{t("reassurance")}</p>
+    <main className="flex flex-1 flex-col justify-center">
+      <Shell>
+        <div className="flex flex-col gap-3">
+          <Legend as="h1">{t("heading")}</Legend>
+          <p className="max-w-prose text-sm leading-relaxed">{t("body")}</p>
+          <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+            {t("reassurance")}
+          </p>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-4 pt-2">
-        <RetryButton />
-        <Link href="/" className="text-sm underline underline-offset-4">
-          {t("backHome")}
-        </Link>
-      </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <RetryButton />
+          <TextLink href="/">{t("backHome")}</TextLink>
+        </div>
+      </Shell>
     </main>
   );
 }

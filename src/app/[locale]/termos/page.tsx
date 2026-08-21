@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
-import { LegalPage, LegalSection } from "@/components/LegalPage";
+import { LegalPage, LegalSection, Prose } from "@/components/LegalPage";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 
@@ -40,42 +40,44 @@ export default async function Terms({ params }: PageProps<"/[locale]/termos">) {
 
   return (
     <LegalPage current="/termos" title={t("title")}>
-      <p className="opacity-80">{t("lead")}</p>
+      <Prose>
+        <p>{t("lead")}</p>
+      </Prose>
 
       <LegalSection heading={t("whatHeading")}>
-        <p className="opacity-80">{t("whatBody")}</p>
-        <p className="opacity-80">{t("whatNot")}</p>
+        <p>{t("whatBody")}</p>
+        <p>{t("whatNot")}</p>
       </LegalSection>
 
       <LegalSection heading={t("useHeading")}>
-        <p className="opacity-80">{t("useBody")}</p>
-        <p className="opacity-80">{t("useAvailability")}</p>
+        <p>{t("useBody")}</p>
+        <p>{t("useAvailability")}</p>
       </LegalSection>
 
       <LegalSection heading={t("responsibilityHeading")}>
-        <p className="opacity-80">{t("responsibilityBody")}</p>
-        <p className="opacity-80">{t("responsibilityBackup")}</p>
+        <p>{t("responsibilityBody")}</p>
+        <p>{t("responsibilityBackup")}</p>
       </LegalSection>
 
       <LegalSection heading={t("liabilityHeading")}>
-        <p className="opacity-80">{t("liabilityBody")}</p>
-        <p className="opacity-80">{t("liabilityConsumer")}</p>
+        <p>{t("liabilityBody")}</p>
+        <p>{t("liabilityConsumer")}</p>
       </LegalSection>
 
       <LegalSection heading={t("dataHeading")}>
-        <p className="opacity-80">{t("dataBody")}</p>
+        <p>{t("dataBody")}</p>
       </LegalSection>
 
       <LegalSection heading={t("licenceHeading")}>
-        <p className="opacity-80">{t("licenceBody")}</p>
+        <p>{t("licenceBody")}</p>
       </LegalSection>
 
       <LegalSection heading={t("changesHeading")}>
-        <p className="opacity-80">{t("changesBody")}</p>
+        <p>{t("changesBody")}</p>
       </LegalSection>
 
       <LegalSection heading={t("lawHeading")}>
-        <p className="opacity-80">{t("lawBody")}</p>
+        <p>{t("lawBody")}</p>
       </LegalSection>
     </LegalPage>
   );

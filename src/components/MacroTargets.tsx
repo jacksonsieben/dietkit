@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Field, UnitInput } from "@/components/Field";
+import { DotText } from "@/components/dot/DotText";
+import { ActionButton, Hairline, Legend } from "@/components/nd/kit";
 import {
   ADJUSTMENT_UNITS,
   FAT_UNITS,
@@ -91,11 +93,11 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
   }, []);
 
   if (status === "loadFailed") {
-    return <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>;
+    return <p className="text-sm text-nd-red-ink">{t("loadError")}</p>;
   }
 
   if (status === "loading" || !values) {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   /** Drops the "salvo" note, so a reassurance never stands over changed numbers. */
@@ -162,9 +164,11 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
 
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium opacity-70">{t("heading")}</h2>
-        <p className="text-sm opacity-80">{t("lead")}</p>
+      <div className="flex flex-col gap-3">
+        <Legend as="h2">{t("heading")}</Legend>
+        <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+          {t("lead")}
+        </p>
       </div>
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
@@ -192,13 +196,19 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
             someone might have with the preset, so they stay one click away
             rather than behind a settings page — and inside the same form, so
             the button that saves the goal is the button that saves them. */}
-        <details className="rounded-md border border-black/15 p-4 dark:border-white/20">
-          <summary className="cursor-pointer text-sm font-medium">
+        {/* Marked off by a rule with the fold hanging under it rather than by
+            a bordered box: a card is the old world's shape, and a panel drawn
+            round these fields would say they are a different kind of thing from
+            the goal above, when they are the same question in more detail. */}
+        <details className="border-t-2 border-nd-ink pt-4">
+          <summary className="cursor-pointer text-xs font-medium tracking-[0.22em] uppercase">
             {t("advancedLabel")}
           </summary>
 
           <div className="mt-4 flex flex-col gap-6">
-            <p className="text-xs opacity-60">{t("advancedHint")}</p>
+            <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+              {t("advancedHint")}
+            </p>
 
             {/* Hidden on maintenance: an adjustment box next to "manter peso"
                 is a question with no answer, and a number left in it from a
@@ -271,23 +281,23 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
               )}
             </Field>
 
-            <p className="text-xs opacity-60">{t("carbNote")}</p>
+            <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+              {t("carbNote")}
+            </p>
           </div>
         </details>
 
         <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="submit"
-            disabled={status === "saving"}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-          >
+          <ActionButton type="submit" disabled={status === "saving"}>
             {status === "saving" ? t("saving") : t("save")}
-          </button>
+          </ActionButton>
 
           <p aria-live="polite" className="text-sm">
-            {status === "saved" ? <span className="opacity-70">{t("saved")}</span> : null}
+            {status === "saved" ? (
+              <span className="text-nd-dim">{t("saved")}</span>
+            ) : null}
             {status === "saveFailed" ? (
-              <span className="text-red-700 dark:text-red-400">{t("saveError")}</span>
+              <span className="text-nd-red-ink">{t("saveError")}</span>
             ) : null}
           </p>
         </div>
@@ -296,7 +306,7 @@ export function MacroTargets({ summary }: { summary: EnergySummary }) {
       {plan ? (
         <MacroPlanView plan={plan} weightKg={summary.weightKg} />
       ) : (
-        <p className="text-sm opacity-70">{t("noPlan")}</p>
+        <p className="text-sm text-nd-dim">{t("noPlan")}</p>
       )}
     </section>
   );
@@ -332,10 +342,20 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium opacity-70">{t("targetLabel")}</h3>
-        <p className="font-mono text-3xl font-semibold tracking-tight">
-          {t("kcalPerDay", { kcal: kcal(plan.targetKcal) })}
-        </p>
+        {/*
+          The second panel on the screen, and deliberately the smaller one. The
+          expenditure above it is what the body does; this is what the user
+          decided to eat against it, and the fixed 16px pitch says which of the
+          two the page is named for — the same arrangement /hoje uses for the
+          target and the body weight. Both are dots because both are readings
+          off the same instrument; setting one in running type would say they
+          came off two.
+        */}
+        <Legend as="h3">{t("targetLabel")}</Legend>
+        <DotText className="block" style={{ fontSize: "16px" }}>
+          {String(Math.round(plan.targetKcal))}
+        </DotText>
+        <p className="text-sm tracking-[0.08em] uppercase">{t("energyUnit")}</p>
         {/* The adjustment written out, for the same reason the TDEE equation
             above it is: a target with no visible arithmetic is a number to take
             on faith. A percentage is shown as the kilocalories it came to,
@@ -344,7 +364,7 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
             2.606" is arithmetic that shows nothing — and a `+0` reads like a
             number that failed to arrive rather than one that was never asked
             for. */}
-        <p className="font-mono text-sm opacity-70">
+        <p className="text-sm text-nd-dim" data-numeric>
           {plan.adjustmentKcal === 0
             ? t("targetSame")
             : t("targetEquation", {
@@ -355,33 +375,42 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
                 target: kcal(plan.targetKcal),
               })}
         </p>
-        <p className="text-xs opacity-60">
+        <p className="text-xs text-nd-dim">
           {t("basis", { weight: format.number(weightKg) })}
         </p>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-black/15 text-left dark:border-white/20">
-              <th className="py-2 pr-4 font-medium">{t("macroColumn")}</th>
-              <th className="py-2 pr-4 font-medium">{t("gramsColumn")}</th>
-              <th className="py-2 pr-4 font-medium">{t("kcalColumn")}</th>
-              <th className="py-2 font-medium">{t("shareColumn")}</th>
+            <tr className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
+              <th scope="col" className="pb-1 pr-3 text-left font-medium">
+                {t("macroColumn")}
+              </th>
+              <th scope="col" className="pb-1 pr-3 text-left font-medium">
+                {t("gramsColumn")}
+              </th>
+              <th scope="col" className="pb-1 pr-3 text-left font-medium">
+                {t("kcalColumn")}
+              </th>
+              <th scope="col" className="pb-1 text-left font-medium">
+                {t("shareColumn")}
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr
-                key={row.id}
-                className="border-b border-black/5 last:border-0 dark:border-white/10"
-              >
-                <td className="py-2 pr-4">{t(`macro.${row.id}`)}</td>
-                <td className="py-2 pr-4 font-mono">
+              <tr key={row.id} className="border-t border-nd-unlit">
+                <th scope="row" className="py-1.5 pr-3 text-left font-normal">
+                  {t(`macro.${row.id}`)}
+                </th>
+                <td className="py-1.5 pr-3 font-medium" data-numeric>
                   {t("gramsValue", { grams: format.number(row.grams) })}
                 </td>
-                <td className="py-2 pr-4 font-mono">{kcal(row.kcal)}</td>
-                <td className="py-2 font-mono">
+                <td className="py-1.5 pr-3 text-nd-dim" data-numeric>
+                  {kcal(row.kcal)}
+                </td>
+                <td className="py-1.5 text-nd-dim" data-numeric>
                   {/* Out of what the grams are worth, not out of the target —
                       so the column totals 100% instead of leaving the drift to
                       show up as a percentage that does not close. */}
@@ -401,7 +430,7 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
           the arithmetic is sound and it is the diet that is the problem, and
           the user may know something about their case that we do not. */}
       {plan.fatBelowFloor && (
-        <p className="text-sm text-red-700 dark:text-red-400">
+        <p className="max-w-prose text-sm leading-relaxed text-nd-red-ink">
           {t("fatFloor", {
             share: format.number(plan.fatShare, {
               style: "percent",
@@ -413,12 +442,13 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
       )}
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium opacity-70">{t("reconcileHeading")}</h3>
+        <Hairline />
+        <Legend as="h3">{t("reconcileHeading")}</Legend>
         {/* #15's last done-when, and the reason this block exists at all: whole
             grams do not add up to the target, and the honest thing is to print
             both numbers and their difference rather than print the target twice
             and hope nobody adds the grams up. */}
-        <p className="font-mono text-sm">
+        <p className="text-sm" data-numeric>
           {t("reconcile", {
             sum: kcal(plan.targets.kcal),
             target: kcal(plan.targetKcal),
@@ -430,11 +460,11 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
             hundred, which reads as a broken calculation rather than as a goal
             that cannot be met. */}
         {plan.carbShortfallKcal > 0 ? (
-          <p className="text-sm text-red-700 dark:text-red-400">
+          <p className="max-w-prose text-sm leading-relaxed text-nd-red-ink">
             {t("shortfall", { excess: kcal(plan.carbShortfallKcal) })}
           </p>
         ) : (
-          <p className="text-xs opacity-60">
+          <p className="text-xs text-nd-dim">
             {Math.round(plan.driftKcal) === 0
               ? t("driftNone")
               : t("drift", {
