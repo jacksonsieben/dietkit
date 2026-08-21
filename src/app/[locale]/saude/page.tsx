@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
-import { LegalPage, LegalSection } from "@/components/LegalPage";
+import { LegalPage, LegalSection, Prose } from "@/components/LegalPage";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
 import { CFN_REFERENCE } from "@/lib/legal";
@@ -41,26 +41,28 @@ export default async function Health({ params }: PageProps<"/[locale]/saude">) {
 
   return (
     <LegalPage current="/saude" title={t("title")}>
-      <p className="opacity-80">{t("lead")}</p>
+      <Prose>
+        <p>{t("lead")}</p>
+      </Prose>
 
       <LegalSection heading={t("notPrescriptionHeading")}>
-        <p className="opacity-80">
+        <p>
           {t("notPrescriptionBody", {
             law: CFN_REFERENCE.law,
             council: CFN_REFERENCE.council,
           })}
         </p>
-        <p className="opacity-80">{t("notPrescriptionBody2")}</p>
+        <p>{t("notPrescriptionBody2")}</p>
       </LegalSection>
 
       <LegalSection heading={t("estimateHeading")}>
-        <p className="opacity-80">{t("estimateBody")}</p>
-        <p className="opacity-80">{t("estimateTaco")}</p>
+        <p>{t("estimateBody")}</p>
+        <p>{t("estimateTaco")}</p>
       </LegalSection>
 
       <LegalSection heading={t("professionalHeading")}>
-        <p className="opacity-80">{t("professionalBody")}</p>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm opacity-80">
+        <p>{t("professionalBody")}</p>
+        <ul>
           <li>{t("professionalPregnancy")}</li>
           <li>{t("professionalAge")}</li>
           <li>{t("professionalCondition")}</li>
@@ -71,12 +73,12 @@ export default async function Health({ params }: PageProps<"/[locale]/saude">) {
       </LegalSection>
 
       <LegalSection heading={t("disorderHeading")}>
-        <p className="opacity-80">{t("disorderBody")}</p>
+        <p>{t("disorderBody")}</p>
       </LegalSection>
 
       <LegalSection heading={t("deviceHeading")}>
-        <p className="opacity-80">{t("deviceBody")}</p>
-        <p className="font-medium opacity-80">{t("emergencyBody")}</p>
+        <p>{t("deviceBody")}</p>
+        <p className="font-medium">{t("emergencyBody")}</p>
       </LegalSection>
     </LegalPage>
   );

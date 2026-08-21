@@ -177,7 +177,7 @@ The ramp, in the order it appears on a screen:
 | Role | Set as | Where |
 |---|---|---|
 | Display | Dot panel, pitch fitted to the column, capped at 26px | The day's energy target |
-| Readout | Dot panel, fixed 16px pitch | The body weight |
+| Readout | Dot panel, same fit capped at 16px | The body weight |
 | Headline | 1.5rem / 600 / `-0.025em` | Empty-state titles |
 | Title | 1.125rem / 600 / `-0.025em` | The diet's name |
 | Label | 0.75rem / 500 / `0.22em` / uppercase | The legend over every readout |
@@ -189,6 +189,22 @@ The display pitch is fitted, not fluid: `min(26px, (min(100vw, 48rem) - 3rem) /
 (digits * 6))`. The `26px` ceiling is what a real display does — the pitch stops
 growing, so a three-digit target is a visibly *shorter* panel than a four-digit
 one, rather than the same block of light with fatter dots in it.
+
+Readout is the same arithmetic with the ceiling at 16, and the two slots are the
+whole ramp for panels: a Display is the one number a screen exists to answer and
+a Readout is a reading subordinate to it. **The size is a ceiling, never a
+constant.** Readout was first written as a bare `fontSize: "16px"` and that is
+the ceiling with the fit thrown away — at 390px a four-character panel is 384px
+wide against a 342px column, so `82,4` on /hoje and the calorie target on
+/energia both ran off the right edge of the phone the app is mostly read on. A
+pitch that fits cannot overflow. `readouts.test.ts` holds both rules.
+
+There is no ramp slot for a *document*, and that is on purpose. The privacy
+notice, the terms, the health disclaimer and `/fontes` are runs of Body — the
+same 0.875rem every other sentence in the app is set in — and the rule that
+keeps them consistent is that the **container sets the type, not the elements
+inside it**. A paragraph in a notice carries no classes of its own. See `Prose`
+below.
 
 Every visible string comes from next-intl. `react/jsx-no-literals` is on with
 `noStrings: true` across `src/**/*.tsx`, so a hard-coded word is a lint failure.
@@ -315,11 +331,33 @@ filename sits beside it in mono.
 paragraph's own size. If a link deserves a filled block it is an `Action`; if it
 deserves an outline it is a `Ghost`; everything else is this.
 
+**Prose / LegalSection** — how a document behaves in a world built for
+readings, in `src/components/LegalPage.tsx`. `Prose` is one `max-w-prose`
+column that sets `text-sm leading-relaxed` and the list styling once, for
+everything inside it; the forty-odd paragraphs across the three notices are
+plain `<p>` and `<ul>`. Before this, each of them carried its own copy of the
+same four classes, which is how one ends up a size out from its neighbours and
+nobody notices for a year. `LegalSection` is a titled block of it: a `Hairline`,
+a `Legend as="h2"`, then the prose. Hierarchy inside a document is *drawn*
+rather than implied by a second heading size, which is the world's own logic and
+means a long document adds no new type sizes to an app that has eight. A
+document names itself the way every screen does, with `Legend as="h1"` — a
+notice is not allowed to be the one screen with a bigger title.
+
+**Quoted words** — `border-l-2 border-nd-ink py-1 pl-4`. Words this project did
+not write are marked with a 2px ink rule down the left edge, at the same weight
+as every other rule on a screen: NEPA's permission sentence and the TACO
+citation on `/fontes`. Italics alone say "quotation" for prose and nothing at
+all for a citation, and the obligation in #4 is that a reader can tell whose
+sentence they are reading.
+
 **Rule** — `<hr>` with the border zeroed and `border-top: 2px` ink. Sections are
 divided by these; nothing is wrapped in a card. `Hairline` is its quiet
 counterpart at 1px `--nd-unlit`, and it is *only* for separating repeated rows
 of the same kind — a list of meals, a list of entries. A hairline between two
-different sections is a rule that lost its nerve.
+different sections is a rule that lost its nerve. The exception is inside a
+document, where the sections *are* a repeated kind — twelve clauses of one
+notice — and twelve full rules would turn a page of reading into a ladder.
 
 **Legend** — the tiny letter-spaced uppercase label above a readout, rendered as
 whatever heading level the document needs via `as`. It is the carried exception
@@ -453,11 +491,17 @@ panels label things, and it is a typographic system rather than a decorative
 kicker. **This is recorded as a carried exception, not promoted to house style:**
 in any other visual world in this codebase, an eyebrow is still wrong.
 
-Separately, `/energia` and the legal pages (`/saude`, `/privacidade`, `/termos`,
-`/fontes`) still carry the previous amber/emerald convention. They are not yet
-part of this world and nothing above describes them. `/dieta` and `/importar`
-came over with the day panel and the meal panel; `/alimentos`,
-`/alimentos/meus`, `/alimentos/grupos` and `/perfil` came over with `Field` and
-the ruled row; `/peso`, `/backup` and `/mais` came over with the chart, the
-modal chrome and `FileField`. `/perfil` links straight to `/energia`, so that
-screen is the seam a reader is most likely to walk into.
+Nothing else is outstanding. `/dieta` and `/importar` came over with the day
+panel and the meal panel; `/alimentos`, `/alimentos/meus`, `/alimentos/grupos`
+and `/perfil` came over with `Field` and the ruled row; `/peso`, `/backup` and
+`/mais` came over with the chart, the modal chrome and `FileField`; `/energia`,
+the three notices, `/fontes`, the 404 and the offline page came over with
+`Prose` and the document rules above. There is no seam left to walk into.
+
+That is a claim with a short shelf life unless something holds it, so
+`src/components/nd/world.test.ts` holds it. The list in that file used to be an
+allowlist that grew one PR at a time — a file missing from it was a screen
+still waiting its turn. It is now a **census**: it names every `.tsx` file in
+`src/`, and the suite fails if one exists that is not named. A new screen is
+therefore born inside this world, because the only way to add a file is to add
+its name, and the only way to add its name is to make it pass the ban list.

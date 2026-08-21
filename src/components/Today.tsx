@@ -100,6 +100,11 @@ function Ready({ state }: { state: Extract<TodayState, { status: "ready" }> }) {
   const kcal = Math.round(state.targets.kcal);
   const lines = state.plan?.reconciliation.lines;
 
+  /* Formatted rather than stringified, for the same reason /peso's panel is:
+     `DotText` lights exactly the characters it is handed, and `String(82.4)`
+     would light a full stop on a device set to pt-BR. */
+  const weight = format.number(tenths(state.weight.kg));
+
   return (
     <Shell>
       {/* The headline. Deliberately the largest object on the screen by a wide
@@ -196,11 +201,16 @@ function Ready({ state }: { state: Extract<TodayState, { status: "ready" }> }) {
         {/* The same shape as the headline — label, readout, unit — one size
             down. Both numbers in the loop are measurements of the same body,
             and rendering one as light and the other as ordinary running text
-            said they came from two different instruments. The pitch is fixed
-            rather than fitted: this readout is never allowed to compete with
-            the target above it. */}
-        <DotText className="block" style={{ fontSize: "16px" }}>
-          {format.number(tenths(state.weight.kg))}
+            said they came from two different instruments. The 16 is a ceiling,
+            not a pitch: this readout is never allowed to compete with the
+            target above it, and it still has to fit the column, which a bare
+            `16px` did not — `82,4` is 384 px wide at that size and the phone
+            gives it 342. */}
+        <DotText
+          className="block"
+          style={{ fontSize: displayFontSize(weight, 16) }}
+        >
+          {weight}
         </DotText>
         <p className="text-sm tracking-[0.08em] uppercase">{t("bodyUnit")}</p>
         <p className="text-sm text-nd-dim">

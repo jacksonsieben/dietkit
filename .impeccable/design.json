@@ -89,7 +89,9 @@
       ],
       "rootSize": "106.25% (17px default), a percentage so it multiplies the reader's own base size",
       "displayFit": "min(26px, (min(100vw, 48rem) - 3rem) / (digits * 6))",
-      "i18n": "every visible string comes from next-intl; react/jsx-no-literals noStrings is enforced on src/**/*.tsx"
+      "readoutFit": "min(16px, (min(100vw, 48rem) - 3rem) / (digits * 6)) — the same arithmetic one slot down. The panel ramp has exactly these two slots, and the size is a ceiling rather than a constant: a bare 16px is the ceiling with the fit thrown away, and at 390px a four-character panel is 384px against a 342px column.",
+      "i18n": "every visible string comes from next-intl; react/jsx-no-literals noStrings is enforced on src/**/*.tsx",
+      "documents": "There is no ramp slot for a document. The notices and /fontes are runs of Body, and the container sets the type rather than the paragraphs — see the Prose component."
     },
     "shadows": {
       "policy": "none",
@@ -125,6 +127,16 @@
       "typography": "{typography.body}",
       "rounded": "{rounded}",
       "padding": "0.75rem 1.25rem"
+    },
+    {
+      "name": "Prose",
+      "file": "src/components/LegalPage.tsx",
+      "what": "How a document behaves in a world built for readings. One max-w-prose column that sets text-sm, leading-relaxed and the list styling once, for everything inside it: a paragraph in a notice carries no classes of its own, because the container sets the type and not the elements inside it. LegalSection is a titled block of it — a Hairline, a Legend as=\"h2\", then the prose — so hierarchy inside a document is drawn rather than implied by a second heading size, and a long document adds no new type sizes to the app."
+    },
+    {
+      "name": "QuotedWords",
+      "file": "src/app/[locale]/fontes/page.tsx",
+      "what": "Words this project did not write, marked with a 2px ink rule down the left edge (border-l-2 border-nd-ink py-1 pl-4) at the same weight as every other rule on a screen. Italics alone say \"quotation\" for prose and nothing at all for a citation, and the licence obligation is that a reader can tell whose sentence they are reading."
     },
     {
       "name": "Rule",
@@ -257,7 +269,9 @@
       "--nd-dim is the entire secondary-ink budget; below it, remove the text.",
       "A shaded surface is .nd-screen dots, never a grey fill and never opacity.",
       "Pass .nd-seg a state name, never a boolean — a boolean renders unlit.",
-      "Every visible string lives in messages/pt-BR.json."
+      "Every visible string lives in messages/pt-BR.json.",
+      "A document sets its type in the container, never in the paragraph.",
+      "A readout's size is a ceiling it fits under, never a pitch it is set at."
     ],
     "dos": [
       "Carry state by light and by words.",
@@ -273,6 +287,6 @@
       "No rendering the same number in two different voices.",
       "No stretching a small-count indicator to full width."
     ],
-    "notCanonized": "The uppercase letter-spaced labels above headings read as eyebrows, which the craft floor bans. They are kept as a carried exception because a legend over a readout is native to the pinned instrument world — not promoted to house style, and still wrong in any other visual world in this codebase. Separately, /dieta, /peso, /alimentos, /perfil and /energia still carry the previous amber/emerald convention and are not described by this document."
+    "notCanonized": "The uppercase letter-spaced labels above headings read as eyebrows, which the craft floor bans. They are kept as a carried exception because a legend over a readout is native to the pinned instrument world — not promoted to house style, and still wrong in any other visual world in this codebase. Nothing else is outstanding: every screen in the app is now described by this document, and src/components/nd/world.test.ts holds that claim by naming every .tsx file in src/ and failing if one exists that it does not name."
   }
 }

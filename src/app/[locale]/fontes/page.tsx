@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
+import { LegalSection, Prose } from "@/components/LegalPage";
+import { Legend, Shell, TextLink } from "@/components/nd/kit";
 import { resolveLocale } from "@/i18n/locale";
-import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { TACO_CITATION, TACO_SOURCE } from "@/lib/attribution";
 
@@ -34,84 +35,81 @@ export default async function Sources({ params }: PageProps<"/[locale]/fontes">)
   const t = await getTranslations("Sources");
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-10 px-6 py-16">
-      <div className="flex flex-col gap-3">
-        <h1 className="font-mono text-3xl font-semibold tracking-tight">
-          {t("title")}
-        </h1>
-        <p className="opacity-80">
-          {t("lead", { foodCount: String(TACO_SOURCE.foodCount) })}
-        </p>
-      </div>
+    <main className="flex flex-1 flex-col">
+      <Shell>
+        <div className="flex flex-col gap-3">
+          <Legend as="h1">{t("title")}</Legend>
+          <Prose>
+            <p>{t("lead", { foodCount: String(TACO_SOURCE.foodCount) })}</p>
+          </Prose>
+        </div>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-semibold uppercase tracking-wide opacity-60">
-          {t("referenceHeading")}
-        </h2>
-        <p className="border-l-2 border-black/20 py-1 pl-4 font-mono text-sm leading-relaxed dark:border-white/25">
-          {TACO_CITATION}
-        </p>
-        <a
-          href={TACO_SOURCE.url}
-          rel="noreferrer"
-          target="_blank"
-          className="self-start text-sm underline underline-offset-4"
-        >
-          {t("downloadLink")}
-        </a>
-      </section>
+        <LegalSection heading={t("referenceHeading")}>
+          {/*
+            A 2px ink rule down the left, which is the only border weight this
+            world has. It is also the loudest thing on the page after the
+            headings, and that is the point: the licence condition is that the
+            source is cited wherever the data appears, and a citation set to
+            look like a footnote is a citation somebody skips. See
+            docs/TACO-LICENSING.md.
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-semibold uppercase tracking-wide opacity-60">
-          {t("permissionHeading")}
-        </h2>
-        <p className="opacity-80">{t("permissionIntro")}</p>
-        <blockquote
-          cite={TACO_SOURCE.url}
-          lang="pt-BR"
-          className="border-l-2 border-black/20 py-1 pl-4 text-sm italic leading-relaxed dark:border-white/25"
-        >
-          {TACO_SOURCE.permission}
-        </blockquote>
-      </section>
+            `break-words` because the citation ends in a URL, and a URL is one
+            unbreakable word: at 390px it ran off the right edge of the phone
+            and took the end of the address with it, which is the one part of
+            this paragraph the licence actually requires be readable.
+          */}
+          <p className="border-l-2 border-nd-ink py-1 pl-4 font-mono text-sm leading-relaxed break-words">
+            {TACO_CITATION}
+          </p>
+          <a
+            href={TACO_SOURCE.url}
+            rel="noreferrer"
+            target="_blank"
+            className="w-fit underline underline-offset-4"
+          >
+            {t("downloadLink")}
+          </a>
+        </LegalSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-semibold uppercase tracking-wide opacity-60">
-          {t("changesHeading")}
-        </h2>
-        <p className="opacity-80">{t("changesIntro")}</p>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm opacity-80">
-          <li>{t("changesNoRecalculation")}</li>
-          <li>{t("changesPreservesGaps")}</li>
-          <li>{t("changesContainerOnly")}</li>
-        </ul>
-      </section>
+        <LegalSection heading={t("permissionHeading")}>
+          <p>{t("permissionIntro")}</p>
+          {/* NEPA's own words, marked by the same rule as the citation: this is
+              the sentence the permission rests on, and paraphrasing it or
+              tucking it into the prose would be us characterising a licence
+              rather than showing it. */}
+          <blockquote
+            cite={TACO_SOURCE.url}
+            lang="pt-BR"
+            className="border-l-2 border-nd-ink py-1 pl-4 text-sm italic leading-relaxed"
+          >
+            {TACO_SOURCE.permission}
+          </blockquote>
+        </LegalSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-semibold uppercase tracking-wide opacity-60">
-          {t("calculationsHeading")}
-        </h2>
-        <p className="opacity-80">{t("calculationsBody")}</p>
-      </section>
+        <LegalSection heading={t("changesHeading")}>
+          <p>{t("changesIntro")}</p>
+          <ul>
+            <li>{t("changesNoRecalculation")}</li>
+            <li>{t("changesPreservesGaps")}</li>
+            <li>{t("changesContainerOnly")}</li>
+          </ul>
+        </LegalSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-semibold uppercase tracking-wide opacity-60">
-          {t("affiliationHeading")}
-        </h2>
-        <p className="opacity-80">{t("affiliationBody")}</p>
-      </section>
+        <LegalSection heading={t("calculationsHeading")}>
+          <p>{t("calculationsBody")}</p>
+        </LegalSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-mono text-sm font-semibold uppercase tracking-wide opacity-60">
-          {t("licenceHeading")}
-        </h2>
-        <p className="text-sm opacity-80">{t("licenceCode")}</p>
-        <p className="text-sm opacity-80">{t("licenceData")}</p>
-      </section>
+        <LegalSection heading={t("affiliationHeading")}>
+          <p>{t("affiliationBody")}</p>
+        </LegalSection>
 
-      <Link href="/" className="self-start text-sm underline underline-offset-4">
-        {t("backHome")}
-      </Link>
+        <LegalSection heading={t("licenceHeading")}>
+          <p>{t("licenceCode")}</p>
+          <p>{t("licenceData")}</p>
+        </LegalSection>
+
+        <TextLink href="/">{t("backHome")}</TextLink>
+      </Shell>
     </main>
   );
 }

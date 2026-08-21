@@ -92,8 +92,17 @@ function cellStyle(dots: readonly Dot[]): CellStyle {
  * than the same block of light with fatter dots in it — which is the honest
  * picture, because those are not the same quantity.
  *
- * Exported because two screens draw the same number this way, and the day they
- * disagree about the fit is the day one of them looks broken.
+ * It is also the ramp: `maxPx` is which slot the readout occupies — 26 for the
+ * screen's headline, 16 for a reading subordinate to it — and the fit below it
+ * is not optional. A subordinate readout used to be written as a bare
+ * `fontSize: "16px"`, which is the same thing with the fit thrown away, and at
+ * 390 px a four-character panel is 384 px against a 342 px column: `82,4` on
+ * /hoje and the calorie target on /energia were both running off the right
+ * edge of the phone this app is mostly used on. A pitch that is a ceiling
+ * cannot overflow; a pitch that is a constant always can.
+ *
+ * Exported because several screens draw the same number this way, and the day
+ * they disagree about the fit is the day one of them looks broken.
  */
 export function displayFontSize(text: string, maxPx = 26): string {
   return `min(${maxPx}px, calc((min(100vw, 48rem) - 3rem) / ${text.length * ADVANCE}))`;

@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 
 /**
- * The screens that have been brought into the instrument world, and a list of
- * the idioms they left behind (#61, #64, #66).
+ * Every screen in the app, and a list of the idioms none of them may use
+ * (#61, #64, #66, #70).
  *
  * A visual language is only a language while every screen speaks it, and the
  * way one stops is never a decision — it is a hurried edit that reaches for
@@ -16,39 +16,62 @@ const ROOT = path.resolve(import.meta.dirname, "../../..");
  * vocabulary the migration deleted has not come back, which is the failure
  * that actually happens.
  *
- * The list grows one PR at a time on purpose. A file not named here is not
- * approved for the old idioms — it is a screen still waiting its turn, and
- * adding its name is how a migration PR says it is done.
+ * This list used to grow one PR at a time, and a file missing from it meant a
+ * screen still waiting its turn. #70 was the last of those screens, so the
+ * meaning of the list has changed: it is now a census, and "keeps the census
+ * complete" below fails if a `.tsx` file exists that is not named here. A new
+ * component is therefore born inside the world rather than outside it — the
+ * only way to add a file is to add its name, and the only way to add its name
+ * is to make it pass.
  */
 const MIGRATED = [
+  "src/app/[locale]/[...rest]/page.tsx",
   "src/app/[locale]/alimentos/grupos/page.tsx",
   "src/app/[locale]/alimentos/meus/page.tsx",
   "src/app/[locale]/alimentos/page.tsx",
   "src/app/[locale]/backup/page.tsx",
   "src/app/[locale]/dieta/page.tsx",
+  "src/app/[locale]/energia/page.tsx",
+  "src/app/[locale]/fontes/page.tsx",
   "src/app/[locale]/importar/page.tsx",
+  "src/app/[locale]/layout.tsx",
   "src/app/[locale]/mais/page.tsx",
+  "src/app/[locale]/not-found.tsx",
+  "src/app/[locale]/page.tsx",
   "src/app/[locale]/perfil/page.tsx",
   "src/app/[locale]/peso/page.tsx",
+  "src/app/[locale]/privacidade/page.tsx",
+  "src/app/[locale]/saude/page.tsx",
+  "src/app/[locale]/termos/page.tsx",
+  "src/app/[locale]/~offline/page.tsx",
+  "src/components/AppChrome.tsx",
   "src/components/BackupPanel.tsx",
+  "src/components/BackupReminder.tsx",
   "src/components/ConfirmDialog.tsx",
   "src/components/CustomFoodManager.tsx",
   "src/components/DietImport.tsx",
+  "src/components/EnergyResult.tsx",
   "src/components/Field.tsx",
   "src/components/FoodPicker.tsx",
   "src/components/FoodSearch.tsx",
   "src/components/GlyphBar.tsx",
+  "src/components/InstallPrompt.tsx",
+  "src/components/LegalPage.tsx",
   "src/components/MacroPanel.tsx",
+  "src/components/MacroTargets.tsx",
   "src/components/MealItems.tsx",
   "src/components/MealPlanner.tsx",
   "src/components/Modal.tsx",
   "src/components/ProfileForm.tsx",
+  "src/components/RetryButton.tsx",
+  "src/components/SourceFooter.tsx",
   "src/components/SubstitutionGroupManager.tsx",
   "src/components/Today.tsx",
   "src/components/WeightEntryDialog.tsx",
   "src/components/WeightImportDialog.tsx",
   "src/components/WeightLog.tsx",
   "src/components/WeightTrend.tsx",
+  "src/components/dot/DotText.tsx",
   "src/components/nd/FileField.tsx",
   "src/components/nd/Strip.tsx",
   "src/components/nd/kit.tsx",
@@ -99,6 +122,29 @@ describe("the instrument world", () => {
       }
     });
   }
+
+  it("keeps the census complete", () => {
+    // The list above is every `.tsx` file in the app, not a subset that was
+    // approved once. Without this, a new screen written in the old idioms
+    // passes the suite by never being mentioned in it, which is exactly how
+    // the migration would quietly start over.
+    const found: string[] = [];
+
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(path.join(ROOT, dir), {
+        withFileTypes: true,
+      })) {
+        const relative = `${dir}/${entry.name}`;
+
+        if (entry.isDirectory()) walk(relative);
+        else if (entry.name.endsWith(".tsx")) found.push(relative);
+      }
+    };
+
+    walk("src");
+
+    expect(found.sort()).toEqual([...MIGRATED].sort());
+  });
 
   it("keeps the vocabulary in one file", () => {
     // Every screen above imports its buttons, rules and labels from the kit.
