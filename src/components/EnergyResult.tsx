@@ -182,6 +182,10 @@ export function EnergyResult() {
                 <th scope="col" className="pb-1 pr-3 text-left font-medium">
                   {t("ladderFactorColumn")}
                 </th>
+                {/* The unit is in the header, not in the cells. Repeated
+                    down eight rows it is eight copies of a constant wrapping
+                    onto a second line, and what the reader came for — the
+                    distance between the degraus — is what gets squeezed. */}
                 <th scope="col" className="pb-1 text-left font-medium">
                   {t("ladderResultColumn")}
                 </th>
@@ -193,7 +197,7 @@ export function EnergyResult() {
                   <th scope="row" className="py-1.5 pr-3 text-left font-normal">
                     {profile(`activityLevelShort.${row.level.id}`)}
                     {row.current && (
-                      <span className="ml-2 text-xs tracking-[0.14em] text-nd-dim uppercase">
+                      <span className="mt-0.5 block text-xs tracking-[0.14em] text-nd-dim uppercase">
                         {t("ladderCurrent")}
                       </span>
                     )}
@@ -212,7 +216,7 @@ export function EnergyResult() {
                     className={row.current ? "py-1.5 font-medium" : "py-1.5"}
                     data-numeric
                   >
-                    {t("kcalPerDay", { kcal: kcal(row.tdee) })}
+                    {kcal(row.tdee)}
                   </td>
                 </tr>
               ))}

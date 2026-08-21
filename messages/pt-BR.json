@@ -317,7 +317,7 @@
     "weighedOn": "Peso da pesagem de {date}.",
     "ladderHeading": "O que cada degrau daria, no seu caso",
     "ladderFactorColumn": "Fator",
-    "ladderResultColumn": "Gasto total",
+    "ladderResultColumn": "Gasto total (kcal/dia)",
     "ladderCurrent": "seu fator agora",
     "disagreementHeading": "Por que outra calculadora dá outro número",
     "disagreement": "A escada de fatores é convenção, não medida: nenhum estudo entrega 1,375. Cada calculadora encaixa a mesma semana de treino num degrau diferente, e um degrau vale centenas de quilocalorias — a tabela acima mostra quantas, para o seu corpo. Se outro site deu um resultado diferente, compare os fatores antes de concluir que alguma das contas está errada.",

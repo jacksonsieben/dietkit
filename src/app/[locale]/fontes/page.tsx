@@ -52,8 +52,13 @@ export default async function Sources({ params }: PageProps<"/[locale]/fontes">)
             source is cited wherever the data appears, and a citation set to
             look like a footnote is a citation somebody skips. See
             docs/TACO-LICENSING.md.
+
+            `break-words` because the citation ends in a URL, and a URL is one
+            unbreakable word: at 390px it ran off the right edge of the phone
+            and took the end of the address with it, which is the one part of
+            this paragraph the licence actually requires be readable.
           */}
-          <p className="border-l-2 border-nd-ink py-1 pl-4 font-mono text-sm leading-relaxed">
+          <p className="border-l-2 border-nd-ink py-1 pl-4 font-mono text-sm leading-relaxed break-words">
             {TACO_CITATION}
           </p>
           <a

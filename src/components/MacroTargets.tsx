@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Field, UnitInput } from "@/components/Field";
-import { DotText } from "@/components/dot/DotText";
+import { displayFontSize, DotText } from "@/components/dot/DotText";
 import { ActionButton, Hairline, Legend } from "@/components/nd/kit";
 import {
   ADJUSTMENT_UNITS,
@@ -339,21 +339,26 @@ function MacroPlanView({ plan, weightKg }: { plan: MacroPlan; weightKg: number }
     },
   ] as const;
 
+  const target = String(Math.round(plan.targetKcal));
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         {/*
           The second panel on the screen, and deliberately the smaller one. The
           expenditure above it is what the body does; this is what the user
-          decided to eat against it, and the fixed 16px pitch says which of the
-          two the page is named for — the same arrangement /hoje uses for the
-          target and the body weight. Both are dots because both are readings
-          off the same instrument; setting one in running type would say they
-          came off two.
+          decided to eat against it, and the 16px ceiling says which of the two
+          the page is named for — the same arrangement /hoje uses for the target
+          and the body weight. Both are dots because both are readings off the
+          same instrument; setting one in running type would say they came off
+          two.
         */}
         <Legend as="h3">{t("targetLabel")}</Legend>
-        <DotText className="block" style={{ fontSize: "16px" }}>
-          {String(Math.round(plan.targetKcal))}
+        <DotText
+          className="block"
+          style={{ fontSize: displayFontSize(target, 16) }}
+        >
+          {target}
         </DotText>
         <p className="text-sm tracking-[0.08em] uppercase">{t("energyUnit")}</p>
         {/* The adjustment written out, for the same reason the TDEE equation
