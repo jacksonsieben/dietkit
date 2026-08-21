@@ -867,5 +867,31 @@
     "bodyAction": "Anotar o peso de hoje",
     "loading": "Lendo o que está salvo neste aparelho…",
     "loadError": "Não foi possível ler seus dados neste aparelho."
+  },
+  "Training": {
+    "muscles": {
+      "peito": "Peito",
+      "costas": "Costas",
+      "ombros": "Ombros",
+      "biceps": "Bíceps",
+      "triceps": "Tríceps",
+      "antebraco": "Antebraço",
+      "abdomen": "Abdômen",
+      "gluteos": "Glúteos",
+      "quadriceps": "Quadríceps",
+      "posterior-de-coxa": "Posterior de coxa",
+      "panturrilhas": "Panturrilhas",
+      "corpo-inteiro": "Corpo inteiro"
+    },
+    "equipment": {
+      "barra": "Barra",
+      "halteres": "Halteres",
+      "maquina": "Máquina",
+      "cabo": "Cabo",
+      "peso-corporal": "Peso corporal",
+      "kettlebell": "Kettlebell",
+      "elastico": "Elástico",
+      "outro": "Outro"
+    }
   }
 }
