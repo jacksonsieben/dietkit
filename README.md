@@ -70,7 +70,7 @@ npm run dev          # http://localhost:3000
 | `npm test` | Vitest, single run |
 | `npm run taco:extract` | Re-extract `data/taco-4ed.json` from the TACO PDF |
 | `npm run db:seed` | Load `data/taco-4ed.json` into the reference database |
-| `npm run db:seed:exercises` | Load `src/lib/training/catalog.ts` into the reference database |
+| `npm run db:seed:training` | Load the exercise catalog and the splits into the reference database |
 
 ### Strings
 
@@ -191,25 +191,30 @@ updates rows in place instead of renumbering them. It needs the direct
 (non-pooler) connection — it is one transaction — and refuses a `-pooler` URL
 rather than half-writing the table.
 
-### Exercise data
+### Training data
 
-The 117 movements in `src/lib/training/catalog.ts` are written by this project —
-there is no TACO for exercises, and no Brazilian dataset published under terms we
-could take. The file ships two ways:
+Two files, both written by this project — there is no TACO for exercises, and no
+Brazilian dataset published under terms we could take.
+
+- `src/lib/training/catalog.ts` — 117 movements, named as they are called out
+  loud in a gym here.
+- `src/lib/training/splits.ts` — four programs built from them: full body,
+  upper/lower, the ABC, push/pull/legs.
 
 ```bash
-npm run db:seed:exercises
+npm run db:seed:training
 ```
 
-The screens read the bundled array. This catalog is read in a gym, which is
-frequently a basement with concrete walls, and a screen that has to reach the
-network to name the next exercise is a screen that fails precisely where it is
-used. The seed exists because `training_preset_items.exercise_slug` is a foreign
-key to `exercises.slug`, so the shared presets need something to point at.
+The screens read the bundled arrays. This is read in a gym, which is frequently a
+basement with concrete walls, and a screen that has to reach the network to name
+the next exercise is a screen that fails precisely where it is used. The seed
+exists because `training_preset_items.exercise_slug` is a foreign key to
+`exercises.slug`, so the shared presets need something to point at.
 
-It is idempotent the same way `db:seed` is, keyed on the slug, and it writes a
-`dataset_versions` row naming us as the author and pinning the SHA-256 of the
-catalog file. See docs/DECISIONS.md § D16.
+One command and one transaction for both, because a split written before the
+exercises it names is a foreign key violation. It is idempotent the same way
+`db:seed` is, and it writes a `dataset_versions` row per file, naming us as the
+author and pinning each file's SHA-256. See docs/DECISIONS.md § D16 and § D17.
 
 ### Solver
 

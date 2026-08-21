@@ -335,7 +335,7 @@ IndexedDB is a worse risk than an abrupt takeover.
 There is no TACO for exercises. The 117 movements in `src/lib/training/catalog.ts`
 are written by this project, and the file ships two ways: bundled into the client
 as a typed module, and seeded into Neon's `exercises` table by
-`npm run db:seed:exercises`.
+`npm run db:seed:training`.
 
 **Why author it:** no Brazilian exercise dataset is published under terms we can
 take. The alternatives were scraping someone's app, which is the thing TACO's
@@ -372,3 +372,39 @@ writes a new version row; re-running on an unchanged file updates the one it has
 **Consequence, on load:** there is still no column for a kilogram anywhere in this
 database (`schema/presets.ts`). What someone lifts is personal data and stays on
 the device.
+
+---
+
+### D17 — The splits are authored the same way, and their days are rewritten rather than upserted
+
+`src/lib/training/splits.ts` holds four programs — full body, upper/lower, the
+ABC, push/pull/legs — as slugs, day names and prescribed ranges. Same three
+reasons as § D16: nobody publishes these under terms we can take, they are read
+in a basement, and `training_preset_items.exercise_slug` is a foreign key.
+
+**Why the splits and not just the catalog:** a list of a hundred and seventeen
+movements is not an answer to "what should I be working out today". A split is.
+The catalog is the vocabulary; this is the first thing said with it.
+
+**Consequence, on the seed:** one command, `npm run db:seed:training`, writes
+both files inside one transaction. A split written before the exercises it names
+is a foreign key violation, and an ordering a person has to remember is one that
+will eventually be got wrong against production. `scripts/training/seed.test.ts`
+runs `writeSplits` against an empty PGlite to keep that failure real.
+
+**Consequence, on provenance:** a second `dataset_versions` row, `dietkit-splits`,
+pinned to the SHA-256 of `splits.ts`. Two files produce two sets of rows, and the
+point of that table is to answer which file produced which — sharing one hash
+would mean editing a rep range invalidated the catalog's row.
+
+**Consequence, on how the rows are written:** `exercises` is upserted on its slug
+because things point at it. The days and items are deleted and re-inserted,
+because nothing does: a day's identity is a serial id that appears nowhere else,
+and a device stores the preset slug and the day's *position* — a device holds
+personal data and does not get to depend on a server-side key (§ D1). Rewriting
+is exact, where upserting would leave an item removed from the middle of a day
+stranded at position 7.
+
+**Consequence, on load:** unchanged, and worth repeating because this is the file
+that would tempt someone. A rep range is a prescription, identical for everyone
+reading this build. A kilogram is what one person lifted on one day.
