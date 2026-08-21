@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Field } from "@/components/Field";
 import { FoodPicker, SmallButton, type FoodChoice } from "@/components/FoodPicker";
-import { Link } from "@/i18n/navigation";
+import { ActionButton, Legend, Rule, TextLink } from "@/components/nd/kit";
 import { buildFoodBook, foodKey } from "@/lib/diet/composition";
 import {
   GROUP_LIMITS,
@@ -109,12 +109,12 @@ export function SubstitutionGroupManager() {
   }, []);
 
   if (status === "loading") {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   if (status === "loadFailed") {
     return (
-      <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>
+      <p className="text-sm text-nd-red-ink">{t("loadError")}</p>
     );
   }
 
@@ -242,28 +242,27 @@ export function SubstitutionGroupManager() {
       {draft === undefined ? (
         <div className="flex flex-col gap-2">
           <div>
-            <button
+            <ActionButton
               type="button"
               onClick={() => open()}
               disabled={!canAddGroup(groups)}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
             >
               {t("add")}
-            </button>
+            </ActionButton>
           </div>
           {canAddGroup(groups) ? null : (
-            <p className="text-xs opacity-60">
+            <p className="text-xs text-nd-dim">
               {t("addLimit", { max: GROUP_LIMITS.count.max })}
             </p>
           )}
         </div>
       ) : (
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
-          <h2 className="text-sm font-semibold tracking-tight">
+          <Legend as="h2">
             {draft.editing === undefined
               ? t("add")
               : t("editTitle", { name: draft.name.trim() })}
-          </h2>
+          </Legend>
 
           <Field
             label={t("nameLabel")}
@@ -296,7 +295,7 @@ export function SubstitutionGroupManager() {
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">{t("foodsLabel")}</p>
-              <p className="text-xs opacity-60">
+              <p className="text-xs text-nd-dim">
                 {t("foodsHint", {
                   min: GROUP_LIMITS.foods.min,
                   max: GROUP_LIMITS.foods.max,
@@ -305,15 +304,15 @@ export function SubstitutionGroupManager() {
             </div>
 
             {draft.foods.length === 0 ? (
-              <p className="text-sm opacity-70">{t("foodsEmpty")}</p>
+              <p className="text-sm text-nd-dim">{t("foodsEmpty")}</p>
             ) : (
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col">
                 {draft.foods.map((food) => (
                   <li
                     key={foodKey(food)}
-                    className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-md border border-black/10 px-3 py-2 dark:border-white/15"
+                    className="flex items-center justify-between gap-x-6 border-t border-nd-unlit py-2 first:border-t-0 first:pt-0"
                   >
-                    <span className="text-sm">
+                    <span className="min-w-0 text-sm">
                       {nameOf(food) ?? t("unknownFood")}
                     </span>
                     <SmallButton
@@ -332,7 +331,7 @@ export function SubstitutionGroupManager() {
             )}
 
             {errors.foods === undefined ? null : (
-              <p className="text-sm text-red-700 dark:text-red-400">
+              <p className="border-l-2 border-nd-red pl-4 text-sm text-nd-red-ink">
                 {messageFor(errors.foods)}
               </p>
             )}
@@ -356,13 +355,9 @@ export function SubstitutionGroupManager() {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="submit"
-              disabled={status === "saving"}
-              className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-            >
+            <ActionButton type="submit" disabled={status === "saving"}>
               {status === "saving" ? t("saving") : t("save")}
-            </button>
+            </ActionButton>
 
             <button
               type="button"
@@ -374,9 +369,7 @@ export function SubstitutionGroupManager() {
 
             <p aria-live="polite" className="text-sm">
               {status === "saveFailed" ? (
-                <span className="text-red-700 dark:text-red-400">
-                  {t("saveError")}
-                </span>
+                <span className="text-nd-red-ink">{t("saveError")}</span>
               ) : null}
             </p>
           </div>
@@ -384,34 +377,32 @@ export function SubstitutionGroupManager() {
       )}
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-semibold tracking-tight">
-          {t("listHeading")}
-        </h2>
+        <Rule />
+
+        <Legend as="h2">{t("listHeading")}</Legend>
 
         <p aria-live="polite" className="text-sm">
           {status === "saved" ? (
-            <span className="opacity-70">{t("saved")}</span>
+            <span className="text-nd-dim">{t("saved")}</span>
           ) : null}
           {status === "removeFailed" ? (
-            <span className="text-red-700 dark:text-red-400">
-              {t("removeError")}
-            </span>
+            <span className="text-nd-red-ink">{t("removeError")}</span>
           ) : null}
         </p>
 
         {groups.length === 0 ? (
-          <p className="text-sm opacity-70">{t("empty")}</p>
+          <p className="text-sm text-nd-dim">{t("empty")}</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col">
             {groups.map((group) => (
               <li
                 key={group.id}
-                className="flex flex-col gap-2 rounded-md border border-black/10 px-4 py-3 dark:border-white/15"
+                className="flex flex-col gap-2 border-t border-nd-unlit py-3 first:border-t-0 first:pt-0"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-x-6">
                   <div className="flex min-w-0 flex-col gap-1">
                     <p className="font-medium">{group.name}</p>
-                    <p className="text-xs opacity-60">
+                    <p className="text-xs text-nd-dim">
                       {[
                         t("foodCount", { count: group.foods.length }),
                         ...group.foods.map(
@@ -421,43 +412,31 @@ export function SubstitutionGroupManager() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 text-sm">
-                    <button
-                      type="button"
+                  <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
+                    <SmallButton
+                      label={t("edit")}
                       onClick={() => open(group)}
-                      className="underline underline-offset-4"
-                    >
-                      {t("edit")}
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <SmallButton
+                      label={t("remove")}
                       onClick={() => setConfirming(group.id)}
-                      className="underline underline-offset-4 opacity-70"
-                    >
-                      {t("remove")}
-                    </button>
+                    />
                   </div>
                 </div>
 
                 {confirming === group.id ? (
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    <span className="text-xs opacity-70">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs text-nd-dim">
                       {t("removeConfirm", { name: group.name })}
                     </span>
-                    <button
-                      type="button"
+                    <SmallButton
+                      label={t("remove")}
                       onClick={() => void remove(group.id)}
-                      className="text-red-700 underline underline-offset-4 dark:text-red-400"
-                    >
-                      {t("remove")}
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <SmallButton
+                      label={t("cancel")}
                       onClick={() => setConfirming(undefined)}
-                      className="underline underline-offset-4"
-                    >
-                      {t("cancel")}
-                    </button>
+                    />
                   </div>
                 ) : null}
               </li>
@@ -465,10 +444,10 @@ export function SubstitutionGroupManager() {
           </ul>
         )}
 
-        <p className="text-xs opacity-60">
-          <Link href="/dieta" className="underline underline-offset-4">
+        <p className="text-xs text-nd-dim">
+          <TextLink href="/dieta" className="text-xs">
             {t("planLink")}
-          </Link>
+          </TextLink>
         </p>
       </section>
     </div>

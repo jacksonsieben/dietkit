@@ -263,6 +263,46 @@ form; they share one class string so they cannot drift apart.
 smaller than `Action` in every dimension. Used where a row needs a control that
 must not compete with the screen's one intention — add a meal, remove an item.
 
+**SmallButton** — a `Ghost` shrunk to `px-2 py-1`, exported from `FoodPicker`
+because that is where it was first needed. It is the control a *row* carries,
+as opposed to the one a section carries: four of them side by side in a list
+row still read as smaller than the section's one `Action`, which is the whole
+point of having two sizes rather than one.
+
+**Field** — the world's control, in `src/components/Field.tsx`: label, input,
+hint and error as one unit. A control at rest is an unlit cell — `--nd-unlit`
+border, opaque ground, no fill — and focus lands the hard 2px ink ring
+`globals.css` gives every focusable thing. An ink box around every field would
+make a form of eight questions read as eight equally urgent ones; the ink
+arrives when you are in the field. `aria-invalid` swaps the border to
+`--nd-red`, and the error sentence under it says the same thing in words.
+
+`CONTROL_CLASS` and `CONTROL_BOX` are the same string minus `w-full`, split
+because width is the one property in it that belongs to the *caller* rather
+than the control — a question on a form fills the column, a two-digit box
+inline in a row of foods does not. Tailwind resolves conflicting utilities by
+stylesheet order, not by the order they are written in the attribute, so a
+caller appending `w-20` to a string that already says `w-full` gets full width
+and no warning. Never append a conflicting utility to a shared class string in
+this codebase; pick the variant that already says what you mean.
+
+**The ruled row** — how every list in this world is drawn, and the one layout
+with a rule about breakpoints. Rows are separated by `border-t border-nd-unlit`
+with `first:border-t-0 first:pt-0`, so the list is hairlines *between* rows and
+not a box around them. The row stacks on a phone and turns at `sm`:
+
+```
+flex flex-col gap-2 border-t border-nd-unlit py-3 first:border-t-0 first:pt-0
+sm:flex-row sm:items-baseline sm:justify-between sm:gap-x-6
+```
+
+with `min-w-0` on the text column and `sm:shrink-0` on the actions. It is
+written as a breakpoint and never as `flex-wrap`, because under `flex-wrap`
+whether a row's buttons sit on the name's baseline or drop below it depends on
+how long *that row's* meta text happens to be — so two neighbouring rows in one
+list disagree, and the list stops looking like a list. This is a real bug that
+shipped and was caught in the browser at 1280px, not a hypothetical.
+
 **FileField** — the file input, in `src/components/nd/FileField.tsx` because it
 holds state and `kit.tsx` has to stay importable from a server component. The
 native control is the one widget a browser draws in its own voice, labelled from
@@ -361,6 +401,10 @@ something it says, readable from across a kitchen. Under
   the other in running text says they came from two different instruments.
 - Don't stretch a small-count indicator to full width. Full width means "a
   proportion of a target"; that is what `GlyphBar` is for.
+- Don't draw a destructive control in red. Red means a number is off; a
+  deletion someone asked for by pressing *Excluir* is not a fault. A row's
+  remove button is the same outlined `SmallButton` as its edit button, and what
+  says the action does not come back is the sentence beside it.
 
 ---
 
@@ -374,8 +418,9 @@ panels label things, and it is a typographic system rather than a decorative
 kicker. **This is recorded as a carried exception, not promoted to house style:**
 in any other visual world in this codebase, an eyebrow is still wrong.
 
-Separately, `/peso`, `/alimentos`, `/perfil` and `/energia` still carry the
-previous amber/emerald convention. They are not yet part of this world and
-nothing above describes them. `/dieta` and `/importar` were brought over with
-the day panel and the meal panel; `/peso` still has no chart vocabulary in this
-world, which is a decision owed rather than an omission.
+Separately, `/peso`, `/energia` and the legal pages still carry the previous
+amber/emerald convention. They are not yet part of this world and nothing above
+describes them. `/dieta` and `/importar` came over with the day panel and the
+meal panel; `/alimentos`, `/alimentos/meus`, `/alimentos/grupos` and `/perfil`
+came over with `Field` and the ruled row. `/peso` still has no chart vocabulary
+in this world, which is a decision owed rather than an omission.

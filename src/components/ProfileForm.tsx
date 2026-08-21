@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Field } from "@/components/Field";
-import { Link } from "@/i18n/navigation";
+import { ActionButton, TextLink } from "@/components/nd/kit";
 import { todayIsoDate } from "@/lib/date";
 import { ageYearsOn } from "@/lib/energy/age";
 import { ACTIVITY_LEVELS, isCustomActivity } from "@/lib/profile/activity";
@@ -137,11 +137,11 @@ export function ProfileForm() {
   };
 
   if (status === "loading") {
-    return <p className="text-sm opacity-60">{t("loading")}</p>;
+    return <p className="text-sm text-nd-dim">{t("loading")}</p>;
   }
 
   if (status === "loadFailed") {
-    return <p className="text-sm text-red-700 dark:text-red-400">{t("loadError")}</p>;
+    return <p className="text-sm text-nd-red-ink">{t("loadError")}</p>;
   }
 
   const today = todayIsoDate();
@@ -299,27 +299,21 @@ export function ProfileForm() {
       )}
 
       <div className="flex flex-wrap items-center gap-4">
-        <button
-          type="submit"
-          disabled={status === "saving"}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
-        >
+        <ActionButton type="submit" disabled={status === "saving"}>
           {status === "saving" ? t("saving") : t("save")}
-        </button>
+        </ActionButton>
 
         {/* Always offered, not only after a save: someone arriving with a
             profile already on the device came here to look at the result, and
             hiding the way to it behind a save they do not need is a dead end. */}
-        <Link href="/energia" className="text-sm underline underline-offset-4">
-          {t("energyLink")}
-        </Link>
+        <TextLink href="/energia">{t("energyLink")}</TextLink>
 
         <p aria-live="polite" className="text-sm">
           {status === "saved" ? (
-            <span className="opacity-70">{t("saved")}</span>
+            <span className="text-nd-dim">{t("saved")}</span>
           ) : null}
           {status === "saveFailed" ? (
-            <span className="text-red-700 dark:text-red-400">{t("saveError")}</span>
+            <span className="text-nd-red-ink">{t("saveError")}</span>
           ) : null}
         </p>
       </div>
@@ -327,11 +321,11 @@ export function ProfileForm() {
       {/* The follow-up § D10 left open: the health notice belongs beside the
           body-metrics input, not only in the footer where it is easy to walk
           past. */}
-      <p className="text-xs opacity-60">
+      <p className="text-xs text-nd-dim">
         {t("disclaimer")}{" "}
-        <Link href="/saude" className="underline underline-offset-4">
+        <TextLink href="/saude" className="text-xs">
           {t("disclaimerLink")}
-        </Link>
+        </TextLink>
       </p>
     </form>
   );
