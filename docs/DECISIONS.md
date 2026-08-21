@@ -327,3 +327,48 @@ to agree on it and never import each other.
 **Consequence, on updates:** `skipWaiting` and `clientsClaim` are both on. The
 device holds the only copy of the user's data, so two versions writing to one
 IndexedDB is a worse risk than an abrupt takeover.
+
+---
+
+### D16 — The exercise catalog is ours, bundled for the gym and seeded for the key
+
+There is no TACO for exercises. The 117 movements in `src/lib/training/catalog.ts`
+are written by this project, and the file ships two ways: bundled into the client
+as a typed module, and seeded into Neon's `exercises` table by
+`npm run db:seed:exercises`.
+
+**Why author it:** no Brazilian exercise dataset is published under terms we can
+take. The alternatives were scraping someone's app, which is the thing TACO's
+licence taught us not to do (§ D4), or shipping an empty screen. A hundred-odd
+movements in pt-BR is an afternoon of writing and it is unambiguously ours.
+
+**Why bundled:** this catalog is read in a gym, which is frequently a basement
+with concrete walls, and a screen that has to reach the network to name the next
+exercise is a screen that fails precisely where it is used. It is a few kB of
+strings — the same argument as § D1, arrived at from the other direction.
+
+**Why also in Postgres:** `training_preset_items.exercise_slug` is a foreign key
+to `exercises.slug`, and shared presets are reference data (§ D1) — they contain
+nobody's numbers. The rows exist so the presets have something to point at, not
+to be fetched by a screen.
+
+**Consequence, on the two copies of the enums:** `catalog.ts` declares
+`MUSCLE_GROUPS` and `EQUIPMENT` itself because it is bundled with the client and
+may not import drizzle (`eslint.config.mjs` § `no-restricted-imports`), while
+`schema/exercises.ts` declares them as pgEnums. `src/lib/db/exercises.test.ts`
+asserts the two lists are the same, in order, and puts the whole catalog through
+a real Postgres to prove every value is one the migration accepts.
+
+**Consequence, on `position`:** it is derived from reading order in
+`catalogRows()`, not authored. A hand-kept `position: 7` drifts the first time a
+movement is inserted mid-group; deriving it means that insert is one line.
+
+**Consequence, on provenance:** the seed writes a `dataset_versions` row like
+TACO's, but naming DietKit as the author and saying outright that it derives from
+no publication, pinned to the SHA-256 of `catalog.ts`. A blank provenance field
+would read as an oversight and a borrowed one would be worse. Editing the catalog
+writes a new version row; re-running on an unchanged file updates the one it has.
+
+**Consequence, on load:** there is still no column for a kilogram anywhere in this
+database (`schema/presets.ts`). What someone lifts is personal data and stays on
+the device.
