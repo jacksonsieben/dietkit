@@ -1,3 +1,7 @@
+import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -231,4 +235,33 @@ describe("the splits seed", () => {
   it("will not write a split before the exercises it points at", async () => {
     await expect(writeSplits(reference.db, SPLIT_SOURCE)).rejects.toThrow();
   });
+});
+
+/**
+ * The script, started the way npm starts it.
+ *
+ * Everything above imports write.ts, which vitest resolves with a bundler's
+ * rules — extensionless relative imports and all. `npm run db:seed:training`
+ * is plain `node`, which has no such rules, and the difference is not
+ * theoretical: splits.ts shipped importing "./catalog", every test and the
+ * typecheck passed, and the seed died on ERR_MODULE_NOT_FOUND the first time
+ * it was pointed at a real database. Hence the `.ts` extensions throughout
+ * src/lib/db/schema — the same reason, found earlier.
+ *
+ * Getting as far as the missing-connection message means every import in the
+ * graph resolved under Node. That is the whole assertion.
+ */
+describe("the seed script", () => {
+  it("loads under plain node, the way npm run db:seed:training does", async () => {
+    const script = fileURLToPath(new URL("./seed.ts", import.meta.url));
+    const env = { ...process.env };
+    delete env.DATABASE_URL;
+    delete env.DATABASE_URL_UNPOOLED;
+
+    const failure = await promisify(execFile)(process.execPath, [script], {
+      env,
+    }).catch((error: { stderr: string }) => error);
+
+    expect(failure.stderr).toContain("DATABASE_URL_UNPOOLED is not set");
+  }, 30_000);
 });
