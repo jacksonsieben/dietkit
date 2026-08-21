@@ -80,7 +80,10 @@
           "source": "next/font/google",
           "licence": "SIL OFL",
           "var": "--font-mono-face",
-          "weights": [400, 700],
+          "weights": [
+            400,
+            700
+          ],
           "numeric": "tabular-nums"
         }
       ],
@@ -115,7 +118,7 @@
   "components": [
     {
       "name": "Action",
-      "file": "src/components/Today.tsx",
+      "file": "src/components/nd/kit.tsx",
       "description": "The only button: an inverted block, and the only filled element on a screen besides lit segments.",
       "backgroundColor": "{colors.ink}",
       "textColor": "{colors.ground}",
@@ -125,12 +128,27 @@
     },
     {
       "name": "Rule",
-      "file": "src/components/Today.tsx",
+      "file": "src/components/nd/kit.tsx",
       "description": "A 2px ink line. The world here is ruled sheets, not floating boxes.",
       "backgroundColor": "{colors.ink}",
       "height": "2px",
       "width": "100%",
       "rounded": "{rounded}"
+    },
+    {
+      "name": "Legend",
+      "file": "src/components/nd/kit.tsx",
+      "what": "The uppercase letter-spaced label over a readout. Pass `as` when the legend is the only thing naming its section, so the section has a heading in the document outline; pass `id` when a table below it is named by it."
+    },
+    {
+      "name": "Strip",
+      "file": "src/components/nd/Strip.tsx",
+      "what": "The bare row of segments a GlyphBar is built from, always aria-hidden. `quiet` draws the shortfall still instead of seeking: the one authored animation belongs to the day's verdict, so a per-meal strip asks for the same arithmetic with the motion taken out."
+    },
+    {
+      "name": "TextLink",
+      "file": "src/components/nd/kit.tsx",
+      "what": "An aside, not an intention: underlined running-text link. Action/ActionButton is the filled block; Ghost is the outlined one; this is neither."
     },
     {
       "name": "Segment",
@@ -181,6 +199,11 @@
       "typography": "{typography.label}",
       "height": "4.25rem",
       "rounded": "{rounded}"
+    },
+    {
+      "name": "FileField",
+      "file": "src/components/nd/FileField.tsx",
+      "what": "The file input, drawn in the page's language. The native control labels itself from the browser's locale, so the input is hidden with `sr-only` — focusable, still bound to its label — and a `<label>` styled as an `Action` opens the dialog, with the chosen filename beside it in mono. It lives outside `kit.tsx` because it holds state and `kit.tsx` has to stay importable from a server component."
     }
   ],
   "narrative": {

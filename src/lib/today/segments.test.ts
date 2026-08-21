@@ -34,7 +34,9 @@ describe("segmentsFor", () => {
   });
 
   it("leaves something dark for a plan that is nearly there", () => {
-    const segments = segmentsFor(line({ actual: 99, delta: -1, state: "under" }));
+    const segments = segmentsFor(
+      line({ actual: 99, delta: -1, state: "under" }),
+    );
 
     expect(count(segments, "on")).toBe(SEGMENT_COUNT - 1);
     expect(count(segments, "short")).toBe(1);
@@ -48,8 +50,27 @@ describe("segmentsFor", () => {
     expect(count(met, "short")).toBe(0);
   });
 
+  it("keeps the shortfall still when it is asked to be quiet", () => {
+    // The one animation in the app is spent on the day's verdict. A meal panel
+    // asks for the same arithmetic with the motion taken out, and the only way
+    // that can be got wrong is silently: the strip still reads correctly, it
+    // just joins thirty others in seeking at the same time.
+    const missing = line({ actual: 50, delta: -50, state: "under" });
+
+    const loud = segmentsFor(missing);
+    const quiet = segmentsFor(missing, { quiet: true });
+
+    expect(count(loud, "short")).toBe(SEGMENT_COUNT / 2);
+    expect(count(quiet, "short")).toBe(0);
+    // Quiet takes away the pulse, not the reading: the lit half is unchanged.
+    expect(count(quiet, "on")).toBe(count(loud, "on"));
+    expect(count(quiet, "off")).toBe(SEGMENT_COUNT / 2);
+  });
+
   it("marks the excess at the far end, in the size of the excess", () => {
-    const segments = segmentsFor(line({ actual: 125, delta: 25, state: "over" }));
+    const segments = segmentsFor(
+      line({ actual: 125, delta: 25, state: "over" }),
+    );
 
     expect(count(segments, "over")).toBe(6);
     expect(segments[SEGMENT_COUNT - 1]).toBe("over");

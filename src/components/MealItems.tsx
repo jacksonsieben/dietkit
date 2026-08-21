@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
-import { CONTROL_CLASS } from "@/components/Field";
+import { CONTROL_BOX, CONTROL_CLASS } from "@/components/Field";
 import { MacroPanel } from "@/components/MacroPanel";
-import { FoodPicker, SmallButton, type FoodChoice } from "@/components/FoodPicker";
+import {
+  FoodPicker,
+  SmallButton,
+  type FoodChoice,
+} from "@/components/FoodPicker";
+import { Legend } from "@/components/nd/kit";
 import type { FoodBook } from "@/lib/diet/composition";
 import { alternativesFor, findGroup, groupsForFood } from "@/lib/diet/groups";
 import {
@@ -72,13 +77,13 @@ export function MealItems({
   ]);
 
   return (
-    <div className="flex flex-col gap-3 border-t border-black/10 pt-3 dark:border-white/15">
-      <h3 className="text-xs font-medium opacity-70">{t("itemsHeading")}</h3>
+    <div className="flex flex-col gap-4 border-t border-nd-unlit pt-4">
+      <Legend as="h3">{t("itemsHeading")}</Legend>
 
       {solved.items.length === 0 && solved.missing.length === 0 ? (
-        <p className="text-xs opacity-60">{t("itemsEmpty")}</p>
+        <p className="text-xs text-nd-dim">{t("itemsEmpty")}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col">
           {solved.items.map((entry) => (
             <ItemRow
               key={entry.item.id}
@@ -96,9 +101,12 @@ export function MealItems({
           {solved.missing.map((item) => (
             <li
               key={item.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-600/40 bg-amber-500/5 px-3 py-2 dark:border-amber-400/40"
+              // A food the device cannot price is genuinely off: the meal's
+              // numbers are wrong until it is dealt with. Red, and the sentence
+              // beside it says the same thing for anyone who cannot see red.
+              className="flex flex-wrap items-center justify-between gap-2 border-t border-nd-unlit py-3 first:border-t-0"
             >
-              <p className="text-xs text-amber-800 dark:text-amber-300">
+              <p className="border-l-2 border-nd-red pl-3 text-xs text-nd-red-ink">
                 {t("itemUnknown")}
               </p>
               <SmallButton label={t("remove")} onClick={() => onRemove(item.id)} />
@@ -127,7 +135,7 @@ export function MealItems({
             onClick={() => setPicking(true)}
           />
           {canAdd ? null : (
-            <p className="text-xs opacity-60">
+            <p className="text-xs text-nd-dim">
               {t("itemLimit", { max: ITEM_LIMITS.count.max })}
             </p>
           )}
@@ -153,15 +161,16 @@ function Outcome({ solved }: { solved: SolvedMeal }) {
   const t = useTranslations("Plan");
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       <MacroPanel
         heading={t("reconcile.mealHeading")}
         reconciliation={reconcileMeal(solved)}
+        density="meal"
       />
 
       {/* Why it did not close, in the only terms that let someone fix it. */}
       {solved.items.some((entry) => entry.limiting) ? (
-        <p className="text-xs opacity-70">
+        <p className="text-xs text-nd-dim">
           {t("limitingNote", {
             foods: solved.items
               .filter((entry) => entry.limiting)
@@ -220,15 +229,15 @@ function ItemRow({
   };
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border border-black/10 px-3 py-2 dark:border-white/15">
+    <li className="flex flex-col gap-3 border-t border-nd-unlit py-3 first:border-t-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm">{entry.food.name}</p>
         <SmallButton label={t("remove")} onClick={onRemove} />
       </div>
 
-      <p className="font-mono text-xs opacity-70">
+      <p className="font-mono text-xs text-nd-dim" data-numeric="">
         {entry.pinned ? null : (
-          <span className="font-semibold opacity-100">
+          <span className="font-bold text-nd-ink">
             {t("itemGrams", { grams: grams(entry.quantityG) })}
             {" · "}
           </span>
@@ -244,6 +253,7 @@ function ItemRow({
         <label className="flex items-center gap-2 text-xs">
           <input
             type="checkbox"
+            className="accent-nd-ink"
             checked={entry.item.mandatory}
             // Pinning at what it is already worth, so nothing jumps at the
             // moment the user says "this much and no less".
@@ -298,7 +308,7 @@ function ItemRow({
       />
 
       {error ? (
-        <p id={errorId} className="text-xs text-red-700 dark:text-red-400">
+        <p id={errorId} className="text-xs text-nd-red-ink">
           {t(`itemErrors.${error}`, { max: ITEM_LIMITS.gramsG.max })}
         </p>
       ) : null}
@@ -360,14 +370,16 @@ function SlotGroup({
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1">
-        <label htmlFor={groupFieldId} className="text-xs opacity-60">
+        <label htmlFor={groupFieldId} className="text-xs text-nd-dim">
           {t("groupLabel")}
         </label>
         <select
           id={groupFieldId}
           value={attached?.id ?? ""}
           onChange={(event) =>
-            onSetGroup(event.target.value === "" ? undefined : event.target.value)
+            onSetGroup(
+              event.target.value === "" ? undefined : event.target.value,
+            )
           }
           className={`${CONTROL_CLASS} py-1 text-xs`}
         >
@@ -382,7 +394,7 @@ function SlotGroup({
 
       {attached ? (
         <div className="flex flex-col gap-1">
-          <label htmlFor={swapFieldId} className="text-xs opacity-60">
+          <label htmlFor={swapFieldId} className="text-xs text-nd-dim">
             {t("swapLabel")}
           </label>
           <select
@@ -401,7 +413,11 @@ function SlotGroup({
                 empty the plate by accident. */}
             {current === undefined ? <option value="" /> : null}
             {options.map((option) => (
-              <option key={option.key} value={option.key} disabled={option.taken}>
+              <option
+                key={option.key}
+                value={option.key}
+                disabled={option.taken}
+              >
                 {option.name === undefined
                   ? t("swapUnknown")
                   : option.taken
@@ -439,7 +455,7 @@ function GramsBox({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs opacity-60">
+      <label htmlFor={id} className="text-xs text-nd-dim">
         {label}
       </label>
       <input
@@ -451,7 +467,7 @@ function GramsBox({
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalid}
         aria-describedby={describedBy}
-        className={`${CONTROL_CLASS} w-20 py-1 text-right font-mono text-xs`}
+        className={`${CONTROL_BOX} w-20 py-1 text-right font-mono text-xs`}
       />
     </div>
   );

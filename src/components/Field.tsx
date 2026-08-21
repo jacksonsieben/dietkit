@@ -36,13 +36,34 @@ interface ControlProps {
  * interchangeable with it: that one tells the browser which defaults to use,
  * this one stops us overriding them with a transparency we never wanted.
  */
-const FRAME = "w-full rounded-md border bg-background text-base text-foreground";
+const FRAME = "border bg-background text-base text-foreground";
 
-/** Split out because `UnitInput` picks between them in JavaScript — see there. */
-const BORDER = "border-black/15 dark:border-white/20";
-const INVALID_BORDER = "border-red-600 dark:border-red-500";
+/**
+ * A control at rest is an unlit cell, and typing in it lights it: the resting
+ * border is `--nd-unlit` and focus lands the hard two-pixel ink ring globals.css
+ * gives every focusable thing. An ink box around every field would make a form
+ * of eight questions read as eight equally urgent ones.
+ *
+ * Split out because `UnitInput` picks between them in JavaScript — see there.
+ */
+const BORDER = "border-nd-unlit";
+const INVALID_BORDER = "border-nd-red";
 
-export const CONTROL_CLASS = `${FRAME} ${BORDER} px-3 py-2 aria-[invalid=true]:border-red-600 dark:aria-[invalid=true]:border-red-500`;
+/**
+ * A control that is not the width of its column.
+ *
+ * Split from `CONTROL_CLASS` because width is the one thing in this string that
+ * is not a property of the control: a question on a form fills the column, and
+ * a two-digit box sitting inline in a row of foods does not. Tailwind resolves
+ * a class conflict by the order the rules sit in the stylesheet rather than the
+ * order they are written in the attribute, so a caller appending `w-20` to a
+ * string that already says `w-full` gets the full width and no warning — which
+ * is exactly what happened to the min/max boxes on `/dieta`.
+ */
+export const CONTROL_BOX = `${FRAME} ${BORDER} px-3 py-2 aria-[invalid=true]:border-nd-red`;
+
+/** The same control, filling its column — what a labelled `Field` wants. */
+export const CONTROL_CLASS = `w-full ${CONTROL_BOX}`;
 
 /**
  * Label, control, hint and error as one unit.
@@ -80,12 +101,12 @@ export function Field({
         className: CONTROL_CLASS,
       })}
 
-      <p id={hintId} className="text-xs opacity-60">
+      <p id={hintId} className="text-xs text-nd-dim">
         {hint}
       </p>
 
       {error ? (
-        <p id={errorId} className="text-xs text-red-700 dark:text-red-400">
+        <p id={errorId} className="text-xs text-nd-red-ink">
           {error}
         </p>
       ) : null}
@@ -141,13 +162,13 @@ export function UnitInput({
         autoComplete="off"
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
-        className="min-w-0 flex-1 rounded-l-md bg-transparent px-3 py-2"
+        className="min-w-0 flex-1 bg-transparent px-3 py-2"
       />
       <select
         aria-label={unitLabel}
         value={unit}
         onChange={(event) => onUnitChange(event.target.value)}
-        className={`rounded-r-md border-l ${BORDER} bg-background px-2 text-sm text-foreground`}
+        className={`border-l ${BORDER} bg-background px-2 text-sm text-foreground`}
       >
         {units.map((option) => (
           <option key={option} value={option}>
