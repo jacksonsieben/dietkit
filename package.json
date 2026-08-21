@@ -17,7 +17,7 @@
     "db:migrate": "drizzle-kit migrate",
     "taco:extract": "node scripts/taco/extract.ts",
     "db:seed": "node --env-file-if-exists=.env scripts/taco/seed.ts",
-    "db:seed:exercises": "node --env-file-if-exists=.env scripts/training/seed.ts"
+    "db:seed:training": "node --env-file-if-exists=.env scripts/training/seed.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

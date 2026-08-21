@@ -1,15 +1,23 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   createReferenceDatabase,
   type ReferenceDatabase,
 } from "../../src/lib/db/pglite.fixture.ts";
-import { datasetVersions, exercises } from "../../src/lib/db/schema/index.ts";
+import {
+  datasetVersions,
+  exercises,
+  trainingPresetDays,
+  trainingPresetItems,
+  trainingPresets,
+} from "../../src/lib/db/schema/index.ts";
 import { EXERCISE_COUNT } from "../../src/lib/training/catalog.ts";
-import { writeCatalog } from "./write.ts";
+import { SPLIT_COUNT, SPLITS } from "../../src/lib/training/splits.ts";
+import { writeCatalog, writeSplits } from "./write.ts";
 
 /**
- * The seed, run against a real Postgres (#72).
+ * The seed, run against a real Postgres (#72, #74).
  *
  * A seed is the one kind of code whose only production run is against the
  * database it would be worst to get wrong, so the write lives in write.ts and
@@ -107,5 +115,120 @@ describe("the exercise seed", () => {
     );
 
     await expect(writeCatalog(reference.db, SOURCE)).rejects.toThrow();
+  });
+});
+
+/**
+ * The splits, against the same real Postgres (#74).
+ *
+ * These have one property the exercise seed does not: they only work if
+ * something else ran first. `training_preset_items.exercise_slug` is a foreign
+ * key, so a split written into an empty database is a failed transaction — the
+ * last test here is the reason `npm run db:seed:training` is one command that
+ * does both rather than two a person runs in the right order.
+ */
+describe("the splits seed", () => {
+  let reference: ReferenceDatabase;
+
+  const SPLIT_SOURCE = { sha256: "b".repeat(64), fileBytes: 54_321 };
+
+  const seed = async () => {
+    await writeCatalog(reference.db, SOURCE);
+    return writeSplits(reference.db, SPLIT_SOURCE);
+  };
+
+  beforeEach(async () => {
+    reference = await createReferenceDatabase();
+  }, 60_000);
+
+  it("writes every split, every day and every item", async () => {
+    const written = await seed();
+
+    expect(written.presetCount).toBe(SPLIT_COUNT);
+    expect(await reference.db.select().from(trainingPresets)).toHaveLength(
+      SPLIT_COUNT,
+    );
+    expect(await reference.db.select().from(trainingPresetDays)).toHaveLength(
+      written.dayCount,
+    );
+    expect(await reference.db.select().from(trainingPresetItems)).toHaveLength(
+      written.itemCount,
+    );
+  });
+
+  it("records where the splits came from, separately from the catalog", async () => {
+    await seed();
+
+    const versions = await reference.db.select().from(datasetVersions);
+    const splits = versions.find((row) => row.dataset === "dietkit-splits");
+
+    expect(versions).toHaveLength(2);
+    expect(splits).toMatchObject({ sha256: SPLIT_SOURCE.sha256 });
+    expect(splits!.citation).toContain("DIETKIT");
+  });
+
+  it("leaves the second run looking exactly like the first", async () => {
+    const first = await seed();
+    const second = await writeSplits(reference.db, SPLIT_SOURCE);
+
+    // The days are rewritten, so their ids move; what must not move is how
+    // many of them there are. A missing delete shows up here as double.
+    expect(second.versionId).toBe(first.versionId);
+    expect(await reference.db.select().from(trainingPresetDays)).toHaveLength(
+      first.dayCount,
+    );
+    expect(await reference.db.select().from(trainingPresetItems)).toHaveLength(
+      first.itemCount,
+    );
+  });
+
+  it("keeps each day's exercises in the order the file lists them", async () => {
+    await seed();
+
+    const [split] = SPLITS;
+    const [day] = await reference.db
+      .select()
+      .from(trainingPresetDays)
+      .where(eq(trainingPresetDays.presetSlug, split!.slug))
+      .orderBy(trainingPresetDays.position);
+
+    const items = await reference.db
+      .select()
+      .from(trainingPresetItems)
+      .where(eq(trainingPresetItems.dayId, day!.id))
+      .orderBy(trainingPresetItems.position);
+
+    expect(day!.name).toBe(split!.days[0]!.name);
+    expect(items.map((item) => item.exerciseSlug)).toEqual(
+      split!.days[0]!.items.map((item) => item.exercise),
+    );
+    expect(items[0]).toMatchObject({
+      sets: split!.days[0]!.items[0]!.sets,
+      repMin: split!.days[0]!.items[0]!.reps[0],
+      repMax: split!.days[0]!.items[0]!.reps[1],
+    });
+  });
+
+  it("sweeps out a split the file no longer has, days and items included", async () => {
+    await reference.pg.exec(
+      `insert into training_presets (slug, name, description, position)
+       values ('ficha-antiga', 'Ficha antiga', 'De um build anterior', 0);
+       insert into training_preset_days (preset_slug, position, name)
+       values ('ficha-antiga', 0, 'Segunda')`,
+    );
+
+    const written = await seed();
+
+    expect(written.removed).toEqual(["ficha-antiga"]);
+    expect(await reference.db.select().from(trainingPresets)).toHaveLength(
+      SPLIT_COUNT,
+    );
+    // Cascaded, not orphaned: every day left belongs to a split in the file.
+    const days = await reference.db.select().from(trainingPresetDays);
+    expect(days.every((day) => day.presetSlug !== "ficha-antiga")).toBe(true);
+  });
+
+  it("will not write a split before the exercises it points at", async () => {
+    await expect(writeSplits(reference.db, SPLIT_SOURCE)).rejects.toThrow();
   });
 });
