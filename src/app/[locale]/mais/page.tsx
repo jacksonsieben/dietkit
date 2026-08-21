@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
+import { Legend, Shell } from "@/components/nd/kit";
 import { Link } from "@/i18n/navigation";
 import { resolveLocale } from "@/i18n/locale";
 import { routing } from "@/i18n/routing";
@@ -89,43 +90,54 @@ export default async function MorePage({
   const t = await getTranslations("More");
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-10 px-6 py-10">
-      <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
-        {t("lead")}
-      </p>
+    <main className="flex flex-1 flex-col">
+      <Shell>
+        <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+          {t("lead")}
+        </p>
 
-      {GROUPS.map((group) => (
-        <section key={group.heading} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-xs font-medium tracking-[0.22em] text-nd-dim uppercase">
-              {t(group.heading)}
-            </h2>
-            <p className="max-w-prose text-sm leading-relaxed">
-              {t(group.lead)}
-            </p>
-          </div>
+        {GROUPS.map((group) => (
+          <section key={group.heading} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Legend as="h2">{t(group.heading)}</Legend>
+              <p className="max-w-prose text-sm leading-relaxed">
+                {t(group.lead)}
+              </p>
+            </div>
 
-          {/* Rules rather than cards: in a two-value world a card is a grey
-              rectangle, and grey is the one thing this palette does not have. */}
-          <ul className="flex flex-col border-t-2 border-nd-ink">
-            {group.rows.map((row) => (
-              <li key={row.href} className="border-b border-nd-unlit">
-                <Link
-                  href={row.href}
-                  className="flex flex-col gap-1 py-4 hover:bg-nd-ink/5"
-                >
-                  <span className="text-base font-medium tracking-tight">
-                    {t(row.label)}
-                  </span>
-                  <span className="text-sm text-nd-dim">
-                    {t(`${row.label}Hint` as "profileHint")}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+            {/* Rules rather than cards: in a two-value world a card is a grey
+                rectangle, and grey is the one thing this palette does not
+                have. */}
+            <ul className="flex flex-col border-t-2 border-nd-ink">
+              {group.rows.map((row) => (
+                <li key={row.href} className="border-b border-nd-unlit">
+                  {/*
+                    The whole row is the target, and hovering fills it with
+                    `--nd-unlit`. It used to be `bg-nd-ink/5` — a twentieth of
+                    the ink over the ground, which resolves to a grey this
+                    palette has no word for, and which lands as a different
+                    colour on white than it does on black. Unlit is a real
+                    value in both themes, and both the ink title and the dim
+                    hint stay readable on it, which a full ink fill would not
+                    allow.
+                  */}
+                  <Link
+                    href={row.href}
+                    className="flex flex-col gap-1 px-2 py-4 hover:bg-nd-unlit"
+                  >
+                    <span className="text-base font-medium tracking-tight">
+                      {t(row.label)}
+                    </span>
+                    <span className="text-sm text-nd-dim">
+                      {t(`${row.label}Hint` as "profileHint")}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </Shell>
     </main>
   );
 }

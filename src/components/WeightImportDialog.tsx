@@ -4,6 +4,8 @@ import { useId, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { Modal } from "@/components/Modal";
+import { FileField } from "@/components/nd/FileField";
+import { ActionButton, Ghost } from "@/components/nd/kit";
 import type { IsoDate } from "@/lib/storage/types";
 import {
   parseWeightCsv,
@@ -89,11 +91,6 @@ export function WeightImportDialog({
     })();
   };
 
-  const chosen =
-    reading.kind === "reading" || reading.kind === "parsed"
-      ? reading.name
-      : undefined;
-
   const parse =
     reading.kind === "parsed" && reading.result.ok
       ? reading.result.parse
@@ -104,58 +101,40 @@ export function WeightImportDialog({
 
   return (
     <Modal title={t("title")} wide onClose={onClose}>
-      <p className="text-sm opacity-80">{t("lead")}</p>
+      <p className="text-sm leading-relaxed text-nd-dim">{t("lead")}</p>
 
-      {/*
-       * The real input is hidden and the label is what is drawn, because the
-       * control the browser draws for `type="file"` writes its own words —
-       * "Choose File", "No file chosen" — in the browser's language rather than
-       * the page's. A Brazilian on an English Chrome would meet the only two
-       * English words on the screen at the one place they have to act. The
-       * `file:` variants can restyle that button but cannot retranslate it.
-       *
-       * `sr-only` rather than `hidden`: the input keeps its place in the tab
-       * order and still opens the picker on Enter, and the focus it takes is
-       * drawn on the label next to it.
-       */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            id={fileId}
-            type="file"
-            accept=".csv,.txt,text/csv,text/plain"
-            onChange={pick}
-            className="peer sr-only"
-          />
-          <label
-            htmlFor={fileId}
-            className="cursor-pointer rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-current"
-          >
-            {t("fileLabel")}
-          </label>
-          <span className="min-w-0 flex-1 truncate text-sm opacity-70">
-            {chosen ?? t("fileNone")}
-          </span>
-        </div>
-        <p className="text-xs opacity-60">{t("fileHint")}</p>
-      </div>
+      <FileField
+        id={fileId}
+        accept=".csv,.txt,text/csv,text/plain"
+        label={t("fileLabel")}
+        hint={t("fileHint")}
+        action={t("fileAction")}
+        empty={t("fileEmpty")}
+        onChange={pick}
+      />
 
       {reading.kind === "reading" ? (
-        <p className="text-sm opacity-60">{t("reading")}</p>
+        <p className="text-sm text-nd-dim">{t("reading")}</p>
       ) : null}
 
       {reading.kind === "unreadable" ? (
-        <p className="text-sm text-red-700 dark:text-red-400">{t("readError")}</p>
+        <p className="text-sm text-nd-red-ink">{t("readError")}</p>
       ) : null}
 
       {reading.kind === "parsed" && !reading.result.ok ? (
-        <p className="text-sm text-red-700 dark:text-red-400">
+        <p className="text-sm text-nd-red-ink">
           {t(`fileErrors.${reading.result.error}`)}
         </p>
       ) : null}
 
+      {/*
+        The preview is a ruled block, not a card. What separates it from the
+        paragraphs above is a hairline and the space either side of it — the
+        same device the rest of the app uses to say "this is a different kind of
+        thing", and one that costs nothing on either ground.
+      */}
       {parse === undefined ? null : (
-        <div className="flex flex-col gap-3 rounded-md border border-black/10 p-4 text-sm dark:border-white/15">
+        <div className="flex flex-col gap-3 border-t border-nd-unlit pt-4 text-sm">
           <p className="font-medium">
             {parse.rows.length === 0
               ? t("nothing")
@@ -163,18 +142,23 @@ export function WeightImportDialog({
           </p>
 
           {replacing === 0 ? null : (
-            /* The one thing in this preview that costs something. */
-            <p className="text-amber-800 dark:text-amber-300">
+            /*
+             * The one thing in this preview that costs something, and the one
+             * place red is right: these days are already measured and the file
+             * is about to overwrite them. Red here means a value is off, which
+             * is exactly the claim.
+             */
+            <p className="text-nd-red-ink">
               {t("replacing", { count: replacing })}
             </p>
           )}
 
           {parse.skipped.length === 0 ? null : (
             <div className="flex flex-col gap-1">
-              <p className="opacity-70">
+              <p className="text-nd-dim">
                 {t("skipped", { count: parse.skipped.length })}
               </p>
-              <ul className="flex flex-col gap-0.5 text-xs opacity-60">
+              <ul className="flex flex-col gap-0.5 text-xs text-nd-dim">
                 {parse.skipped.slice(0, SKIPS_SHOWN).map((skip) => (
                   <li key={skip.line}>
                     {t("skippedLine", {
@@ -197,25 +181,20 @@ export function WeightImportDialog({
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-4 py-2 text-sm underline underline-offset-4"
-        >
+        <Ghost type="button" onClick={onClose}>
           {t("cancel")}
-        </button>
+        </Ghost>
 
-        <button
+        <ActionButton
           type="button"
           // Nothing to import is not an error to be announced after the click.
           disabled={parse === undefined || parse.rows.length === 0 || importing}
           onClick={() => parse && onImport(parse.rows)}
-          className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
           {importing
             ? t("importing")
             : t("confirm", { count: parse?.rows.length ?? 0 })}
-        </button>
+        </ActionButton>
       </div>
     </Modal>
   );

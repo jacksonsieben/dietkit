@@ -190,14 +190,23 @@ describe("weight log wiring", () => {
     // page's, and no styling can retranslate them. Most people here run Chrome
     // in English, which would put the only two English words on the screen on
     // the one control they have to use.
+    //
+    // This dialog used to hand-roll the fix. It shares `FileField` with the
+    // plan importer since #68, which is what stops the two screens from drifting
+    // into two different answers to the same problem.
     const source = read("src/components/WeightImportDialog.tsx");
 
-    expect(source).toContain('className="peer sr-only"');
-    expect(source).toContain('htmlFor={fileId}');
-    expect(source).toContain('t("fileNone")');
+    expect(source).toContain("<FileField");
+    expect(source).not.toMatch(/type="file"/);
+    expect(ptBR.Weight.import.fileAction).toBeTypeOf("string");
+    expect(ptBR.Weight.import.fileEmpty).toBeTypeOf("string");
 
-    // Not `hidden`, which would take the input out of the tab order with it.
-    expect(source).not.toMatch(/className="[^"]*\bhidden\b[^"]*"[^>]*type="file"/);
+    // Invisible, not absent: `sr-only` keeps the input focusable and keeps the
+    // label bound to it, which `hidden` destroys.
+    const control = read("src/components/nd/FileField.tsx");
+
+    expect(control).toContain('className="peer sr-only"');
+    expect(control).not.toMatch(/type="file"[^>]*\shidden/);
   });
 
   it("has a message for every reason a line can be left out", () => {
@@ -215,6 +224,14 @@ describe("weight log wiring", () => {
     expect(Object.keys(ptBR.Weight.import.fileErrors).sort()).toEqual(
       [...CSV_ERROR_CODES].sort(),
     );
+  });
+
+  it("reads every entry to the tenth of a kilo, including the round ones", () => {
+    // A column that prints 83 next to 82,9 has changed instruments halfway
+    // down. The scale reads to a tenth, so a whole kilo is 83,0 — the ICU
+    // skeleton pins the fraction digits, because the default number format
+    // drops a trailing zero and nobody notices until a weighing lands on one.
+    expect(ptBR.Weight.entryWeight).toContain("::.0");
   });
 
   it("renders the day in words rather than as a stored string", () => {

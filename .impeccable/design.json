@@ -224,6 +224,21 @@
       "name": "FileField",
       "file": "src/components/nd/FileField.tsx",
       "what": "The file input, drawn in the page's language. The native control labels itself from the browser's locale, so the input is hidden with `sr-only` — focusable, still bound to its label — and a `<label>` styled as an `Action` opens the dialog, with the chosen filename beside it in mono. It lives outside `kit.tsx` because it holds state and `kit.tsx` has to stay importable from a server component."
+    },
+    {
+      "name": "TrendChart",
+      "file": "src/components/WeightTrend.tsx",
+      "what": "The one chart in the app, and the only continuous quantity that is not segmented. Bars were rejected — they imply a zero baseline, and two kilos on eighty-five is either seven identical bars or a lie about proportion. A dot-matrix scatter on the type's own 5x7 grid was rejected for the opposite reason: at that pitch the meaningful range quantises to about five rows. What is left is a line whose materials carry the hierarchy — the seven-day average in ink at 2.5px with square caps and mitre joins, the individual mornings as --nd-unlit dots (never ink at low alpha, which is a different colour on each of the two grounds), and the top and bottom of the plot as real --nd-unlit hairlines so the vertical extent means something. The current reading sits above it in the same Legend / DotText / unit stack /hoje gives the energy target, at the same displayFontSize. Axis labels are --nd-dim with data-numeric. It sits under a Rule, not inside a card."
+    },
+    {
+      "name": "Modal",
+      "file": "src/components/Modal.tsx",
+      "what": "A native <dialog> opened with showModal(): 2px ink border, ground fill, no radius and no shadow. Depth is halftone rather than alpha — .nd-modal::backdrop is full-value ink dots of radius 1.2px on a 3px pitch, about 50% coverage, so the page underneath reads as texture and not as text. A scrim would be ink at 60% alpha, which this palette has no word for."
+    },
+    {
+      "name": "ConfirmDialog",
+      "file": "src/components/ConfirmDialog.tsx",
+      "what": "role=\"alertdialog\", with the answer that changes nothing written first so showModal() focuses it. On a destructive question the two buttons swap roles rather than colours: keep becomes the filled ActionButton and delete the Ghost, which puts the recommended answer under the eye and under the keyboard at once. Red is never spent on a button — it means a number is off target, and a deletion someone asked for is not a fault."
     }
   ],
   "narrative": {

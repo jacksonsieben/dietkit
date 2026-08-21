@@ -359,6 +359,38 @@ and puts the real string in an `sr-only` span beside them, so the panel is a
 *rendering* of the text and never a second copy of it. `DotIcon` draws one
 pictogram from the same grid.
 
+**The trend chart** — the one chart in the app, in
+`src/components/WeightTrend.tsx`, and the only place a continuous quantity is
+drawn rather than segmented. Two shapes were rejected before this one. Bars, a
+segment column per day, imply a zero baseline, and body weight moves about two
+kilos on eighty-five: drawn from zero it is seven identical bars, drawn from
+eighty it is a lie about proportion. A dot-matrix scatter on the type's own 5×7
+grid was the tempting one, and it fails the opposite way — at that pitch the
+whole meaningful range quantises to about five rows, throwing away exactly the
+resolution that makes a trend legible.
+
+So the chart is a line and its materials carry the hierarchy: the seven-day
+average in ink at 2.5px with `strokeLinecap="square"` and `strokeLinejoin`
+`miter`, the individual mornings as `--nd-unlit` dots, and the top and bottom of
+the plot drawn as real `--nd-unlit` hairlines instead of implied, so the
+vertical extent of the wiggle means something. Never ink at low alpha for the
+dots: a fade is a different colour on every ground, and there are two grounds
+here. The current reading sits above it in the same legend / dot panel / unit
+stack `/hoje` gives the energy target, sized by the same `displayFontSize`, and
+the axis labels below are `--nd-dim` with `data-numeric`. The chart sits on the
+page under a `Rule`, not inside a card.
+
+**Modal** — `<dialog>` with `showModal()`, an ink 2px border, ground fill, no
+radius and no shadow. Depth is the halftone: `.nd-modal::backdrop` is full-value
+ink dots at 1.2px radius on a 3px pitch — about 50% coverage — so the page
+underneath reads as texture rather than as text. A scrim would be ink at 60%
+alpha, which this palette has no word for.
+
+**ConfirmDialog** — `role="alertdialog"`, and the answer that changes nothing is
+written first, so `showModal()` focuses it. On a destructive question the two
+buttons swap roles rather than colours: *keep* becomes the filled `ActionButton`
+and *delete* the `Ghost`. Red is not spent here — see the Don'ts.
+
 **Tab slot** — `4.25rem` minimum, pictogram over label over a lamp. The active
 slot inverts *and* lights its lamp; inactive slots keep the lamp's space
 transparent so nothing shifts. A "soon" slot is `--nd-unlit` and `aria-disabled`.
@@ -401,6 +433,9 @@ something it says, readable from across a kitchen. Under
   the other in running text says they came from two different instruments.
 - Don't stretch a small-count indicator to full width. Full width means "a
   proportion of a target"; that is what `GlyphBar` is for.
+- Don't paint success. A completed export or a saved entry is plain ink; the
+  only colour is red and it means "off target". Give "fine" a green and the
+  absence of green starts reading as a warning on every screen that has none.
 - Don't draw a destructive control in red. Red means a number is off; a
   deletion someone asked for by pressing *Excluir* is not a fault. A row's
   remove button is the same outlined `SmallButton` as its edit button, and what
@@ -418,9 +453,11 @@ panels label things, and it is a typographic system rather than a decorative
 kicker. **This is recorded as a carried exception, not promoted to house style:**
 in any other visual world in this codebase, an eyebrow is still wrong.
 
-Separately, `/peso`, `/energia` and the legal pages still carry the previous
-amber/emerald convention. They are not yet part of this world and nothing above
-describes them. `/dieta` and `/importar` came over with the day panel and the
-meal panel; `/alimentos`, `/alimentos/meus`, `/alimentos/grupos` and `/perfil`
-came over with `Field` and the ruled row. `/peso` still has no chart vocabulary
-in this world, which is a decision owed rather than an omission.
+Separately, `/energia` and the legal pages (`/saude`, `/privacidade`, `/termos`,
+`/fontes`) still carry the previous amber/emerald convention. They are not yet
+part of this world and nothing above describes them. `/dieta` and `/importar`
+came over with the day panel and the meal panel; `/alimentos`,
+`/alimentos/meus`, `/alimentos/grupos` and `/perfil` came over with `Field` and
+the ruled row; `/peso`, `/backup` and `/mais` came over with the chart, the
+modal chrome and `FileField`. `/perfil` links straight to `/energia`, so that
+screen is the seam a reader is most likely to walk into.

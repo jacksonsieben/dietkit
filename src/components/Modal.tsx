@@ -27,6 +27,11 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
  * gives its way out a name — *Cancelar*, *Manter* — and a bare × would be both
  * a duplicate and the first thing `showModal()` focused, which is the one thing
  * the button order below is arranged to prevent.
+ *
+ * The chrome is drawn in the instrument world (#68): a hard 2px ink frame on
+ * opaque ground, no radius and no shadow. A shadow is a claim about a light
+ * source, and there is no light in this world except the one the segments make.
+ * What says "this is above the page" is the frame and the screened backdrop.
  */
 
 export function Modal({
@@ -114,12 +119,19 @@ export function Modal({
         // click.
         if (event.target === dialog.current) onClose();
       }}
-      className={`m-auto w-[calc(100%-2rem)] bg-transparent p-0 text-foreground backdrop:bg-black/60 ${
+      // `nd-modal` is what carries the backdrop: this palette has no word for a
+      // faded ink, so the page behind is dimmed by dot density rather than by
+      // alpha. The rule is `.nd-modal::backdrop` in globals.css, written there
+      // because a pseudo-element is not something a utility class can reach.
+      className={`nd-modal m-auto w-[calc(100%-2rem)] bg-transparent p-0 text-nd-ink ${
         wide ? "max-w-lg" : "max-w-md"
       }`}
     >
-      <div className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto rounded-lg border border-black/10 bg-background p-6 shadow-xl dark:border-white/15">
-        <h2 id={titleId} className="text-base font-semibold tracking-tight">
+      <div className="flex max-h-[85vh] flex-col gap-5 overflow-y-auto border-2 border-nd-ink bg-nd-ground p-6">
+        <h2
+          id={titleId}
+          className="text-lg font-semibold tracking-[-0.025em]"
+        >
           {title}
         </h2>
 
