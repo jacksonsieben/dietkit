@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { PLATES, TABS } from "@/lib/nav/tabs";
+import { activeTab, PLATES, plateKey, TABS } from "@/lib/nav/tabs";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 
@@ -160,5 +160,82 @@ describe("training wiring", () => {
     expect(TABS.find((tab) => tab.id === "training")?.href).toBe("/treino");
     expect(PLATES["/treino"]).toBe("training");
     expect(page()).toContain("<Training />");
+  });
+});
+
+/**
+ * The history screen's wiring (#81). What the numbers *mean* is
+ * `history.test.ts`; this is the part that only the source can answer — that
+ * the series never leaves the device, that there is one charting idea rather
+ * than two, and that a record is read out of the log rather than kept
+ * somewhere it can drift.
+ */
+describe("history wiring", () => {
+  const screen = () => read("src/components/StrengthHistory.tsx");
+  const page = () => read("src/app/[locale]/treino/historico/page.tsx");
+  const training = () => read("src/components/Training.tsx");
+
+  it("keeps the whole series on the device", () => {
+    // Two months of loads is a more revealing document than any single
+    // weighing (docs/DECISIONS.md § D1), and this is the screen that holds all
+    // of it at once.
+    const source = screen();
+
+    expect(source).not.toContain("fetch(");
+    expect(source).not.toMatch(/method:\s*"POST"/);
+    expect(source).not.toContain("dexie");
+  });
+
+  it("reads the log through the store, like every other training screen", () => {
+    const source = screen();
+
+    expect(source).toContain("loadHistory(getRepository())");
+    expect(source).not.toContain("repository.trainingSessions");
+  });
+
+  it("draws with the chart the weight screen already uses", () => {
+    // § D21: one geometry, two vocabularies. A second charting idea here would
+    // be a second set of decisions about floors and bands to keep in step —
+    // and the first one is already tested.
+    const source = screen();
+
+    expect(source).toContain("strengthGeometry(");
+    expect(source).not.toContain("recharts");
+    expect(source).not.toContain("chart.js");
+  });
+
+  it("never prints an estimate without the set it came from", () => {
+    // "137 kg estimado" is not a claim anybody can check (§ D21). The wording
+    // is shared with the finish so there is one copy of that rule.
+    const source = screen();
+
+    expect(source).toContain('from "@/components/training/records"');
+    expect(source).toContain("estimateFrom(");
+    expect(training()).toContain('from "@/components/training/records"');
+  });
+
+  it("derives the records it announces at the finish", () => {
+    // Never a stored counter (§ D19, § D21): `brokenRecords` asks the log
+    // twice rather than incrementing anything.
+    const source = training();
+
+    expect(source).toContain("brokenRecords(history, record)");
+    expect(source).not.toMatch(/records\.(put|add)\(/);
+  });
+
+  it("offers the history from the session, and only once there is some", () => {
+    const source = training();
+
+    expect(source).toContain('<TextLink href="/treino/historico">');
+    expect(source).toContain("lastFinishedAt === undefined ? null");
+  });
+
+  it("stays behind the training plate", () => {
+    // A sub-route of /treino, so the tab that was already lit stays lit — no
+    // change to tabs.ts, which is the point of matching on the prefix.
+    expect(activeTab("/treino/historico")).toBe("training");
+    expect(TABS.find((tab) => tab.id === "training")?.href).toBe("/treino");
+    expect(plateKey("/treino/historico")).toBe("trainingHistory");
+    expect(page()).toContain("<StrengthHistory />");
   });
 });

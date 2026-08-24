@@ -1,4 +1,4 @@
-import { daysBetween } from "@/lib/date";
+import { plot, type Axis, type ChartBox } from "@/lib/chart";
 import type { IsoDate } from "@/lib/storage/types";
 
 import type { TrendPoint } from "./trend";
@@ -10,7 +10,15 @@ import type { TrendPoint } from "./trend";
  * — where the vertical band starts and stops, and how days map to horizontal
  * distance — can be tested rather than eyeballed. Nothing here knows about SVG
  * beyond producing numbers and one path string.
+ *
+ * The arithmetic itself moved to `src/lib/chart.ts` when the training log
+ * needed a curve too (#81); what stayed is this file's vocabulary — kilos, a
+ * raw weighing, a moving average — because a screen about body weight should
+ * not have to read `ys[1]` to find its line. The tests below this file did not
+ * change when the move happened, which is the whole reason to trust it.
  */
+
+export type { ChartBox };
 
 /**
  * The smallest weight range the vertical axis will ever show.
@@ -23,12 +31,8 @@ import type { TrendPoint } from "./trend";
  */
 export const MIN_RANGE_KG = 2;
 
-export interface ChartBox {
-  width: number;
-  height: number;
-  /** Room for the stroke and the dots so neither is clipped at the edges. */
-  padding: number;
-}
+/** Half a kilo: the finest gradation anyone reads off a bathroom scale. */
+const WEIGHT_AXIS: Axis = { minRange: MIN_RANGE_KG, step: 0.5 };
 
 export interface PlottedPoint {
   date: IsoDate;
@@ -57,64 +61,30 @@ export function chartGeometry(
   points: readonly TrendPoint[],
   box: ChartBox,
 ): ChartGeometry | undefined {
-  const first = points[0];
-  const last = points[points.length - 1];
-  if (first === undefined || last === undefined) return undefined;
-
-  const span = daysBetween(first.date, last.date);
-  if (span <= 0) return undefined;
-
-  const [lowKg, highKg] = band(points);
-
-  const left = box.padding;
-  const usableWidth = box.width - box.padding * 2;
-  const top = box.padding;
-  const usableHeight = box.height - box.padding * 2;
-
-  const y = (kg: number) =>
-    round(top + ((highKg - kg) / (highKg - lowKg)) * usableHeight);
-
-  const plotted = points.map((point) => ({
-    date: point.date,
-    weightKg: point.weightKg,
-    averageKg: point.averageKg,
-    x: round(left + (daysBetween(first.date, point.date) / span) * usableWidth),
-    y: y(point.weightKg),
-    averageY: y(point.averageKg),
-  }));
+  const drawn = plot(
+    points.map((point) => ({
+      date: point.date,
+      values: [point.weightKg, point.averageKg],
+    })),
+    box,
+    WEIGHT_AXIS,
+  );
+  if (!drawn) return undefined;
 
   return {
-    box,
-    points: plotted,
-    averagePath: plotted
-      .map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.averageY}`)
-      .join(" "),
-    lowKg,
-    highKg,
-    from: first.date,
-    to: last.date,
+    box: drawn.box,
+    points: drawn.samples.map((sample, index) => ({
+      date: sample.date,
+      weightKg: points[index]?.weightKg ?? 0,
+      averageKg: points[index]?.averageKg ?? 0,
+      x: sample.x,
+      y: sample.ys[0] ?? 0,
+      averageY: sample.ys[1] ?? 0,
+    })),
+    averagePath: drawn.paths[1] ?? "",
+    lowKg: drawn.low,
+    highKg: drawn.high,
+    from: drawn.from,
+    to: drawn.to,
   };
-}
-
-/**
- * The vertical band: everything drawn, widened to `MIN_RANGE_KG` if the real
- * spread is smaller, then rounded outward to half a kilo so the two labels on
- * the axis are numbers a person would say out loud.
- */
-function band(points: readonly TrendPoint[]): [low: number, high: number] {
-  const values = points.flatMap((point) => [point.weightKg, point.averageKg]);
-  let low = Math.min(...values);
-  let high = Math.max(...values);
-
-  const short = MIN_RANGE_KG - (high - low);
-  if (short > 0) {
-    low -= short / 2;
-    high += short / 2;
-  }
-
-  return [Math.floor(low * 2) / 2, Math.ceil(high * 2) / 2];
-}
-
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
 }

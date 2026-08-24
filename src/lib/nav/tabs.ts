@@ -85,6 +85,7 @@ export const PLATES: Readonly<Record<string, string>> = {
   "/": "today",
   "/dieta": "diet",
   "/treino": "training",
+  "/treino/historico": "trainingHistory",
   "/peso": "weight",
   "/mais": "more",
   "/alimentos": "foods",

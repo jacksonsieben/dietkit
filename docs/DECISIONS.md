@@ -577,3 +577,52 @@ from the card, and the extra set is still one tap away.
 
 **On openGym:** its rules were read (AGPL-3.0) and its defaults deliberately not
 copied. No code and no data were taken.
+
+### D21 — A one-rep max is an estimate, and it says whose set it is
+
+**#81.** The log is only worth keeping if it answers "am I getting stronger",
+and that answer is a curve, not a row. Four decisions make the curve honest.
+
+**One point per session, and it is the best *estimated* set, not the heaviest.**
+A day of 100 × 10 is a better day than 135 × 1 for almost everybody, and a chart
+that plots the heaviest bar would draw that as a peak. `bestSet` ranks by
+estimate and only falls back to the heavier load to break a tie.
+
+**Epley, capped at twelve repetitions.** Past twelve the formula stops being an
+estimate and starts being a genre — it will happily turn a set of thirty into a
+number nobody could lift — so the app prints nothing instead of a confident
+wrong one. A single is returned as itself rather than run through the formula,
+which would inflate it by 3.5% for no reason: the set *is* the measurement. No
+load, no estimate; a bodyweight movement gets its rep record as the headline
+instead, because a zero in the panel would be the screen calling a set of
+fourteen pull-ups nothing.
+
+**Every estimate names the set it came from.** "137 kg estimado" alone is not a
+claim anybody can check. "137 kg estimado, de 100 × 10" and "137 kg, de 135 × 1"
+are different claims about the same number and the reader is owed the
+difference — which is also why the rep record names its load: fourteen at sixty
+and fourteen at twenty are not the same achievement.
+
+**Records are derived, never counted.** `movementRecords` reads the log every
+time, so there is no stored best that can drift out of step with what was
+actually lifted (§ D19, § D20) — and "you broke a record" at the finish is the
+same function asked twice, once about the log without this session and once
+about the log with it. Equalling a record is not breaking it, and a first-ever
+session breaks nothing: there was no record to beat.
+
+**Unilateral reps stay per side, everywhere.** The cap and the formula both see
+the per-side number, so twelve per arm is a set of twelve and not a set of
+twenty-four the app refuses to estimate. The halving happens once, in
+`history.ts`, for the same reason it happens once in `log.ts`.
+
+**One chart engine.** `src/lib/chart.ts` is the geometry — band, floor, dates to
+distance — and `src/lib/weight/chart.ts` is now a wrapper over it that keeps
+speaking kilos and moving averages. The weight chart's tests were not touched
+when the arithmetic moved out from under them, which is the whole reason to
+believe the move changed nothing. The strength chart reads in the same
+vocabulary: unlit dots are the load actually lifted, the ink line is the
+estimate, and the gap between them is the reps.
+
+**One route, not one per movement.** `/treino/historico` picks a movement with
+chips. A `[slug]` segment would prerender two hundred catalog pages to hold the
+fifteen anybody trains.
