@@ -902,6 +902,14 @@
       "never": "Nenhum treino registrado ainda.",
       "last": "Último treino em {date}"
     },
+    "progression": {
+      "first": "primeira vez neste exercício — comece leve e anote",
+      "addLoad": "você fechou {reps, number} repetições em todas as séries",
+      "addReps": "mesma carga, uma repetição a mais por série",
+      "hold": "a última sessão não fechou a faixa — repita a carga",
+      "deload": "{sessions, number} sessões travado nesta carga — alivie e suba de novo",
+      "ceiling": "topo da faixa: ponha peso ou passe para uma variação mais difícil"
+    },
     "log": {
       "set": "Série {index, number}",
       "reps": "{reps, number} reps",

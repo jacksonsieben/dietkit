@@ -3,12 +3,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { TrainingSession } from "@/lib/storage/types";
 
 import {
-  LOAD_STEP_KG,
   addSet,
   finishedSession,
   hasAnyDone,
   isDone,
-  lastPerformance,
   removeSet,
   repStep,
   restClock,
@@ -21,6 +19,7 @@ import {
   updateSet,
   type SessionDraft,
 } from "./log";
+import { LOAD_STEP_KG } from "./progression";
 import type { CurrentSession } from "./rotation";
 import { splitBySlug } from "./splits";
 
@@ -100,7 +99,11 @@ describe("startDraft", () => {
     expect(shownReps(rosca.sets[0]!.reps, true)).toBe(10);
   });
 
-  it("pre-fills what was lifted the last time the movement was done", () => {
+  it("opens on what the rule says to do next, the same in every set", () => {
+    // A prescription is a straight one. Last week came out ragged — eight, then
+    // seven, then two sets that crept up in weight — and today's card is not a
+    // photograph of it: three of those sets cleared the bottom of the range at
+    // sixty kilos, so the ask is one more rep, at sixty, four times.
     const draft = startDraft(pushDay, [
       logged({
         exercises: [
@@ -118,11 +121,33 @@ describe("startDraft", () => {
     ]);
 
     expect(draft[0]!.sets).toEqual([
-      { reps: 8, loadKg: 60 },
       { reps: 7, loadKg: 60 },
-      { reps: 6, loadKg: 62.5 },
-      { reps: 6, loadKg: 62.5 },
+      { reps: 7, loadKg: 60 },
+      { reps: 7, loadKg: 60 },
+      { reps: 7, loadKg: 60 },
     ]);
+  });
+
+  it("carries the reason for the numbers, for the screen to word", () => {
+    const draft = startDraft(pushDay, [
+      logged({
+        exercises: [
+          {
+            exercise: "supino-reto-barra",
+            sets: [
+              { reps: 10, loadKg: 60 },
+              { reps: 10, loadKg: 60 },
+              { reps: 10, loadKg: 60 },
+              { reps: 10, loadKg: 60 },
+            ],
+          },
+        ],
+      }),
+    ]);
+
+    expect(draft[0]!.reason).toEqual({ kind: "addLoad", reps: 10 });
+    expect(draft[0]!.sets[0]).toEqual({ reps: 6, loadKg: 62.5 });
+    expect(draft[1]!.reason).toEqual({ kind: "first" });
   });
 
   it("carries nothing over into a movement that was not in the history", () => {
@@ -159,7 +184,9 @@ describe("startDraft", () => {
     expect(draft[0]!.sets).toHaveLength(4);
   });
 
-  it("repeats the last set when last time had fewer", () => {
+  it("fills the card back out when last time stopped short", () => {
+    // Two sets of a four-set movement is a session that fell apart, so the load
+    // holds — but the card still asks for four, and today is a fresh go at it.
     const draft = startDraft(pushDay, [
       logged({
         exercises: [
@@ -167,7 +194,7 @@ describe("startDraft", () => {
             exercise: "supino-reto-barra",
             sets: [
               { reps: 8, loadKg: 60 },
-              { reps: 6, loadKg: 65 },
+              { reps: 6, loadKg: 60 },
             ],
           },
         ],
@@ -176,9 +203,9 @@ describe("startDraft", () => {
 
     expect(draft[0]!.sets).toEqual([
       { reps: 8, loadKg: 60 },
-      { reps: 6, loadKg: 65 },
-      { reps: 6, loadKg: 65 },
-      { reps: 6, loadKg: 65 },
+      { reps: 8, loadKg: 60 },
+      { reps: 8, loadKg: 60 },
+      { reps: 8, loadKg: 60 },
     ]);
   });
 
@@ -192,57 +219,6 @@ describe("startDraft", () => {
     ]);
 
     expect(hasAnyDone(draft)).toBe(false);
-  });
-});
-
-describe("lastPerformance", () => {
-  const older = logged({
-    id: "old",
-    finishedAt: "2026-08-10T23:00:00.000Z",
-    exercises: [
-      { exercise: "supino-reto-barra", sets: [{ reps: 5, loadKg: 55 }] },
-    ],
-  });
-  const newer = logged({
-    id: "new",
-    finishedAt: "2026-08-17T23:00:00.000Z",
-    exercises: [
-      { exercise: "supino-reto-barra", sets: [{ reps: 8, loadKg: 60 }] },
-    ],
-  });
-
-  it("reads the most recent session that has the movement", () => {
-    expect(lastPerformance([newer, older], "supino-reto-barra")).toEqual([
-      { reps: 8, loadKg: 60 },
-    ]);
-  });
-
-  it("sorts rather than trusting the order it is handed", () => {
-    // The repository promises newest first. A pure function that silently
-    // depends on that promise breaks the first time somebody builds the array.
-    expect(lastPerformance([older, newer], "supino-reto-barra")).toEqual([
-      { reps: 8, loadKg: 60 },
-    ]);
-  });
-
-  it("skips a session where the movement was on the card and not done", () => {
-    const skipped = logged({
-      id: "skipped",
-      finishedAt: "2026-08-21T23:00:00.000Z",
-      exercises: [{ exercise: "supino-reto-barra", sets: [] }],
-    });
-
-    expect(lastPerformance([skipped, newer], "supino-reto-barra")).toEqual([
-      { reps: 8, loadKg: 60 },
-    ]);
-  });
-
-  it("gives nothing back for a movement never done", () => {
-    expect(lastPerformance([newer], "agachamento-livre")).toBeUndefined();
-  });
-
-  it("gives nothing back with no history at all", () => {
-    expect(lastPerformance([], "supino-reto-barra")).toBeUndefined();
   });
 });
 

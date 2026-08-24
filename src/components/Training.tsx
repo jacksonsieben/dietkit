@@ -24,6 +24,7 @@ import {
   type SessionDraft,
   type SessionSummary,
 } from "@/lib/training/log";
+import type { ProgressionReason } from "@/lib/training/progression";
 import { sessionLabel, type CurrentSession } from "@/lib/training/rotation";
 import { SPLITS, type Split } from "@/lib/training/splits";
 import {
@@ -459,6 +460,40 @@ function Rest({ seconds, onStop }: { seconds: number; onStop: () => void }) {
  * no load control until somebody puts a load on it, because a belt is an
  * addition and reads as one.
  */
+/**
+ * Why today's numbers are today's numbers (#80).
+ *
+ * Shown on every movement, including the weeks where the answer is "one more
+ * repetition". A reason that only appears when something interesting happens is
+ * a reason nobody learns to read, and the whole claim of this screen is that
+ * every number says why it is that number.
+ *
+ * The wording is here and the rule is in `progression.ts`. A sentence assembled
+ * in `lib` is a sentence next-intl never sees and a translator can never fix
+ * (docs/DECISIONS.md § D5) — so what crosses the boundary is a tagged reason,
+ * and this is where it becomes Portuguese. A rep count inside one is a total,
+ * halved on the way to the screen exactly like the ones in the steppers.
+ */
+function Reason({
+  reason,
+  unilateral,
+}: {
+  reason: ProgressionReason;
+  unilateral: boolean;
+}) {
+  const t = useTranslations("Training.progression");
+
+  return (
+    <p className="text-sm text-nd-dim">
+      {reason.kind === "addLoad"
+        ? t("addLoad", { reps: shownReps(reason.reps, unilateral) })
+        : reason.kind === "deload"
+          ? t("deload", { sessions: reason.sessions })
+          : t(reason.kind)}
+    </p>
+  );
+}
+
 function Exercise({
   exercise,
   prescribed,
@@ -500,6 +535,8 @@ function Exercise({
           ].join(" · ")}
         </p>
       </div>
+
+      <Reason reason={exercise.reason} unilateral={exercise.unilateral} />
 
       <ul className="flex flex-col gap-3">
         {exercise.sets.map((set, setIndex) => (
