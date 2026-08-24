@@ -252,13 +252,50 @@ export interface Settings {
   goal?: MacroGoal;
 }
 
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+/**
+ * Where someone is in a training split (#78).
+ *
+ * A rotation, not a calendar. The app holds which split was chosen and which
+ * of its days comes next, and it advances when a session is finished — so
+ * missing a Tuesday moves nothing, because nothing here ever knew about
+ * Tuesday. A weekday schedule would have to decide what a skipped day means,
+ * and every answer to that is wrong for somebody.
+ *
+ * The whole record is two facts and a timestamp, which is the point: what a
+ * split *contains* is reference data in `src/lib/training/splits.ts`, shipped
+ * in the bundle and identical for everyone. Copying a split in here would be a
+ * second copy of the prescription that goes stale the moment a rep range is
+ * edited.
+ *
+ * Personal, therefore device-only, like everything else in this file
+ * (docs/DECISIONS.md § D1). Which split a person runs is a fact about their
+ * body and their week, and the server is never told.
+ */
+export interface TrainingRotation {
+  /** A slug from `splits.ts`. Unresolvable slugs read as "choose again". */
+  splitSlug: string;
+  /**
+   * Index into the split's days, for the session that has not been done yet.
+   * Zero on the day the split is chosen — the rotation starts at its first
+   * letter rather than at whatever the calendar thinks today is.
+   */
+  nextDay: number;
+  /** Absent until the first session is finished; there is no rotation yet. */
+  lastFinishedAt?: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+}
+
+export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 /**
  * The whole of a user's data in one object — the shape of the JSON export that
  * is the *only* backup they have (docs/SCOPE.md § 3). `schemaVersion` is here
  * from the first release because a restore path that can't tell which format it
  * is reading is a restore path that breaks on the first migration.
+ *
+ * Version 2 added `training` (#78). Version 1 files still restore unchanged: a
+ * section that is absent reads as absent, which is what a device that has
+ * never chosen a split looks like anyway.
  */
 export interface Snapshot {
   schemaVersion: number;
@@ -268,5 +305,8 @@ export interface Snapshot {
   diets: Diet[];
   customFoods: CustomFood[];
   substitutionGroups: SubstitutionGroup[];
+  /** Absent on a device that has never opened the training screen, and in
+   *  every file written before schema 2. */
+  training?: TrainingRotation;
   settings: Settings;
 }

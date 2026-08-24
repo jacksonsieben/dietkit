@@ -7,6 +7,7 @@ import type {
   Settings,
   Snapshot,
   SubstitutionGroup,
+  TrainingRotation,
   WeightEntry,
 } from "./types";
 
@@ -65,6 +66,20 @@ export interface SubstitutionGroupRepository {
   remove(id: Id): Promise<void>;
 }
 
+/**
+ * One record, or none: a person runs one split at a time (#78).
+ *
+ * Shaped like `ProfileRepository` rather than like a list, because "which
+ * split am I on" has exactly one answer and a store that could hold two would
+ * need a rule for which one the screen means.
+ */
+export interface TrainingRepository {
+  get(): Promise<TrainingRotation | undefined>;
+  save(rotation: TrainingRotation): Promise<void>;
+  /** Choosing a different split, or stopping. */
+  clear(): Promise<void>;
+}
+
 export interface SettingsRepository {
   /** Never undefined — an unset store reads back as defaults. */
   get(): Promise<Settings>;
@@ -77,6 +92,7 @@ export interface Repository {
   readonly diets: DietRepository;
   readonly customFoods: CustomFoodRepository;
   readonly substitutionGroups: SubstitutionGroupRepository;
+  readonly training: TrainingRepository;
   readonly settings: SettingsRepository;
 
   /**

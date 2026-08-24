@@ -12,6 +12,7 @@ import type {
   Diet,
   Profile,
   SubstitutionGroup,
+  TrainingRotation,
   WeightEntry,
 } from "./types";
 import { SNAPSHOT_SCHEMA_VERSION } from "./types";
@@ -154,6 +155,18 @@ function makeGroup(
   };
 }
 
+function makeRotation(
+  overrides: Partial<TrainingRotation> = {},
+): TrainingRotation {
+  return {
+    splitSlug: "abc-3x",
+    nextDay: 1,
+    lastFinishedAt: "2026-08-16T18:40:00.000Z",
+    updatedAt: "2026-08-16T18:40:00.000Z",
+    ...overrides,
+  };
+}
+
 describe.each(adapters)("Repository contract: $name", ({ create }) => {
   let repository: Repository;
   let dispose: () => Promise<void>;
@@ -164,6 +177,53 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
 
   afterEach(async () => {
     await dispose();
+  });
+
+  describe("training", () => {
+    it("is absent until a split is chosen", async () => {
+      await expect(repository.training.get()).resolves.toBeUndefined();
+    });
+
+    it("round-trips and advances in place", async () => {
+      await repository.training.save(makeRotation());
+      await repository.training.save(makeRotation({ nextDay: 2 }));
+
+      // One row, not a log: advancing the rotation replaces where you are, it
+      // does not stack a second answer to "which session is next".
+      await expect(repository.training.get()).resolves.toEqual(
+        makeRotation({ nextDay: 2 }),
+      );
+    });
+
+    it("keeps a rotation that has never been finished", async () => {
+      const fresh: TrainingRotation = {
+        splitSlug: "abc-3x",
+        nextDay: 0,
+        updatedAt: "2026-08-16T18:40:00.000Z",
+      };
+      await repository.training.save(fresh);
+
+      const stored = await repository.training.get();
+      expect(stored).toEqual(fresh);
+      expect(stored).not.toHaveProperty("lastFinishedAt");
+    });
+
+    it("clears, which is what stopping a split is", async () => {
+      await repository.training.save(makeRotation());
+      await repository.training.clear();
+
+      await expect(repository.training.get()).resolves.toBeUndefined();
+    });
+
+    it("hands back a copy, not a live reference to stored state", async () => {
+      await repository.training.save(makeRotation());
+
+      const first = await repository.training.get();
+      first!.nextDay = 99;
+
+      const second = await repository.training.get();
+      expect(second?.nextDay).toBe(1);
+    });
   });
 
   describe("profile", () => {
@@ -447,6 +507,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.diets.put(diet);
       await repository.customFoods.put(food);
       await repository.substitutionGroups.put(group);
+      await repository.training.save(makeRotation());
       await repository.settings.patch({
         lastBackupAt: "2026-08-17T09:00:00.000Z",
       });
@@ -460,6 +521,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       expect(snapshot.diets).toEqual([diet]);
       expect(snapshot.customFoods).toEqual([food]);
       expect(snapshot.substitutionGroups).toEqual([group]);
+      expect(snapshot.training).toEqual(makeRotation());
       expect(snapshot.settings.lastBackupAt).toBe("2026-08-17T09:00:00.000Z");
     });
 
@@ -470,6 +532,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.diets.put(makeDiet());
       await repository.customFoods.put(makeFood());
       await repository.substitutionGroups.put(makeGroup());
+      await repository.training.save(makeRotation());
 
       // Through JSON, because that is exactly what the backup file is.
       const snapshot = JSON.parse(
@@ -485,6 +548,18 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       expect(restored.diets).toEqual(snapshot.diets);
       expect(restored.customFoods).toEqual(snapshot.customFoods);
       expect(restored.substitutionGroups).toEqual(snapshot.substitutionGroups);
+      expect(restored.training).toEqual(snapshot.training);
+    });
+
+    it("leaves no rotation behind when the file has none", async () => {
+      const empty = await repository.exportAll();
+      await repository.training.save(makeRotation());
+
+      await repository.importAll(empty);
+
+      // A restore replaces; it does not merge. A split left over from before
+      // would be the one thing on the device the file did not put there.
+      await expect(repository.training.get()).resolves.toBeUndefined();
     });
 
     it("replaces on import rather than merging", async () => {
@@ -521,6 +596,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.diets.put(makeDiet());
       await repository.customFoods.put(makeFood());
       await repository.substitutionGroups.put(makeGroup());
+      await repository.training.save(makeRotation());
       await repository.settings.patch({
         lastBackupAt: "2026-08-17T09:00:00.000Z",
       });
@@ -532,6 +608,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await expect(repository.diets.list()).resolves.toEqual([]);
       await expect(repository.customFoods.list()).resolves.toEqual([]);
       await expect(repository.substitutionGroups.list()).resolves.toEqual([]);
+      await expect(repository.training.get()).resolves.toBeUndefined();
       await expect(repository.settings.get()).resolves.toEqual(
         DEFAULT_SETTINGS,
       );

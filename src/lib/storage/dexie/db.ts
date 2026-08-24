@@ -6,6 +6,7 @@ import type {
   Profile,
   Settings,
   SubstitutionGroup,
+  TrainingRotation,
   WeightEntry,
 } from "../types";
 
@@ -14,6 +15,7 @@ export const SINGLETON_KEY = "singleton";
 
 export type ProfileRow = Profile & { id: typeof SINGLETON_KEY };
 export type SettingsRow = Settings & { id: typeof SINGLETON_KEY };
+export type TrainingRow = TrainingRotation & { id: typeof SINGLETON_KEY };
 
 export class DietKitDatabase extends Dexie {
   profile!: Table<ProfileRow, string>;
@@ -21,6 +23,7 @@ export class DietKitDatabase extends Dexie {
   diets!: Table<Diet, string>;
   customFoods!: Table<CustomFood, string>;
   substitutionGroups!: Table<SubstitutionGroup, string>;
+  training!: Table<TrainingRow, string>;
   settings!: Table<SettingsRow, string>;
 
   constructor(name: string) {
@@ -42,6 +45,14 @@ export class DietKitDatabase extends Dexie {
     // the database at version 1 will never re-read it.
     this.version(2).stores({
       substitutionGroups: "id, name",
+    });
+
+    // Additive again, on the same terms (#78). One row, keyed like `profile`
+    // and `settings`: which split is being run and where the rotation is. No
+    // index beyond the key, because there is nothing to look this up *by* —
+    // the screen wants the single row and there is only ever one.
+    this.version(3).stores({
+      training: "id",
     });
   }
 }

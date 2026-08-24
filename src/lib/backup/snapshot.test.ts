@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { emptySnapshot } from "@/lib/storage/shared";
-import type { Snapshot } from "@/lib/storage/types";
+import { SNAPSHOT_SCHEMA_VERSION, type Snapshot } from "@/lib/storage/types";
 
 import { fullSnapshot, fullSnapshotFile } from "./snapshot.fixture";
 import { describeSnapshot, lastChangeAt, parseSnapshotFile } from "./snapshot";
@@ -180,10 +180,75 @@ describe("parseSnapshotFile", () => {
     expect(drops).toEqual([{ kind: "goal" }]);
   });
 
+  it("restores a version 1 file, which has no training section at all", () => {
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        raw.schemaVersion = 1;
+        delete raw.training;
+      }),
+    );
+
+    // Absent is not broken: this is what every file written before #78 looks
+    // like, and what a device that has never chosen a split looks like now.
+    expect(snapshot.training).toBeUndefined();
+    expect(drops).toEqual([]);
+  });
+
+  it("drops a rotation it cannot read, and keeps the rest of the file", () => {
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => (raw.training = { splitSlug: "abc-3x" })),
+    );
+
+    expect(snapshot.training).toBeUndefined();
+    expect(snapshot.weight).toHaveLength(2);
+    expect(drops).toEqual([{ kind: "training" }]);
+  });
+
+  it("refuses a rotation pointing at a day that is not a whole number", () => {
+    const { drops } = parsed(
+      fileWith((raw) => {
+        const training = raw.training as Record<string, unknown>;
+        training.nextDay = 1.5;
+      }),
+    );
+
+    expect(drops).toEqual([{ kind: "training" }]);
+  });
+
+  it("keeps a rotation that has never been finished", () => {
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        const training = raw.training as Record<string, unknown>;
+        delete training.lastFinishedAt;
+      }),
+    );
+
+    expect(snapshot.training).toEqual({
+      splitSlug: "abc-3x",
+      nextDay: 1,
+      updatedAt: "2026-08-14T18:40:00.000Z",
+    });
+    expect(drops).toEqual([]);
+  });
+
+  it("keeps a rotation past the end of a split this build has shortened", () => {
+    // Not the parser's call. Which splits exist is a property of the build
+    // doing the restoring, and the screen wraps — discarding the choice here
+    // would lose a real decision over a number that is already survivable.
+    const { snapshot } = parsed(
+      fileWith((raw) => {
+        const training = raw.training as Record<string, unknown>;
+        training.nextDay = 40;
+      }),
+    );
+
+    expect(snapshot.training?.nextDay).toBe(40);
+  });
+
   it("stamps the version it understood rather than the one the file claimed", () => {
     const { snapshot } = parsed(fileWith((raw) => (raw.schemaVersion = 1)));
 
-    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.schemaVersion).toBe(SNAPSHOT_SCHEMA_VERSION);
   });
 
   it("survives a file with no export date", () => {
@@ -223,6 +288,7 @@ describe("describeSnapshot", () => {
       diets: 1,
       customFoods: 1,
       groups: 1,
+      hasTraining: true,
     });
   });
 
@@ -258,6 +324,19 @@ describe("lastChangeAt", () => {
     const snapshot: Snapshot = { ...fullSnapshot(), weight: [] };
 
     expect(lastChangeAt(snapshot)).toBe("2026-08-15T10:00:00.000Z");
+  });
+
+  it("counts advancing the rotation as a change worth saving", () => {
+    const snapshot: Snapshot = {
+      ...fullSnapshot(),
+      weight: [],
+      diets: [],
+      customFoods: [],
+      substitutionGroups: [],
+      profile: undefined,
+    };
+
+    expect(lastChangeAt(snapshot)).toBe("2026-08-14T18:40:00.000Z");
   });
 
   it("has nothing to report for an empty store", () => {
