@@ -9,6 +9,7 @@ import type {
   Settings,
   Snapshot,
   SubstitutionGroup,
+  TrainingRotation,
   WeightEntry,
 } from "./types";
 import type { Repository } from "./repository";
@@ -21,6 +22,7 @@ interface MemoryState {
   diets: Map<Id, Diet>;
   customFoods: Map<Id, CustomFood>;
   substitutionGroups: Map<Id, SubstitutionGroup>;
+  training?: TrainingRotation;
   settings: Settings;
 }
 
@@ -31,6 +33,7 @@ function emptyState(): MemoryState {
     diets: new Map(),
     customFoods: new Map(),
     substitutionGroups: new Map(),
+    training: undefined,
     settings: { ...DEFAULT_SETTINGS },
   };
 }
@@ -157,6 +160,18 @@ export function createMemoryRepository(): Repository {
       },
     },
 
+    training: {
+      async get() {
+        return state.training ? clone(state.training) : undefined;
+      },
+      async save(rotation) {
+        state.training = clone(rotation);
+      },
+      async clear() {
+        state.training = undefined;
+      },
+    },
+
     settings: {
       async get() {
         return clone(state.settings);
@@ -178,6 +193,7 @@ export function createMemoryRepository(): Repository {
         diets: [...state.diets.values()].map(clone),
         customFoods: [...state.customFoods.values()].map(clone),
         substitutionGroups: [...state.substitutionGroups.values()].map(clone),
+        ...(state.training ? { training: clone(state.training) } : {}),
         settings: clone(state.settings),
       };
     },
@@ -193,6 +209,7 @@ export function createMemoryRepository(): Repository {
       for (const group of snapshot.substitutionGroups) {
         next.substitutionGroups.set(group.id, clone(group));
       }
+      next.training = snapshot.training ? clone(snapshot.training) : undefined;
       next.settings = { ...DEFAULT_SETTINGS, ...clone(snapshot.settings) };
       state = next;
     },

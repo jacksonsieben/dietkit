@@ -245,6 +245,7 @@ export function BackupPanel() {
     device.summary.diets === 0 &&
     device.summary.customFoods === 0 &&
     device.summary.groups === 0 &&
+    !device.summary.hasTraining &&
     !device.summary.hasProfile;
 
   const reviewing = restore.kind === "reviewing" ? restore : undefined;
@@ -457,6 +458,11 @@ function ReviewPanel({
               label={t("rows.groups")}
               device={t("count", { count: device.groups })}
               file={t("count", { count: file.groups })}
+            />
+            <Row
+              label={t("rows.training")}
+              device={yesNo(device.hasTraining)}
+              file={yesNo(file.hasTraining)}
             />
           </tbody>
         </table>

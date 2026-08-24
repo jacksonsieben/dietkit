@@ -17,6 +17,7 @@ import {
   type Settings,
   type Snapshot,
   type SubstitutionGroup,
+  type TrainingRotation,
   type WeightEntry,
 } from "@/lib/storage/types";
 
@@ -76,6 +77,7 @@ export const DROP_KINDS = [
   "customFood",
   "group",
   "goal",
+  "training",
 ] as const;
 
 export type DropKind = (typeof DROP_KINDS)[number];
@@ -196,6 +198,38 @@ function readProfile(value: unknown): Profile | undefined {
     birthDate: value.birthDate as string,
     sex: value.sex,
     activityFactor: value.activityFactor,
+    updatedAt: value.updatedAt,
+  };
+}
+
+/**
+ * The training rotation, or nothing (#78).
+ *
+ * `nextDay` is checked against the integers rather than against a particular
+ * split's length: which splits exist is a property of the build doing the
+ * restoring, not of the file, and a rotation pointing past the end of a split
+ * that has since been shortened is handled where it is read, by wrapping. A
+ * restore that silently discarded it would lose a real choice over a number
+ * the screen already knows how to survive.
+ */
+function readTraining(value: unknown): TrainingRotation | undefined {
+  if (
+    !isObject(value) ||
+    !isText(value.splitSlug) ||
+    !isAtLeastZero(value.nextDay) ||
+    !Number.isInteger(value.nextDay) ||
+    !optional(value.lastFinishedAt, isInstant) ||
+    !isInstant(value.updatedAt)
+  ) {
+    return undefined;
+  }
+
+  return {
+    splitSlug: value.splitSlug,
+    nextDay: value.nextDay,
+    ...(isInstant(value.lastFinishedAt)
+      ? { lastFinishedAt: value.lastFinishedAt }
+      : {}),
     updatedAt: value.updatedAt,
   };
 }
@@ -503,6 +537,18 @@ export function parseSnapshotFile(text: string): SnapshotParse {
     drops.push({ kind: "profile" });
   }
 
+  const training =
+    raw.training === undefined || raw.training === null
+      ? undefined
+      : readTraining(raw.training);
+  if (
+    raw.training !== undefined &&
+    raw.training !== null &&
+    training === undefined
+  ) {
+    drops.push({ kind: "training" });
+  }
+
   return {
     ok: true,
     snapshot: {
@@ -511,6 +557,7 @@ export function parseSnapshotFile(text: string): SnapshotParse {
         ? raw.exportedAt
         : new Date().toISOString(),
       ...(profile === undefined ? {} : { profile }),
+      ...(training === undefined ? {} : { training }),
       weight: readAll(
         weightRaw,
         "weight",
@@ -564,6 +611,8 @@ export interface SnapshotSummary {
   diets: number;
   customFoods: number;
   groups: number;
+  /** Whether a split is being run — a rotation is one record or none (#78). */
+  hasTraining: boolean;
 }
 
 export function describeSnapshot(snapshot: Snapshot): SnapshotSummary {
@@ -584,6 +633,7 @@ export function describeSnapshot(snapshot: Snapshot): SnapshotSummary {
     diets: snapshot.diets.length,
     customFoods: snapshot.customFoods.length,
     groups: snapshot.substitutionGroups.length,
+    hasTraining: snapshot.training !== undefined,
   };
 }
 
@@ -606,6 +656,11 @@ export function lastChangeAt(snapshot: Snapshot): IsoTimestamp | undefined {
     ...snapshot.diets.map((diet) => diet.updatedAt),
     ...snapshot.customFoods.map((food) => food.updatedAt),
     ...snapshot.substitutionGroups.map((group) => group.updatedAt),
+    // Advancing the rotation is a write like any other: someone who finished
+    // three sessions since their last export has three sessions that only
+    // exist on the phone, and a reminder that stayed quiet about it would be
+    // measuring the wrong thing.
+    snapshot.training?.updatedAt,
   ].filter((stamp): stamp is IsoTimestamp => stamp !== undefined);
 
   if (stamps.length === 0) return undefined;

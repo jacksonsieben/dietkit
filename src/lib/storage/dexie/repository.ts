@@ -1,7 +1,12 @@
 import { fold } from "@/lib/text";
 
 import type { Repository } from "../repository";
-import type { Profile, Settings, Snapshot } from "../types";
+import type {
+  Profile,
+  Settings,
+  Snapshot,
+  TrainingRotation,
+} from "../types";
 import { SNAPSHOT_SCHEMA_VERSION } from "../types";
 import { DEFAULT_SETTINGS, customFoodHaystack } from "../shared";
 import {
@@ -120,6 +125,19 @@ export function createDexieRepository(
       },
     },
 
+    training: {
+      async get() {
+        const row = await db.training.get(SINGLETON_KEY);
+        return row ? (stripKey(row) as TrainingRotation) : undefined;
+      },
+      async save(rotation) {
+        await db.training.put({ ...rotation, id: SINGLETON_KEY });
+      },
+      async clear() {
+        await db.training.delete(SINGLETON_KEY);
+      },
+    },
+
     settings: {
       async get() {
         const row = await db.settings.get(SINGLETON_KEY);
@@ -149,6 +167,7 @@ export function createDexieRepository(
           db.diets,
           db.customFoods,
           db.substitutionGroups,
+          db.training,
           db.settings,
         ],
         async () => {
@@ -158,6 +177,7 @@ export function createDexieRepository(
             diets,
             customFoods,
             substitutionGroups,
+            trainingRow,
             settingsRow,
           ] = await Promise.all([
             db.profile.get(SINGLETON_KEY),
@@ -165,6 +185,7 @@ export function createDexieRepository(
             db.diets.toArray(),
             db.customFoods.toArray(),
             db.substitutionGroups.toArray(),
+            db.training.get(SINGLETON_KEY),
             db.settings.get(SINGLETON_KEY),
           ]);
 
@@ -176,6 +197,9 @@ export function createDexieRepository(
             diets,
             customFoods,
             substitutionGroups,
+            ...(trainingRow
+              ? { training: stripKey(trainingRow) as TrainingRotation }
+              : {}),
             settings: settingsRow
               ? { ...DEFAULT_SETTINGS, ...(stripKey(settingsRow) as Settings) }
               : { ...DEFAULT_SETTINGS },
@@ -197,6 +221,7 @@ export function createDexieRepository(
           db.diets,
           db.customFoods,
           db.substitutionGroups,
+          db.training,
           db.settings,
         ],
         async () => {
@@ -206,6 +231,7 @@ export function createDexieRepository(
             db.diets.clear(),
             db.customFoods.clear(),
             db.substitutionGroups.clear(),
+            db.training.clear(),
             db.settings.clear(),
           ]);
 
@@ -216,6 +242,9 @@ export function createDexieRepository(
           await db.diets.bulkPut(snapshot.diets);
           await db.customFoods.bulkPut(snapshot.customFoods);
           await db.substitutionGroups.bulkPut(snapshot.substitutionGroups);
+          if (snapshot.training) {
+            await db.training.put({ ...snapshot.training, id: SINGLETON_KEY });
+          }
           await db.settings.put({
             ...DEFAULT_SETTINGS,
             ...snapshot.settings,
@@ -234,6 +263,7 @@ export function createDexieRepository(
           db.diets,
           db.customFoods,
           db.substitutionGroups,
+          db.training,
           db.settings,
         ],
         async () => {
@@ -243,6 +273,7 @@ export function createDexieRepository(
             db.diets.clear(),
             db.customFoods.clear(),
             db.substitutionGroups.clear(),
+            db.training.clear(),
             db.settings.clear(),
           ]);
         },

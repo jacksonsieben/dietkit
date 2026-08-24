@@ -408,3 +408,43 @@ stranded at position 7.
 **Consequence, on load:** unchanged, and worth repeating because this is the file
 that would tempt someone. A rep range is a prescription, identical for everyone
 reading this build. A kilogram is what one person lifted on one day.
+
+---
+
+### D18 — Training is a rotation, not a calendar
+
+The training screen tracks which split you are running and which of its days
+comes next. Finishing a session moves that pointer on by one and wraps at the
+end. Nothing in the feature knows what day of the week it is.
+
+**Why not a weekday schedule:** because a schedule has to decide what a missed
+Tuesday means, and every available answer is wrong for somebody. Skip it, and
+the person who trains four times most weeks loses a session for being ill. Push
+everything, and the calendar drifts until it is a rotation with extra steps.
+Mark it late, and the app spends its one notification budget nagging. A rotation
+has no opinion about the gap: you were on B before the flu and you are on B
+after it, which is also how the people this is for already talk about training
+("hoje é o B").
+
+**Consequence, on the device:** two facts and a timestamp —
+`{ splitSlug, nextDay, lastFinishedAt? }` in `TrainingRotation`. The split
+itself is reference data in the bundle (§ D17), so the device stores a slug and
+an index rather than a copy of the program, and a build that rewrites a rep
+range fixes it everywhere without touching anyone's data.
+
+**Consequence, on the server:** none. Which split someone runs, and how far
+through it they are, is personal data under § D1 — it lives in IndexedDB and the
+server is never told. `/treino` is therefore a static shell with a client
+component inside it, prerendered identically for everyone, and there is still no
+column anywhere for a load in kilograms.
+
+**Consequence, on the split changing under it:** the index is wrapped and the
+slug may fail to resolve, both handled rather than trusted. A split shortened
+between releases comes round to its first day instead of pointing past its last;
+a slug this build has dropped renders as "choose again" with the old name shown,
+because quietly resetting someone's choice is a trust cost you cannot see you
+are paying.
+
+**Consequence, on backups:** `SNAPSHOT_SCHEMA_VERSION` went to 2. A version 1
+file restores unchanged — an absent `training` section reads as a device that
+has not chosen a split, which is exactly what it is.

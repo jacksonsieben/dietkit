@@ -740,7 +740,8 @@
         "weight": "Pesagens",
         "diets": "Dietas",
         "customFoods": "Meus alimentos",
-        "groups": "Grupos de substituição"
+        "groups": "Grupos de substituição",
+        "training": "Divisão de treino"
       },
       "yes": "sim",
       "no": "não",
@@ -756,7 +757,8 @@
         "diet": "uma dieta",
         "customFood": "um alimento seu",
         "group": "um grupo de substituição",
-        "goal": "o objetivo e os macros"
+        "goal": "o objetivo e os macros",
+        "training": "a divisão de treino"
       },
       "dropNamed": "{what}: {subject}",
       "action": "Restaurar deste arquivo",
@@ -783,10 +785,10 @@
     "training": "Treino",
     "weight": "Peso",
     "more": "Mais",
-    "soon": "em breve",
     "plate": {
       "today": "HOJE",
       "diet": "DIETA",
+      "training": "TREINO",
       "weight": "PESO",
       "more": "MAIS",
       "foods": "ALIMENTOS",
@@ -869,6 +871,35 @@
     "loadError": "Não foi possível ler seus dados neste aparelho."
   },
   "Training": {
+    "title": "Treino",
+    "lead": "Uma divisão e a letra de hoje. O app não sabe que dia da semana é: o treino só anda quando você diz que terminou um.",
+    "loading": "Lendo o treino…",
+    "loadError": "Não foi possível ler o treino neste aparelho.",
+    "saveError": "Não foi possível salvar. Tente de novo.",
+    "choose": {
+      "title": "Escolha uma divisão",
+      "lead": "Quatro divisões montadas com o que qualquer academia daqui tem. Dá para trocar depois, e trocar recomeça a rotação no primeiro treino.",
+      "days": "{count, plural, one {# treino que gira} other {# treinos que giram}}",
+      "start": "Começar",
+      "cancel": "Voltar",
+      "stop": "Parar de treinar"
+    },
+    "unknown": {
+      "title": "A divisão salva aqui não existe mais",
+      "body": "Este aparelho guardou uma divisão que esta versão do app não tem mais. Escolha uma abaixo; nada além dela foi perdido."
+    },
+    "session": {
+      "legend": "Treino de hoje",
+      "position": "{split} · treino {index, number} de {total, number}",
+      "exercises": "Exercícios",
+      "prescription": "{sets, number} × {repMin, number}–{repMax, number}",
+      "rest": "{seconds, number} s de descanso",
+      "finish": "Terminei o treino",
+      "change": "Trocar divisão",
+      "done": "Treino registrado. O próximo já está na tela.",
+      "never": "Nenhum treino registrado ainda.",
+      "last": "Último treino em {date}"
+    },
     "muscles": {
       "peito": "Peito",
       "costas": "Costas",

@@ -31,11 +31,15 @@ describe("activeTab", () => {
     expect(activeTab("//")).toBe("today");
   });
 
-  it("keeps a seat for training with nowhere to send anyone yet", () => {
+  it("sends the training tab to the training screen", () => {
+    // The seat was held unlit from the day the bar was built (#61) and filled
+    // by #78. What this now guards is that every one of the five goes
+    // somewhere: a tab with no destination is a dead thumb-sized target in the
+    // one piece of navigation the app has.
     const training = TABS.find((tab) => tab.id === "training");
 
-    expect(training).toBeDefined();
-    expect(training?.href).toBeUndefined();
+    expect(training?.href).toBe("/treino");
+    expect(activeTab("/treino")).toBe("training");
   });
 });
 
@@ -56,10 +60,9 @@ describe("plateKey", () => {
     expect(plateKey("/algo-novo")).toBeUndefined();
   });
 
-  it("gives every tab with a destination a plate", () => {
+  it("gives every tab a plate", () => {
     for (const tab of TABS) {
-      if (tab.href === undefined) continue;
-      expect(plateKey(tab.href)).toBeDefined();
+      expect(plateKey(tab.href), `no plate for ${tab.href}`).toBeDefined();
     }
   });
 });

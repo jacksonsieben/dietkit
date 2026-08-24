@@ -6,11 +6,11 @@
  * day, the food, the training, the body, and everything that is settings — and
  * the bar below names those five rather than the sixteen.
  *
- * `training` is here before it exists on purpose. It is a peer of the diet, not
- * a page under it (PRODUCT.md, Capabilities), and a bar built for four would
- * have to be redesigned the week it lands. It renders unlit, which in a world
- * whose whole grammar is lit and unlit segments reads as *not yet* rather than
- * as broken. Giving it a `href` is the entire change when the view ships.
+ * `training` held its seat here, unlit and inert, from the day the bar was
+ * built: it is a peer of the diet rather than a page under it (PRODUCT.md,
+ * Capabilities), and a bar built for four would have moved every tab under the
+ * user's thumb the week the fifth landed. #78 filled it, and filling it was
+ * one line — which was the point of holding it.
  */
 
 export const TAB_IDS = ["today", "diet", "training", "weight", "more"] as const;
@@ -19,8 +19,7 @@ export type TabId = (typeof TAB_IDS)[number];
 
 export interface Tab {
   id: TabId;
-  /** Absent while the destination does not exist yet. */
-  href?: string;
+  href: string;
   /**
    * Extra route prefixes this tab owns. The food screens are the diet's
    * material, not a sixth destination: someone looking up a food is in the
@@ -33,7 +32,7 @@ export interface Tab {
 export const TABS: readonly Tab[] = [
   { id: "today", href: "/" },
   { id: "diet", href: "/dieta", owns: ["/alimentos"] },
-  { id: "training" },
+  { id: "training", href: "/treino" },
   { id: "weight", href: "/peso" },
   { id: "more", href: "/mais" },
 ];
@@ -50,7 +49,7 @@ export function activeTab(pathname: string): TabId {
   if (path === "/") return "today";
 
   for (const tab of TABS) {
-    if (tab.href && tab.href !== "/" && under(path, tab.href)) return tab.id;
+    if (tab.href !== "/" && under(path, tab.href)) return tab.id;
     if (tab.owns?.some((prefix) => under(path, prefix))) return tab.id;
   }
 
@@ -85,6 +84,7 @@ function normalise(pathname: string): string {
 export const PLATES: Readonly<Record<string, string>> = {
   "/": "today",
   "/dieta": "diet",
+  "/treino": "training",
   "/peso": "weight",
   "/mais": "more",
   "/alimentos": "foods",

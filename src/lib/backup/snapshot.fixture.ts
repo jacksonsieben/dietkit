@@ -11,7 +11,7 @@ import type { Snapshot } from "@/lib/storage/types";
  */
 export function fullSnapshot(): Snapshot {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: "2026-08-20T12:00:00.000Z",
     profile: {
       heightCm: 178,
@@ -98,6 +98,12 @@ export function fullSnapshot(): Snapshot {
         updatedAt: "2026-07-21T11:00:00.000Z",
       },
     ],
+    training: {
+      splitSlug: "abc-3x",
+      nextDay: 1,
+      lastFinishedAt: "2026-08-14T18:40:00.000Z",
+      updatedAt: "2026-08-14T18:40:00.000Z",
+    },
     settings: {
       locale: "pt-BR",
       lastBackupAt: "2026-08-10T09:00:00.000Z",

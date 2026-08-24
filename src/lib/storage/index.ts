@@ -7,6 +7,7 @@ export type {
   ProfileRepository,
   Repository,
   SettingsRepository,
+  TrainingRepository,
   WeightRepository,
 } from "./repository";
 export type {
@@ -23,6 +24,7 @@ export type {
   Settings,
   Sex,
   Snapshot,
+  TrainingRotation,
   WeightEntry,
 } from "./types";
 export { SNAPSHOT_SCHEMA_VERSION } from "./types";
