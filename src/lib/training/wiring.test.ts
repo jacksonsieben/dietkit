@@ -42,7 +42,7 @@ describe("training wiring", () => {
     const source = screen();
 
     expect(source).toContain("chooseSplit(repository");
-    expect(source).toContain("finishSession(getRepository()");
+    expect(source).toContain("finishSession(repository");
     expect(source).toContain("stopTraining(repository)");
     expect(source).not.toContain("repository.training.");
   });
@@ -65,6 +65,61 @@ describe("training wiring", () => {
     expect(source).toContain("sessionLabel(session.day.name)");
     expect(source).toContain("displayFontSize(label)");
     expect(source).not.toContain("displayFontSize(session.day.name");
+  });
+
+  it("pre-fills today from what the device already logged", () => {
+    // The pre-fill is the point of the log: opening a session should show
+    // what was lifted last time, not an empty card. It is one read, through
+    // the store like every other, and `startDraft` is where the rule about
+    // which numbers carry forward lives.
+    const source = screen();
+
+    expect(source).toContain("loadHistory(repository)");
+    expect(source).toContain("startDraft(session.day, history)");
+    expect(source).not.toContain("repository.trainingSessions");
+  });
+
+  it("writes the session once, at the finish", () => {
+    // A draft is not a record. Nothing on this screen persists a set as it is
+    // checked off — the whole session is built by `finishedSession` and handed
+    // to the store in one write, so a workout abandoned halfway leaves no
+    // half-record behind claiming to be one.
+    const source = screen();
+
+    expect(source).toContain("finishedSession(");
+    expect(source).not.toContain(".put(");
+  });
+
+  it("keeps the rest clock a size below the day's letter", () => {
+    // The panel is the loudest thing the app draws and there is one headline
+    // per screen (src/components/nd/readouts.test.ts). The letter has it, so
+    // the clock is the subordinate slot — and it is `restClock` that renders
+    // it, because "90" in a panel is not a rest, it is a number.
+    const source = screen();
+
+    expect(source).toContain("restClock(seconds)");
+    expect(source).toContain("displayFontSize(clock, 16)");
+  });
+
+  it("asks for reps the way the movement is done", () => {
+    // A unilateral set is stored as the total across both sides and shown
+    // halved, so the screen has to go through `shownReps` rather than print
+    // `set.reps` — the difference between "8 por lado" and a claim of eight.
+    const source = screen();
+
+    expect(source).toContain("shownReps(set.reps, unilateral)");
+    expect(source).toContain("log.repsPerSide");
+  });
+
+  it("offers a load only where there is one to record", () => {
+    // A bodyweight movement carries no external weight, so it gets no load
+    // stepper — and a belt is an addition, which is why there is a control
+    // that adds one rather than a field sitting at zero.
+    const source = screen();
+
+    expect(source).toContain('equipment === "peso-corporal"');
+    expect(source).toContain("bodyweight && set.loadKg === undefined");
+    expect(source).toContain("log.addLoad");
   });
 
   it("has a rendering for each of the three states", () => {

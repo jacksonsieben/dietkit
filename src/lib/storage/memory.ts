@@ -10,6 +10,7 @@ import type {
   Snapshot,
   SubstitutionGroup,
   TrainingRotation,
+  TrainingSession,
   WeightEntry,
 } from "./types";
 import type { Repository } from "./repository";
@@ -23,6 +24,7 @@ interface MemoryState {
   customFoods: Map<Id, CustomFood>;
   substitutionGroups: Map<Id, SubstitutionGroup>;
   training?: TrainingRotation;
+  trainingSessions: Map<Id, TrainingSession>;
   settings: Settings;
 }
 
@@ -34,6 +36,7 @@ function emptyState(): MemoryState {
     customFoods: new Map(),
     substitutionGroups: new Map(),
     training: undefined,
+    trainingSessions: new Map(),
     settings: { ...DEFAULT_SETTINGS },
   };
 }
@@ -172,6 +175,22 @@ export function createMemoryRepository(): Repository {
       },
     },
 
+    trainingSessions: {
+      async list() {
+        return sessionsNewestFirst(state);
+      },
+      async get(id) {
+        const found = state.trainingSessions.get(id);
+        return found ? clone(found) : undefined;
+      },
+      async put(session) {
+        state.trainingSessions.set(session.id, clone(session));
+      },
+      async remove(id) {
+        state.trainingSessions.delete(id);
+      },
+    },
+
     settings: {
       async get() {
         return clone(state.settings);
@@ -194,6 +213,9 @@ export function createMemoryRepository(): Repository {
         customFoods: [...state.customFoods.values()].map(clone),
         substitutionGroups: [...state.substitutionGroups.values()].map(clone),
         ...(state.training ? { training: clone(state.training) } : {}),
+        ...(state.trainingSessions.size > 0
+          ? { trainingSessions: sessionsNewestFirst(state) }
+          : {}),
         settings: clone(state.settings),
       };
     },
@@ -210,6 +232,9 @@ export function createMemoryRepository(): Repository {
         next.substitutionGroups.set(group.id, clone(group));
       }
       next.training = snapshot.training ? clone(snapshot.training) : undefined;
+      for (const session of snapshot.trainingSessions ?? []) {
+        next.trainingSessions.set(session.id, clone(session));
+      }
       next.settings = { ...DEFAULT_SETTINGS, ...clone(snapshot.settings) };
       state = next;
     },
@@ -218,4 +243,11 @@ export function createMemoryRepository(): Repository {
       state = emptyState();
     },
   };
+}
+
+/** Most recent first, matching the `finishedAt` index the Dexie adapter reads. */
+function sessionsNewestFirst(state: MemoryState): TrainingSession[] {
+  return [...state.trainingSessions.values()]
+    .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
+    .map(clone);
 }

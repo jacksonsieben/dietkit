@@ -285,7 +285,89 @@ export interface TrainingRotation {
   updatedAt: IsoTimestamp;
 }
 
-export const SNAPSHOT_SCHEMA_VERSION = 2;
+/**
+ * One set, as it was actually performed (#79).
+ *
+ * Written from what happened, never from what was prescribed. A set checked
+ * off with eight reps when the card said twelve is logged as eight, and a set
+ * that was never checked off is not in here at all — `done` exists only for
+ * the moments between the screen being opened and the session being saved.
+ * Nothing rounds a bad session up, because the slice after this one reads these
+ * numbers to decide whether a load may go up, and a log that flatters is a log
+ * that puts weight on a bar that should not have it.
+ */
+export interface LoggedSet {
+  /**
+   * Total reps in the set, across both sides.
+   *
+   * For a unilateral movement — `unilateral` in the exercise catalog — the
+   * screen shows this halved, "8 por lado", and steps it in twos. The total is
+   * what gets stored so that every sum downstream is a sum of comparable
+   * numbers, with no caller having to know which movements need doubling.
+   */
+  reps: number;
+  /**
+   * Kilograms on the bar, the stack, or in the hand.
+   *
+   * Absent on a bodyweight movement, which carries no external load, and absent
+   * on a set somebody logged without recording the weight. Both are real
+   * answers and neither is zero: a zero here would read as "lifted nothing",
+   * which is a different and false claim.
+   *
+   * This number is the reason this file is the only place training data lives.
+   * There is no column for a kilogram anywhere in the reference database and
+   * there is not going to be (docs/DECISIONS.md § D1, § D19).
+   */
+  loadKg?: number;
+}
+
+/** One movement inside a session, and the sets that were done of it. */
+export interface LoggedExercise {
+  /** A slug from `src/lib/training/catalog.ts`. */
+  exercise: string;
+  /** In the order they were performed. Empty means the movement was skipped. */
+  sets: LoggedSet[];
+}
+
+/**
+ * A session that happened (#79).
+ *
+ * The first personal training data the app has ever held, and it holds it the
+ * way it holds a weight entry: on the device, in IndexedDB, and nowhere else.
+ *
+ * `dayName` is copied in rather than looked up from the split, on the same
+ * terms as `FoodComposition` in a diet: a split can be renamed or dropped
+ * between two releases, and a log of a session nobody can read the name of is a
+ * log that lost the thing it was for. The slug and index stay beside it so a
+ * later reading can still line sessions up against a split that is still there.
+ *
+ * Only performed sets reach this record. An exercise nobody touched has an
+ * empty `sets`, which is the honest shape of "it was on the card and it did not
+ * happen".
+ */
+export interface TrainingSession {
+  id: Id;
+  /** The day it happened on, for grouping. `startedAt` is the exact instant. */
+  date: IsoDate;
+  /** The split it came from. May name a split this build no longer ships. */
+  splitSlug: string;
+  /** Which of that split's days, zero-based. */
+  dayIndex: number;
+  /** The day's name as it read on the card that day — "A · Peito, ombros...". */
+  dayName: string;
+  exercises: LoggedExercise[];
+  /**
+   * When the first set was checked off, not when the screen was opened.
+   *
+   * Opening the screen on the sofa is not training, and a duration measured
+   * from it would say a session took four hours. The pair with `finishedAt` is
+   * what the finish summary means by how long it took.
+   */
+  startedAt: IsoTimestamp;
+  finishedAt: IsoTimestamp;
+}
+
+export const SNAPSHOT_SCHEMA_VERSION = 3;
 
 /**
  * The whole of a user's data in one object — the shape of the JSON export that
@@ -293,9 +375,10 @@ export const SNAPSHOT_SCHEMA_VERSION = 2;
  * from the first release because a restore path that can't tell which format it
  * is reading is a restore path that breaks on the first migration.
  *
- * Version 2 added `training` (#78). Version 1 files still restore unchanged: a
- * section that is absent reads as absent, which is what a device that has
- * never chosen a split looks like anyway.
+ * Version 2 added `training` (#78) and version 3 `trainingSessions` (#79).
+ * Older files still restore unchanged: a section that is absent reads as
+ * absent, which is what a device that has never opened the training screen
+ * looks like anyway.
  */
 export interface Snapshot {
   schemaVersion: number;
@@ -308,5 +391,14 @@ export interface Snapshot {
   /** Absent on a device that has never opened the training screen, and in
    *  every file written before schema 2. */
   training?: TrainingRotation;
+  /**
+   * Every session ever logged, most recent first. Absent rather than empty on a
+   * device that has trained nothing, and in every file written before schema 3.
+   *
+   * This is the only copy. The export is the only backup this architecture
+   * offers (docs/SCOPE.md § 3), so a log the file did not carry would be a log
+   * that a restore silently deleted.
+   */
+  trainingSessions?: TrainingSession[];
   settings: Settings;
 }

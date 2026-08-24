@@ -16,8 +16,11 @@ import {
   type Profile,
   type Settings,
   type Snapshot,
+  type LoggedExercise,
+  type LoggedSet,
   type SubstitutionGroup,
   type TrainingRotation,
+  type TrainingSession,
   type WeightEntry,
 } from "@/lib/storage/types";
 
@@ -78,6 +81,7 @@ export const DROP_KINDS = [
   "group",
   "goal",
   "training",
+  "trainingSession",
 ] as const;
 
 export type DropKind = (typeof DROP_KINDS)[number];
@@ -231,6 +235,85 @@ function readTraining(value: unknown): TrainingRotation | undefined {
       ? { lastFinishedAt: value.lastFinishedAt }
       : {}),
     updatedAt: value.updatedAt,
+  };
+}
+
+/**
+ * One logged session (#79).
+ *
+ * Read whole or dropped whole. A session is the unit somebody would recognise
+ * as lost — "the leg day from March" — and half of one, with two exercises
+ * restored and a third quietly missing, is a record that lies about what was
+ * done. That is exactly the reading the next slice would advance a load off.
+ */
+function readTrainingSession(value: unknown): TrainingSession | undefined {
+  if (
+    !isObject(value) ||
+    !isText(value.id) ||
+    !isDay(value.date) ||
+    !isText(value.splitSlug) ||
+    !isAtLeastZero(value.dayIndex) ||
+    !Number.isInteger(value.dayIndex) ||
+    !isText(value.dayName) ||
+    !Array.isArray(value.exercises) ||
+    !isInstant(value.startedAt) ||
+    !isInstant(value.finishedAt)
+  ) {
+    return undefined;
+  }
+
+  const exercises: LoggedExercise[] = [];
+  for (const entry of value.exercises) {
+    const exercise = readLoggedExercise(entry);
+    if (exercise === undefined) return undefined;
+    exercises.push(exercise);
+  }
+
+  return {
+    id: value.id,
+    date: value.date as string,
+    splitSlug: value.splitSlug,
+    dayIndex: value.dayIndex,
+    dayName: value.dayName,
+    exercises,
+    startedAt: value.startedAt,
+    finishedAt: value.finishedAt,
+  };
+}
+
+function readLoggedExercise(value: unknown): LoggedExercise | undefined {
+  if (!isObject(value) || !isText(value.exercise) || !Array.isArray(value.sets)) {
+    return undefined;
+  }
+
+  const sets: LoggedSet[] = [];
+  for (const entry of value.sets) {
+    const set = readLoggedSet(entry);
+    if (set === undefined) return undefined;
+    sets.push(set);
+  }
+
+  return { exercise: value.exercise, sets };
+}
+
+/**
+ * A set. `loadKg` is optional and, when it is there, above zero: bodyweight
+ * work and a set logged without the weight are both "no number", and a zero
+ * would restore as the claim that nothing was lifted.
+ */
+function readLoggedSet(value: unknown): LoggedSet | undefined {
+  if (
+    !isObject(value) ||
+    !isPositive(value.reps) ||
+    !Number.isInteger(value.reps) ||
+    !optional(value.loadKg, isPositive)
+  ) {
+    return undefined;
+  }
+
+  return {
+    reps: value.reps,
+    ...(isPositive(value.loadKg) ? { loadKg: value.loadKg } : {}),
   };
 }
 
@@ -517,12 +600,14 @@ export function parseSnapshotFile(text: string): SnapshotParse {
   const dietsRaw = section(raw.diets);
   const foodsRaw = section(raw.customFoods);
   const groupsRaw = section(raw.substitutionGroups);
+  const sessionsRaw = section(raw.trainingSessions);
 
   if (
     weightRaw === undefined ||
     dietsRaw === undefined ||
     foodsRaw === undefined ||
-    groupsRaw === undefined
+    groupsRaw === undefined ||
+    sessionsRaw === undefined
   ) {
     return { ok: false, error: "notSnapshot" };
   }
@@ -586,6 +671,13 @@ export function parseSnapshotFile(text: string): SnapshotParse {
         (value) => label(value, "name"),
         drops,
       ),
+      trainingSessions: readAll(
+        sessionsRaw,
+        "trainingSession",
+        readTrainingSession,
+        (value) => label(value, "dayName"),
+        drops,
+      ),
       settings: readSettings(raw.settings, drops),
     },
     drops,
@@ -613,6 +705,8 @@ export interface SnapshotSummary {
   groups: number;
   /** Whether a split is being run — a rotation is one record or none (#78). */
   hasTraining: boolean;
+  /** Logged sessions (#79) — the part of a backup that cannot be rebuilt. */
+  trainingSessions: number;
 }
 
 export function describeSnapshot(snapshot: Snapshot): SnapshotSummary {
@@ -634,6 +728,7 @@ export function describeSnapshot(snapshot: Snapshot): SnapshotSummary {
     customFoods: snapshot.customFoods.length,
     groups: snapshot.substitutionGroups.length,
     hasTraining: snapshot.training !== undefined,
+    trainingSessions: snapshot.trainingSessions?.length ?? 0,
   };
 }
 
@@ -661,6 +756,10 @@ export function lastChangeAt(snapshot: Snapshot): IsoTimestamp | undefined {
     // exist on the phone, and a reminder that stayed quiet about it would be
     // measuring the wrong thing.
     snapshot.training?.updatedAt,
+    // And the sessions themselves (#79), which is the stronger case: a
+    // rotation can be re-chosen in two taps, and a month of loads cannot be
+    // reconstructed from anything.
+    ...(snapshot.trainingSessions ?? []).map((session) => session.finishedAt),
   ].filter((stamp): stamp is IsoTimestamp => stamp !== undefined);
 
   if (stamps.length === 0) return undefined;

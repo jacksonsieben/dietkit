@@ -85,6 +85,22 @@ export interface CatalogExercise {
    */
   readonly primaryMuscle: MuscleGroup;
   readonly equipment: Equipment;
+  /**
+   * One side at a time: a búlgaro is a left leg and then a right leg, and a
+   * rosca concentrada is one arm.
+   *
+   * Present only where it is true, so the ninety-odd bilateral movements stay
+   * one line each. It is here rather than in `splits.ts` because it is a fact
+   * about the movement — nobody prescribes a two-legged búlgaro — and the log
+   * (#79) needs it for any exercise it is handed, not only the ones a shipped
+   * split happens to name.
+   *
+   * What reads it: reps for a unilateral movement are logged as the total
+   * across both sides and shown halved, "8 por lado". Storing the total is what
+   * keeps every sum downstream honest without a special case, and stepping in
+   * twos is what keeps the number on screen halvable.
+   */
+  readonly unilateral?: true;
 }
 
 /**
@@ -121,7 +137,7 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "remada-curvada-barra", name: "Remada curvada com barra", primaryMuscle: "costas", equipment: "barra" },
   { slug: "remada-cavalinho", name: "Remada cavalinho", primaryMuscle: "costas", equipment: "barra" },
   { slug: "remada-curvada-halteres", name: "Remada curvada com halteres", primaryMuscle: "costas", equipment: "halteres" },
-  { slug: "remada-unilateral-halter", name: "Remada unilateral com halter", primaryMuscle: "costas", equipment: "halteres" },
+  { slug: "remada-unilateral-halter", name: "Remada unilateral com halter", primaryMuscle: "costas", equipment: "halteres", unilateral: true },
   { slug: "remada-baixa-cabo", name: "Remada baixa no cabo", primaryMuscle: "costas", equipment: "cabo" },
   { slug: "remada-maquina", name: "Remada na máquina", primaryMuscle: "costas", equipment: "maquina" },
   { slug: "pulldown-bracos-estendidos", name: "Pulldown com braços estendidos", primaryMuscle: "costas", equipment: "cabo" },
@@ -147,11 +163,11 @@ export const EXERCISES: readonly CatalogExercise[] = [
   // biceps
   { slug: "rosca-direta-barra", name: "Rosca direta com barra", primaryMuscle: "biceps", equipment: "barra" },
   { slug: "rosca-direta-barra-w", name: "Rosca direta com barra W", primaryMuscle: "biceps", equipment: "barra" },
-  { slug: "rosca-alternada-halteres", name: "Rosca alternada com halteres", primaryMuscle: "biceps", equipment: "halteres" },
+  { slug: "rosca-alternada-halteres", name: "Rosca alternada com halteres", primaryMuscle: "biceps", equipment: "halteres", unilateral: true },
   { slug: "rosca-martelo", name: "Rosca martelo", primaryMuscle: "biceps", equipment: "halteres" },
   { slug: "rosca-inclinada-halteres", name: "Rosca inclinada com halteres", primaryMuscle: "biceps", equipment: "halteres" },
   { slug: "rosca-scott", name: "Rosca Scott", primaryMuscle: "biceps", equipment: "barra" },
-  { slug: "rosca-concentrada", name: "Rosca concentrada", primaryMuscle: "biceps", equipment: "halteres" },
+  { slug: "rosca-concentrada", name: "Rosca concentrada", primaryMuscle: "biceps", equipment: "halteres", unilateral: true },
   { slug: "rosca-cabo", name: "Rosca no cabo", primaryMuscle: "biceps", equipment: "cabo" },
   { slug: "rosca-21", name: "Rosca 21", primaryMuscle: "biceps", equipment: "barra" },
 
@@ -162,7 +178,7 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "triceps-frances-halter", name: "Tríceps francês com halter", primaryMuscle: "triceps", equipment: "halteres" },
   { slug: "triceps-corda-cabo", name: "Tríceps corda no cabo", primaryMuscle: "triceps", equipment: "cabo" },
   { slug: "triceps-barra-cabo", name: "Tríceps barra no cabo", primaryMuscle: "triceps", equipment: "cabo" },
-  { slug: "triceps-coice-halter", name: "Tríceps coice com halter", primaryMuscle: "triceps", equipment: "halteres" },
+  { slug: "triceps-coice-halter", name: "Tríceps coice com halter", primaryMuscle: "triceps", equipment: "halteres", unilateral: true },
   { slug: "triceps-maquina", name: "Tríceps na máquina", primaryMuscle: "triceps", equipment: "maquina" },
 
   // antebraco
@@ -180,7 +196,7 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "abdominal-obliquo", name: "Abdominal oblíquo", primaryMuscle: "abdomen", equipment: "peso-corporal" },
   { slug: "torcao-russa", name: "Torção russa", primaryMuscle: "abdomen", equipment: "outro" },
   { slug: "prancha-frontal", name: "Prancha frontal", primaryMuscle: "abdomen", equipment: "peso-corporal" },
-  { slug: "prancha-lateral", name: "Prancha lateral", primaryMuscle: "abdomen", equipment: "peso-corporal" },
+  { slug: "prancha-lateral", name: "Prancha lateral", primaryMuscle: "abdomen", equipment: "peso-corporal", unilateral: true },
   { slug: "abdominal-no-cabo", name: "Abdominal no cabo", primaryMuscle: "abdomen", equipment: "cabo" },
   { slug: "abdominal-maquina", name: "Abdominal na máquina", primaryMuscle: "abdomen", equipment: "maquina" },
   { slug: "roda-abdominal", name: "Roda abdominal", primaryMuscle: "abdomen", equipment: "outro" },
@@ -189,11 +205,11 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "elevacao-pelvica-barra", name: "Elevação pélvica com barra", primaryMuscle: "gluteos", equipment: "barra" },
   { slug: "levantamento-terra-sumo", name: "Levantamento terra sumô", primaryMuscle: "gluteos", equipment: "barra" },
   { slug: "agachamento-sumo", name: "Agachamento sumô", primaryMuscle: "gluteos", equipment: "barra" },
-  { slug: "afundo-halteres", name: "Afundo com halteres", primaryMuscle: "gluteos", equipment: "halteres" },
-  { slug: "avanco-halteres", name: "Avanço com halteres", primaryMuscle: "gluteos", equipment: "halteres" },
-  { slug: "subida-no-banco", name: "Subida no banco com halteres", primaryMuscle: "gluteos", equipment: "halteres" },
+  { slug: "afundo-halteres", name: "Afundo com halteres", primaryMuscle: "gluteos", equipment: "halteres", unilateral: true },
+  { slug: "avanco-halteres", name: "Avanço com halteres", primaryMuscle: "gluteos", equipment: "halteres", unilateral: true },
+  { slug: "subida-no-banco", name: "Subida no banco com halteres", primaryMuscle: "gluteos", equipment: "halteres", unilateral: true },
   { slug: "ponte-de-gluteo", name: "Ponte de glúteo", primaryMuscle: "gluteos", equipment: "peso-corporal" },
-  { slug: "coice-no-cabo", name: "Coice no cabo", primaryMuscle: "gluteos", equipment: "cabo" },
+  { slug: "coice-no-cabo", name: "Coice no cabo", primaryMuscle: "gluteos", equipment: "cabo", unilateral: true },
   { slug: "abducao-de-quadril-maquina", name: "Abdução de quadril na máquina", primaryMuscle: "gluteos", equipment: "maquina" },
   { slug: "abducao-de-quadril-elastico", name: "Abdução de quadril com elástico", primaryMuscle: "gluteos", equipment: "elastico" },
 
@@ -203,9 +219,9 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "agachamento-smith", name: "Agachamento no Smith", primaryMuscle: "quadriceps", equipment: "maquina" },
   { slug: "agachamento-hack", name: "Agachamento hack", primaryMuscle: "quadriceps", equipment: "maquina" },
   { slug: "leg-press-45", name: "Leg press 45°", primaryMuscle: "quadriceps", equipment: "maquina" },
-  { slug: "agachamento-bulgaro", name: "Agachamento búlgaro", primaryMuscle: "quadriceps", equipment: "halteres" },
+  { slug: "agachamento-bulgaro", name: "Agachamento búlgaro", primaryMuscle: "quadriceps", equipment: "halteres", unilateral: true },
   { slug: "agachamento-goblet", name: "Agachamento goblet", primaryMuscle: "quadriceps", equipment: "kettlebell" },
-  { slug: "passada-halteres", name: "Passada com halteres", primaryMuscle: "quadriceps", equipment: "halteres" },
+  { slug: "passada-halteres", name: "Passada com halteres", primaryMuscle: "quadriceps", equipment: "halteres", unilateral: true },
   { slug: "agachamento-livre-sem-peso", name: "Agachamento livre sem peso", primaryMuscle: "quadriceps", equipment: "peso-corporal" },
   { slug: "cadeira-extensora", name: "Cadeira extensora", primaryMuscle: "quadriceps", equipment: "maquina" },
 
@@ -217,7 +233,7 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "balanco-kettlebell", name: "Balanço com kettlebell", primaryMuscle: "posterior-de-coxa", equipment: "kettlebell" },
   { slug: "mesa-flexora", name: "Mesa flexora", primaryMuscle: "posterior-de-coxa", equipment: "maquina" },
   { slug: "cadeira-flexora", name: "Cadeira flexora", primaryMuscle: "posterior-de-coxa", equipment: "maquina" },
-  { slug: "flexora-em-pe", name: "Flexora em pé", primaryMuscle: "posterior-de-coxa", equipment: "maquina" },
+  { slug: "flexora-em-pe", name: "Flexora em pé", primaryMuscle: "posterior-de-coxa", equipment: "maquina", unilateral: true },
   { slug: "flexao-nordica", name: "Flexão nórdica", primaryMuscle: "posterior-de-coxa", equipment: "peso-corporal" },
 
   // panturrilhas
@@ -232,7 +248,7 @@ export const EXERCISES: readonly CatalogExercise[] = [
   { slug: "clean-de-potencia", name: "Clean de potência", primaryMuscle: "corpo-inteiro", equipment: "barra" },
   { slug: "arremesso-barra", name: "Arremesso com barra", primaryMuscle: "corpo-inteiro", equipment: "barra" },
   { slug: "thruster-halteres", name: "Thruster com halteres", primaryMuscle: "corpo-inteiro", equipment: "halteres" },
-  { slug: "levantamento-turco", name: "Levantamento turco", primaryMuscle: "corpo-inteiro", equipment: "kettlebell" },
+  { slug: "levantamento-turco", name: "Levantamento turco", primaryMuscle: "corpo-inteiro", equipment: "kettlebell", unilateral: true },
   { slug: "burpee", name: "Burpee", primaryMuscle: "corpo-inteiro", equipment: "peso-corporal" },
   { slug: "escalador", name: "Escalador", primaryMuscle: "corpo-inteiro", equipment: "peso-corporal" },
   { slug: "polichinelo", name: "Polichinelo", primaryMuscle: "corpo-inteiro", equipment: "peso-corporal" },
@@ -250,9 +266,16 @@ export const EXERCISE_COUNT = EXERCISES.length;
  * group is one line, not a renumbering of everything under it. A hand-kept
  * `position: 7` is a column that drifts the first time somebody is in a hurry.
  */
-export interface CatalogRow extends CatalogExercise {
+export interface CatalogRow extends Omit<CatalogExercise, "unilateral"> {
   /** Rank within the primary muscle, from zero. */
   readonly position: number;
+  /**
+   * Widened from the optional flag above, because a column is not optional.
+   * `undefined` and `false` are the same fact and the table should only be able
+   * to say it one way — which is also why this is an `Omit` rather than a plain
+   * extension: `true` narrowed is not a boolean a row can be built from.
+   */
+  readonly unilateral: boolean;
 }
 
 export function catalogRows(): CatalogRow[] {
@@ -262,8 +285,21 @@ export function catalogRows(): CatalogRow[] {
     const position = seen.get(exercise.primaryMuscle) ?? 0;
     seen.set(exercise.primaryMuscle, position + 1);
 
-    return { ...exercise, position };
+    return { ...exercise, position, unilateral: exercise.unilateral === true };
   });
+}
+
+/**
+ * Whether a movement is done one side at a time.
+ *
+ * Takes a slug rather than an exercise because every caller has one: the log
+ * reads a split item, and a split item is a slug. A movement this build has
+ * never heard of reads as bilateral, which is the safe answer — it means the
+ * number on screen is the number logged, with nothing halved behind the user's
+ * back.
+ */
+export function isUnilateral(slug: string): boolean {
+  return exerciseBySlug(slug)?.unilateral === true;
 }
 
 /**

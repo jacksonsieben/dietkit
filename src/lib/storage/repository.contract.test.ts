@@ -13,6 +13,7 @@ import type {
   Profile,
   SubstitutionGroup,
   TrainingRotation,
+  TrainingSession,
   WeightEntry,
 } from "./types";
 import { SNAPSHOT_SCHEMA_VERSION } from "./types";
@@ -167,6 +168,31 @@ function makeRotation(
   };
 }
 
+function makeSession(
+  overrides: Partial<TrainingSession> = {},
+): TrainingSession {
+  return {
+    id: "session-1",
+    date: "2026-08-16",
+    splitSlug: "abc-3x",
+    dayIndex: 0,
+    dayName: "A · Peito, ombros e tríceps",
+    exercises: [
+      {
+        exercise: "supino-reto-barra",
+        sets: [
+          { reps: 8, loadKg: 60 },
+          { reps: 6, loadKg: 62.5 },
+        ],
+      },
+      { exercise: "triceps-corda-cabo", sets: [] },
+    ],
+    startedAt: "2026-08-16T17:40:00.000Z",
+    finishedAt: "2026-08-16T18:40:00.000Z",
+    ...overrides,
+  };
+}
+
 describe.each(adapters)("Repository contract: $name", ({ create }) => {
   let repository: Repository;
   let dispose: () => Promise<void>;
@@ -223,6 +249,111 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
 
       const second = await repository.training.get();
       expect(second?.nextDay).toBe(1);
+    });
+  });
+
+  describe("trainingSessions", () => {
+    it("is empty until something is trained", async () => {
+      await expect(repository.trainingSessions.list()).resolves.toEqual([]);
+    });
+
+    it("round-trips a session down to its nested sets", async () => {
+      const session = makeSession();
+      await repository.trainingSessions.put(session);
+
+      await expect(repository.trainingSessions.get("session-1")).resolves.toEqual(
+        session,
+      );
+    });
+
+    it("keeps a movement that was on the card and not done", async () => {
+      // An empty `sets` is a fact, not an absence: dropping it in storage would
+      // make a skipped session and a shorter one read the same afterwards.
+      await repository.trainingSessions.put(makeSession());
+
+      const stored = await repository.trainingSessions.get("session-1");
+      expect(stored?.exercises[1]).toEqual({
+        exercise: "triceps-corda-cabo",
+        sets: [],
+      });
+    });
+
+    it("keeps a set logged without a weight absent rather than zero", async () => {
+      await repository.trainingSessions.put(
+        makeSession({
+          exercises: [
+            { exercise: "barra-fixa-pronada", sets: [{ reps: 10 }] },
+          ],
+        }),
+      );
+
+      const set = (await repository.trainingSessions.get("session-1"))!
+        .exercises[0]!.sets[0]!;
+      expect(set).toEqual({ reps: 10 });
+      expect(set.loadKg).toBeUndefined();
+    });
+
+    it("lists most recent first — what the pre-fill reads", async () => {
+      await repository.trainingSessions.put(
+        makeSession({ id: "b", finishedAt: "2026-08-19T18:40:00.000Z" }),
+      );
+      await repository.trainingSessions.put(
+        makeSession({ id: "a", finishedAt: "2026-08-12T18:40:00.000Z" }),
+      );
+      await repository.trainingSessions.put(
+        makeSession({ id: "c", finishedAt: "2026-08-24T18:40:00.000Z" }),
+      );
+
+      const ids = (await repository.trainingSessions.list()).map((s) => s.id);
+      expect(ids).toEqual(["c", "b", "a"]);
+    });
+
+    it("stacks rather than replacing: this is a log, not a pointer", async () => {
+      // The opposite of `training` above. Two sessions of the same day of the
+      // same split are two sessions.
+      await repository.trainingSessions.put(makeSession({ id: "a" }));
+      await repository.trainingSessions.put(makeSession({ id: "b" }));
+
+      await expect(repository.trainingSessions.list()).resolves.toHaveLength(2);
+    });
+
+    it("edits a session in place when it is put again", async () => {
+      await repository.trainingSessions.put(makeSession());
+      await repository.trainingSessions.put(
+        makeSession({ exercises: [{ exercise: "supino-reto-barra", sets: [] }] }),
+      );
+
+      const all = await repository.trainingSessions.list();
+      expect(all).toHaveLength(1);
+      expect(all[0]?.exercises).toEqual([
+        { exercise: "supino-reto-barra", sets: [] },
+      ]);
+    });
+
+    it("removes one", async () => {
+      await repository.trainingSessions.put(makeSession());
+      await repository.trainingSessions.remove("session-1");
+
+      await expect(repository.trainingSessions.list()).resolves.toEqual([]);
+      await expect(
+        repository.trainingSessions.get("session-1"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("copies on the way in and on the way out", async () => {
+      // Both directions, because the sets are nested: an adapter that stored
+      // the caller's object would let a later edit to the draft rewrite a
+      // session that has already been logged.
+      const session = makeSession();
+      await repository.trainingSessions.put(session);
+      session.exercises[0]!.sets[0]!.loadKg = 111;
+
+      const first = await repository.trainingSessions.get("session-1");
+      expect(first?.exercises[0]?.sets[0]?.loadKg).toBe(60);
+
+      first!.exercises[0]!.sets[0]!.loadKg = 999;
+      const second = await repository.trainingSessions.get("session-1");
+      expect(second?.exercises[0]?.sets[0]?.loadKg).toBe(60);
     });
   });
 
@@ -508,6 +639,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.customFoods.put(food);
       await repository.substitutionGroups.put(group);
       await repository.training.save(makeRotation());
+      await repository.trainingSessions.put(makeSession());
       await repository.settings.patch({
         lastBackupAt: "2026-08-17T09:00:00.000Z",
       });
@@ -522,6 +654,10 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       expect(snapshot.customFoods).toEqual([food]);
       expect(snapshot.substitutionGroups).toEqual([group]);
       expect(snapshot.training).toEqual(makeRotation());
+      // The export is the only backup this architecture offers, and the log is
+      // the only copy of it — a file that left it out would be a file whose
+      // restore silently deleted somebody's training history.
+      expect(snapshot.trainingSessions).toEqual([makeSession()]);
       expect(snapshot.settings.lastBackupAt).toBe("2026-08-17T09:00:00.000Z");
     });
 
@@ -533,6 +669,10 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.customFoods.put(makeFood());
       await repository.substitutionGroups.put(makeGroup());
       await repository.training.save(makeRotation());
+      await repository.trainingSessions.put(makeSession({ id: "a" }));
+      await repository.trainingSessions.put(
+        makeSession({ id: "b", finishedAt: "2026-08-19T18:40:00.000Z" }),
+      );
 
       // Through JSON, because that is exactly what the backup file is.
       const snapshot = JSON.parse(
@@ -549,6 +689,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       expect(restored.customFoods).toEqual(snapshot.customFoods);
       expect(restored.substitutionGroups).toEqual(snapshot.substitutionGroups);
       expect(restored.training).toEqual(snapshot.training);
+      expect(restored.trainingSessions).toEqual(snapshot.trainingSessions);
     });
 
     it("leaves no rotation behind when the file has none", async () => {
@@ -560,6 +701,31 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       // A restore replaces; it does not merge. A split left over from before
       // would be the one thing on the device the file did not put there.
       await expect(repository.training.get()).resolves.toBeUndefined();
+    });
+
+    it("leaves no sessions behind when the file has none", async () => {
+      const empty = await repository.exportAll();
+      await repository.trainingSessions.put(makeSession());
+
+      await repository.importAll(empty);
+
+      await expect(repository.trainingSessions.list()).resolves.toEqual([]);
+    });
+
+    it("restores a file written before the log existed, unchanged", async () => {
+      // Schema 2 and older have no `trainingSessions` at all. Absent has to
+      // read as absent rather than as an error: it is what every device that
+      // has never opened the training screen looks like anyway.
+      await repository.profile.save(makeProfile());
+      const snapshot = await repository.exportAll();
+      const older = { ...snapshot, schemaVersion: 2 };
+      delete older.trainingSessions;
+
+      await repository.clearAll();
+      await repository.importAll(older);
+
+      await expect(repository.profile.get()).resolves.toEqual(makeProfile());
+      await expect(repository.trainingSessions.list()).resolves.toEqual([]);
     });
 
     it("replaces on import rather than merging", async () => {
@@ -597,6 +763,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await repository.customFoods.put(makeFood());
       await repository.substitutionGroups.put(makeGroup());
       await repository.training.save(makeRotation());
+      await repository.trainingSessions.put(makeSession());
       await repository.settings.patch({
         lastBackupAt: "2026-08-17T09:00:00.000Z",
       });
@@ -609,6 +776,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await expect(repository.customFoods.list()).resolves.toEqual([]);
       await expect(repository.substitutionGroups.list()).resolves.toEqual([]);
       await expect(repository.training.get()).resolves.toBeUndefined();
+      await expect(repository.trainingSessions.list()).resolves.toEqual([]);
       await expect(repository.settings.get()).resolves.toEqual(
         DEFAULT_SETTINGS,
       );

@@ -448,3 +448,62 @@ are paying.
 **Consequence, on backups:** `SNAPSHOT_SCHEMA_VERSION` went to 2. A version 1
 file restores unchanged — an absent `training` section reads as a device that
 has not chosen a split, which is exactly what it is.
+
+---
+
+### D19 — The training log is on-device, and a set is what happened
+
+Finishing a session writes a record: the date, the split and day it came from,
+and per exercise an ordered list of sets carrying reps, an optional load in
+kilograms, and whether it was done. That record goes to IndexedDB and nowhere
+else. It is written once, at the finish, from a draft that lives in React state
+and is thrown away if the tab closes.
+
+**Why nothing goes to the server:** a rep range is a prescription and a kilogram
+is a person. § D1 has said so since the first table was drawn, and this is the
+feature that would have made it convenient to stop meaning it — a log is a time
+series, a time series wants a database, and there is one right there with the
+exercises in it. But the thing that would be stored is the most personal record
+this app can hold: how strong someone is, how that changed, and which weeks they
+did not show up. `src/lib/db/boundary.test.ts` fails a server column whose name
+sounds personal, so the convenient version does not compile, and the honest
+version is a Dexie table.
+
+**Consequence, on what a set means:** a set is logged as what happened, not as
+what was asked for. The day prescribes 4×8; if the fourth set was six reps at a
+lighter load, six is what is written, and a set that was never checked off is
+left out of the record entirely rather than stored as a zero. Nothing rounds a
+bad session up. This is not a scruple about tidiness — the next slice suggests
+the next load from these numbers (#80), and a log that flatters the user is a
+log that will tell them to add weight after the session where they could not
+finish the third set.
+
+**Consequence, on the draft:** an in-progress session is not persisted. The
+issue asks for a store of *finished* sessions, and a half-written one saved on
+every checkbox is a second kind of record with its own resume semantics, its own
+staleness question ("this session is from Tuesday, continue it?") and its own
+way of getting out of step with the rotation. Losing a session to a closed tab
+is a real cost and it is the smaller one; the wake lock that keeps the screen on
+through a session is #83.
+
+**Consequence, on the fields:** a bodyweight movement — one whose equipment is
+`peso-corporal` — has no load field, because a chin-up does not weigh anything
+and a `0 kg` in the record is a number that will later be averaged. Adding a
+belt is an addition and reads as one: an explicit "pôr carga" that turns the
+load on for that set. A unilateral movement shows the split ("8 por lado") and
+steps in twos, so the number on screen is the number the person counts and the
+number in the record is still the total.
+
+**Consequence, on backups:** `SNAPSHOT_SCHEMA_VERSION` went to 3. Versions 1 and
+2 restore unchanged — an absent `trainingSessions` section is a device that has
+not logged anything, which is what it is. A log that only exists on one phone is
+a log that one dropped phone deletes, so the backup file is the only copy that
+outlives the device, and it stays a file the person holds rather than a row we
+hold for them.
+
+**On openGym:** the shape of this feature was worked out after reading openGym
+(AGPL-3.0), which is where the rest timer between sets, the pre-fill from last
+time and the per-set done state come from as *ideas*. No code and no data were
+taken from it; nothing in this repository is derived from that project, and it
+is named here because studying a good answer and then writing your own is worth
+recording either way.

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryRepository } from "@/lib/storage/memory";
 import type { Repository } from "@/lib/storage/repository";
+import type { TrainingSession } from "@/lib/storage/types";
 
 import {
   chooseSplit,
@@ -18,6 +19,22 @@ let repository: Repository;
 beforeEach(() => {
   repository = createMemoryRepository();
 });
+
+function makeRecord(overrides: Partial<TrainingSession> = {}): TrainingSession {
+  return {
+    id: "session-1",
+    date: "2026-08-26",
+    splitSlug: "abc-3x",
+    dayIndex: 0,
+    dayName: "A · Peito, ombros e tríceps",
+    exercises: [
+      { exercise: "supino-reto-barra", sets: [{ reps: 8, loadKg: 60 }] },
+    ],
+    startedAt: "2026-08-26T17:40:00.000Z",
+    finishedAt: LATER,
+    ...overrides,
+  };
+}
 
 describe("loadTraining", () => {
   it("asks for a split on a device that has never chosen one", async () => {
@@ -115,6 +132,57 @@ describe("finishSession", () => {
 
     if (state.status !== "ready") throw new Error(state.status);
     expect(state.session.index).toBe(0);
+  });
+
+  it("writes the session that was logged", async () => {
+    await chooseSplit(repository, "abc-3x", NOW);
+    await finishSession(repository, LATER, makeRecord());
+
+    await expect(repository.trainingSessions.list()).resolves.toEqual([
+      makeRecord(),
+    ]);
+  });
+
+  it("logs nothing when nothing was checked off", async () => {
+    // Finishing without having done a set is a real gesture: the rotation
+    // moves and the log stays empty, because nothing happened.
+    await chooseSplit(repository, "abc-3x", NOW);
+    await finishSession(repository, LATER);
+
+    await expect(repository.trainingSessions.list()).resolves.toEqual([]);
+  });
+
+  it("keeps the session even when the split cannot be advanced", async () => {
+    // The workout happened. The rotation is a pointer somebody can fix in one
+    // tap; the log is the only copy of what was lifted, and it carries its own
+    // day name so a dropped split stays readable.
+    await repository.training.save({
+      splitSlug: "abc-4x-2019",
+      nextDay: 1,
+      updatedAt: NOW,
+    });
+
+    const state = await finishSession(
+      repository,
+      LATER,
+      makeRecord({ splitSlug: "abc-4x-2019" }),
+    );
+
+    expect(state.status).toBe("unknownSplit");
+    await expect(repository.trainingSessions.list()).resolves.toHaveLength(1);
+  });
+
+  it("stacks sessions rather than replacing the last one", async () => {
+    await chooseSplit(repository, "abc-3x", NOW);
+    await finishSession(repository, LATER, makeRecord({ id: "a" }));
+    await finishSession(
+      repository,
+      LATER,
+      makeRecord({ id: "b", finishedAt: "2026-08-28T18:30:00.000Z" }),
+    );
+
+    const ids = (await repository.trainingSessions.list()).map((s) => s.id);
+    expect(ids).toEqual(["b", "a"]);
   });
 
   it("does nothing dramatic when there is no rotation to move", async () => {

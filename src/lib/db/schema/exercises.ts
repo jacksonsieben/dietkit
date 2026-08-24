@@ -1,4 +1,11 @@
-import { index, integer, pgEnum, pgTable, text } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+} from "drizzle-orm/pg-core";
 
 /**
  * The exercise catalog: names and how to group them, nothing about anybody's
@@ -47,6 +54,17 @@ export const exercises = pgTable(
     primaryMuscle: muscleGroup("primary_muscle").notNull(),
     equipment: equipment("equipment").notNull(),
     position: integer("position").notNull().default(0),
+    /**
+     * Done one side at a time — a búlgaro, a rosca concentrada (#79).
+     *
+     * A fact about the movement, so it belongs beside the equipment rather
+     * than in whatever prescribes it. Nothing on the server reads it yet; it
+     * is here because the bundled copy of this catalog in
+     * `src/lib/training/catalog.ts` grew it, and the two copies describing the
+     * same exercise differently is the drift `exercises.test.ts` exists to
+     * catch.
+     */
+    unilateral: boolean("unilateral").notNull().default(false),
   },
   (table) => [index("exercises_primary_muscle_idx").on(table.primaryMuscle)],
 );
