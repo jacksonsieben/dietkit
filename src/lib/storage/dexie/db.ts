@@ -7,6 +7,7 @@ import type {
   Settings,
   SubstitutionGroup,
   TrainingRotation,
+  TrainingSession,
   WeightEntry,
 } from "../types";
 
@@ -24,6 +25,7 @@ export class DietKitDatabase extends Dexie {
   customFoods!: Table<CustomFood, string>;
   substitutionGroups!: Table<SubstitutionGroup, string>;
   training!: Table<TrainingRow, string>;
+  trainingSessions!: Table<TrainingSession, string>;
   settings!: Table<SettingsRow, string>;
 
   constructor(name: string) {
@@ -53,6 +55,17 @@ export class DietKitDatabase extends Dexie {
     // the screen wants the single row and there is only ever one.
     this.version(3).stores({
       training: "id",
+    });
+
+    // Additive again (#79). `finishedAt` is indexed because every read of this
+    // store is "what happened most recently" — the pre-fill and any history
+    // both walk it backwards — and `date` because a session belongs to a day.
+    // Nothing here is indexed by exercise: which movements a session contains
+    // is a nested array, which IndexedDB cannot index without a derived
+    // column, and the log is small enough that the scan is cheaper than a
+    // second copy of the truth to keep in sync.
+    this.version(4).stores({
+      trainingSessions: "id, date, finishedAt",
     });
   }
 }

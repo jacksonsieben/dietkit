@@ -8,6 +8,7 @@ import {
   EXERCISES,
   exerciseBySlug,
   exercisesByMuscle,
+  isUnilateral,
   MUSCLE_GROUPS,
   type MuscleGroup,
 } from "./catalog";
@@ -124,6 +125,60 @@ describe("the exercise catalog", () => {
 
   it("counts what it holds", () => {
     expect(EXERCISE_COUNT).toBe(EXERCISES.length);
+  });
+
+  it("says a movement is one-sided only by saying so", () => {
+    // `unilateral?: true` and never `false`. Two ways to write the same fact is
+    // how ninety-odd bilateral lines start disagreeing with each other.
+    for (const exercise of EXERCISES) {
+      if ("unilateral" in exercise) expect(exercise.unilateral).toBe(true);
+    }
+  });
+
+  it("marks the movements nobody does with both limbs at once", () => {
+    // Named rather than counted: this is a judgement about the movements, and
+    // a count would go green again the moment somebody marked the wrong one.
+    for (const slug of [
+      "agachamento-bulgaro",
+      "remada-unilateral-halter",
+      "rosca-concentrada",
+      "avanco-halteres",
+      "prancha-lateral",
+    ]) {
+      expect(isUnilateral(slug)).toBe(true);
+    }
+  });
+
+  it("leaves alone the ones that only look one-sided", () => {
+    // A rosca alternada alternates, so it is one arm at a time. An elevação
+    // lateral is two. A tríceps francês with a single dumbbell is two hands on
+    // one weight. Marking these would halve a number that was never doubled.
+    for (const slug of [
+      "elevacao-lateral-halteres",
+      "triceps-frances-halter",
+      "supino-reto-barra",
+      "leg-press-45",
+    ]) {
+      expect(isUnilateral(slug)).toBe(false);
+    }
+  });
+
+  it("reads a movement it has never heard of as two-sided", () => {
+    // The safe answer: bilateral means the number on screen is the number
+    // logged, with nothing halved behind the user's back.
+    expect(isUnilateral("supino-em-marte")).toBe(false);
+  });
+
+  it("widens the flag into a column that is always there", () => {
+    const rows = catalogRows();
+
+    expect(rows.every((row) => typeof row.unilateral === "boolean")).toBe(true);
+    expect(
+      rows.find((row) => row.slug === "agachamento-bulgaro")?.unilateral,
+    ).toBe(true);
+    expect(
+      rows.find((row) => row.slug === "supino-reto-barra")?.unilateral,
+    ).toBe(false);
   });
 
   it("credits nobody else for the list", () => {

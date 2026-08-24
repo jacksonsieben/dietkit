@@ -8,6 +8,7 @@ import type {
   Snapshot,
   SubstitutionGroup,
   TrainingRotation,
+  TrainingSession,
   WeightEntry,
 } from "./types";
 
@@ -80,6 +81,29 @@ export interface TrainingRepository {
   clear(): Promise<void>;
 }
 
+/**
+ * Everything that has been trained (#79).
+ *
+ * A list, unlike the rotation above: the rotation is where you are and there is
+ * one of those, and this is what happened and there is one of those per
+ * session, forever.
+ *
+ * `list` returns all of them rather than a page. Pre-filling today's session
+ * from the last time each movement was done is a question about history that no
+ * index can answer — "the most recent session containing this slug" — and the
+ * scan is over a few hundred rows at the size a person's training log actually
+ * reaches. Keeping the query in a pure function above this seam is worth more
+ * than a second adapter-specific cursor: see `lastPerformance` in
+ * `src/lib/training/log.ts`, which is testable without a database.
+ */
+export interface TrainingSessionRepository {
+  /** Most recent first — the order both the pre-fill and any history wants. */
+  list(): Promise<TrainingSession[]>;
+  get(id: Id): Promise<TrainingSession | undefined>;
+  put(session: TrainingSession): Promise<void>;
+  remove(id: Id): Promise<void>;
+}
+
 export interface SettingsRepository {
   /** Never undefined — an unset store reads back as defaults. */
   get(): Promise<Settings>;
@@ -93,6 +117,7 @@ export interface Repository {
   readonly customFoods: CustomFoodRepository;
   readonly substitutionGroups: SubstitutionGroupRepository;
   readonly training: TrainingRepository;
+  readonly trainingSessions: TrainingSessionRepository;
   readonly settings: SettingsRepository;
 
   /**

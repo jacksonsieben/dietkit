@@ -245,6 +245,7 @@ export function BackupPanel() {
     device.summary.diets === 0 &&
     device.summary.customFoods === 0 &&
     device.summary.groups === 0 &&
+    device.summary.trainingSessions === 0 &&
     !device.summary.hasTraining &&
     !device.summary.hasProfile;
 
@@ -463,6 +464,11 @@ function ReviewPanel({
               label={t("rows.training")}
               device={yesNo(device.hasTraining)}
               file={yesNo(file.hasTraining)}
+            />
+            <Row
+              label={t("rows.trainingSessions")}
+              device={t("count", { count: device.trainingSessions })}
+              file={t("count", { count: file.trainingSessions })}
             />
           </tbody>
         </table>

@@ -138,6 +138,21 @@ export function createDexieRepository(
       },
     },
 
+    trainingSessions: {
+      async list() {
+        return db.trainingSessions.orderBy("finishedAt").reverse().toArray();
+      },
+      async get(id) {
+        return db.trainingSessions.get(id);
+      },
+      async put(session) {
+        await db.trainingSessions.put(session);
+      },
+      async remove(id) {
+        await db.trainingSessions.delete(id);
+      },
+    },
+
     settings: {
       async get() {
         const row = await db.settings.get(SINGLETON_KEY);
@@ -168,6 +183,7 @@ export function createDexieRepository(
           db.customFoods,
           db.substitutionGroups,
           db.training,
+          db.trainingSessions,
           db.settings,
         ],
         async () => {
@@ -178,6 +194,7 @@ export function createDexieRepository(
             customFoods,
             substitutionGroups,
             trainingRow,
+            trainingSessions,
             settingsRow,
           ] = await Promise.all([
             db.profile.get(SINGLETON_KEY),
@@ -186,6 +203,7 @@ export function createDexieRepository(
             db.customFoods.toArray(),
             db.substitutionGroups.toArray(),
             db.training.get(SINGLETON_KEY),
+            db.trainingSessions.orderBy("finishedAt").reverse().toArray(),
             db.settings.get(SINGLETON_KEY),
           ]);
 
@@ -200,6 +218,7 @@ export function createDexieRepository(
             ...(trainingRow
               ? { training: stripKey(trainingRow) as TrainingRotation }
               : {}),
+            ...(trainingSessions.length > 0 ? { trainingSessions } : {}),
             settings: settingsRow
               ? { ...DEFAULT_SETTINGS, ...(stripKey(settingsRow) as Settings) }
               : { ...DEFAULT_SETTINGS },
@@ -222,6 +241,7 @@ export function createDexieRepository(
           db.customFoods,
           db.substitutionGroups,
           db.training,
+          db.trainingSessions,
           db.settings,
         ],
         async () => {
@@ -232,6 +252,7 @@ export function createDexieRepository(
             db.customFoods.clear(),
             db.substitutionGroups.clear(),
             db.training.clear(),
+            db.trainingSessions.clear(),
             db.settings.clear(),
           ]);
 
@@ -245,6 +266,7 @@ export function createDexieRepository(
           if (snapshot.training) {
             await db.training.put({ ...snapshot.training, id: SINGLETON_KEY });
           }
+          await db.trainingSessions.bulkPut(snapshot.trainingSessions ?? []);
           await db.settings.put({
             ...DEFAULT_SETTINGS,
             ...snapshot.settings,
@@ -264,6 +286,7 @@ export function createDexieRepository(
           db.customFoods,
           db.substitutionGroups,
           db.training,
+          db.trainingSessions,
           db.settings,
         ],
         async () => {
@@ -274,6 +297,7 @@ export function createDexieRepository(
             db.customFoods.clear(),
             db.substitutionGroups.clear(),
             db.training.clear(),
+            db.trainingSessions.clear(),
             db.settings.clear(),
           ]);
         },

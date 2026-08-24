@@ -11,7 +11,7 @@ import type { Snapshot } from "@/lib/storage/types";
  */
 export function fullSnapshot(): Snapshot {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: "2026-08-20T12:00:00.000Z",
     profile: {
       heightCm: 178,
@@ -104,6 +104,31 @@ export function fullSnapshot(): Snapshot {
       lastFinishedAt: "2026-08-14T18:40:00.000Z",
       updatedAt: "2026-08-14T18:40:00.000Z",
     },
+    trainingSessions: [
+      {
+        id: "s-1",
+        date: "2026-08-14",
+        splitSlug: "abc-3x",
+        dayName: "A · Peito, ombros e tríceps",
+        dayIndex: 0,
+        exercises: [
+          {
+            exercise: "supino-reto-barra",
+            sets: [
+              { reps: 8, loadKg: 60 },
+              { reps: 8, loadKg: 60 },
+              { reps: 6, loadKg: 60 },
+            ],
+          },
+          // Bodyweight, so no load — and one movement that was on the card and
+          // did not happen, because a file has to be able to say that too.
+          { exercise: "flexao-de-braco", sets: [{ reps: 12 }] },
+          { exercise: "elevacao-lateral-halteres", sets: [] },
+        ],
+        startedAt: "2026-08-14T17:45:00.000Z",
+        finishedAt: "2026-08-14T18:40:00.000Z",
+      },
+    ],
     settings: {
       locale: "pt-BR",
       lastBackupAt: "2026-08-10T09:00:00.000Z",

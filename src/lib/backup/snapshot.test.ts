@@ -245,6 +245,86 @@ describe("parseSnapshotFile", () => {
     expect(snapshot.training?.nextDay).toBe(40);
   });
 
+  it("restores a file written before the log existed", () => {
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        raw.schemaVersion = 2;
+        delete raw.trainingSessions;
+      }),
+    );
+
+    // Every file written between #78 and #79 looks like this, and so does a
+    // device that has a split and has not finished a session on it yet.
+    expect(snapshot.trainingSessions).toEqual([]);
+    expect(drops).toEqual([]);
+  });
+
+  it("brings back a logged session with its sets in order", () => {
+    const { snapshot } = parsed(fullSnapshotFile());
+
+    expect(snapshot.trainingSessions).toEqual(fullSnapshot().trainingSessions);
+  });
+
+  it("drops one unreadable session by name and keeps the others", () => {
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        const sessions = raw.trainingSessions as Record<string, unknown>[];
+        sessions.push({ ...sessions[0], id: "s-2", dayName: "B · Costas", date: "não" });
+      }),
+    );
+
+    expect(snapshot.trainingSessions).toHaveLength(1);
+    expect(drops).toEqual([
+      { kind: "trainingSession", subject: "B · Costas" },
+    ]);
+  });
+
+  it("drops the whole session when one set inside it is broken", () => {
+    // Half a session is a session that lies about what was done, and the
+    // slice that reads these numbers to raise a load must never see one.
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        const sessions = raw.trainingSessions as Record<string, unknown>[];
+        const exercises = sessions[0]!.exercises as Record<string, unknown>[];
+        (exercises[0]!.sets as Record<string, unknown>[])[1]!.reps = 0;
+      }),
+    );
+
+    expect(snapshot.trainingSessions).toEqual([]);
+    expect(drops).toEqual([
+      { kind: "trainingSession", subject: "A · Peito, ombros e tríceps" },
+    ]);
+  });
+
+  it("refuses a set that claims a load of zero", () => {
+    // Bodyweight work, and anybody who checked a set off without typing a
+    // number. Absent is the answer; zero would be the claim that nothing was
+    // lifted, which is why a zero is refused instead.
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        const sessions = raw.trainingSessions as Record<string, unknown>[];
+        const exercises = sessions[0]!.exercises as Record<string, unknown>[];
+        (exercises[0]!.sets as Record<string, unknown>[])[0]!.loadKg = 0;
+      }),
+    );
+
+    expect(snapshot.trainingSessions).toEqual([]);
+    expect(drops).toHaveLength(1);
+  });
+
+  it("keeps a session from a split this build no longer ships", () => {
+    // The workout happened. `dayName` is copied into the record for exactly
+    // this: the split can be gone and the session still reads.
+    const { snapshot } = parsed(
+      fileWith((raw) => {
+        const sessions = raw.trainingSessions as Record<string, unknown>[];
+        sessions[0]!.splitSlug = "abc-4x-2019";
+      }),
+    );
+
+    expect(snapshot.trainingSessions?.[0]?.splitSlug).toBe("abc-4x-2019");
+  });
+
   it("stamps the version it understood rather than the one the file claimed", () => {
     const { snapshot } = parsed(fileWith((raw) => (raw.schemaVersion = 1)));
 
@@ -289,6 +369,7 @@ describe("describeSnapshot", () => {
       customFoods: 1,
       groups: 1,
       hasTraining: true,
+      trainingSessions: 1,
     });
   });
 
@@ -318,6 +399,22 @@ describe("lastChangeAt", () => {
     // The plan edited on the 15th is later than the profile and the foods, and
     // earlier than the last weighing — so only a search of all of them is right.
     expect(lastChangeAt(fullSnapshot())).toBe("2026-08-19T07:05:00.000Z");
+  });
+
+  it("counts a logged session as a change worth saving", () => {
+    // The strongest case there is: a rotation can be re-chosen in two taps and
+    // a month of loads cannot be reconstructed from anything.
+    const snapshot: Snapshot = {
+      ...fullSnapshot(),
+      weight: [],
+      diets: [],
+      customFoods: [],
+      substitutionGroups: [],
+      profile: undefined,
+      training: undefined,
+    };
+
+    expect(lastChangeAt(snapshot)).toBe("2026-08-14T18:40:00.000Z");
   });
 
   it("sees a change in a plan that no weighing followed", () => {

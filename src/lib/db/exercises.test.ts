@@ -64,6 +64,52 @@ describe("the exercise catalog and its table", () => {
     );
   });
 
+  it("carries the one-sided flag into the column", async () => {
+    // The two copies of the catalog have to agree about this, not just about
+    // the names: the bundle halves a rep count when it is set, and a server
+    // that disagreed would be a second answer to a question with one.
+    const { db } = fixture;
+
+    const stored = await db
+      .select({ slug: exercises.slug, unilateral: exercises.unilateral })
+      .from(exercises)
+      .where(eq(exercises.unilateral, true))
+      .orderBy(asc(exercises.slug));
+
+    const authored = catalogRows()
+      .filter((row) => row.unilateral)
+      .map((row) => row.slug)
+      .sort();
+
+    expect(stored.map((row) => row.slug)).toEqual(authored);
+    expect(authored.length).toBeGreaterThan(0);
+  });
+
+  it("reads a row that predates the flag as two-sided", async () => {
+    // What `DEFAULT false` in the migration is for: the rows already in prod
+    // when the column arrived. Defaulting the other way would silently halve
+    // every rep count for the whole catalog on the next deploy.
+    const { db } = fixture;
+
+    await db.insert(exercises).values({
+      slug: "movimento-antigo",
+      name: "Movimento antigo",
+      primaryMuscle: "peito",
+      equipment: "outro",
+    });
+
+    const [row] = await db
+      .select()
+      .from(exercises)
+      .where(eq(exercises.slug, "movimento-antigo"));
+
+    expect(row?.unilateral).toBe(false);
+
+    // Out again: the fixture is shared, and a row nobody authored would show
+    // up in the ordering check below as a movement the catalog does not have.
+    await db.delete(exercises).where(eq(exercises.slug, "movimento-antigo"));
+  });
+
   it("keeps a group's order intact through the position column", async () => {
     // The claim `position` exists to make: ordering by it inside a group gives
     // back the order the catalog was written in, which is compound first.

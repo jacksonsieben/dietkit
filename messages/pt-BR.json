@@ -741,7 +741,8 @@
         "diets": "Dietas",
         "customFoods": "Meus alimentos",
         "groups": "Grupos de substituição",
-        "training": "Divisão de treino"
+        "training": "Divisão de treino",
+        "trainingSessions": "Treinos registrados"
       },
       "yes": "sim",
       "no": "não",
@@ -758,7 +759,8 @@
         "customFood": "um alimento seu",
         "group": "um grupo de substituição",
         "goal": "o objetivo e os macros",
-        "training": "a divisão de treino"
+        "training": "a divisão de treino",
+        "trainingSession": "um treino registrado"
       },
       "dropNamed": "{what}: {subject}",
       "action": "Restaurar deste arquivo",
@@ -899,6 +901,30 @@
       "done": "Treino registrado. O próximo já está na tela.",
       "never": "Nenhum treino registrado ainda.",
       "last": "Último treino em {date}"
+    },
+    "log": {
+      "set": "Série {index, number}",
+      "reps": "{reps, number} reps",
+      "repsPerSide": "{reps, number} por lado",
+      "load": "{load, number} kg",
+      "moreReps": "Mais repetições",
+      "fewerReps": "Menos repetições",
+      "moreLoad": "Mais carga",
+      "lessLoad": "Menos carga",
+      "addLoad": "Pôr carga",
+      "addSet": "Mais uma série",
+      "removeSet": "Tirar a última",
+      "rest": "Descanso",
+      "restOver": "Descanso completo",
+      "restStop": "Encerrar descanso"
+    },
+    "summary": {
+      "nothing": "Nada foi marcado, então nada foi registrado. A rotação andou mesmo assim.",
+      "exercises": "{count, plural, one {# exercício} other {# exercícios}}",
+      "sets": "{count, plural, one {# série} other {# séries}}",
+      "reps": "{count, plural, one {# repetição} other {# repetições}}",
+      "duration": "{minutes, number} min",
+      "volume": "{volume, number} kg no total"
     },
     "muscles": {
       "peito": "Peito",

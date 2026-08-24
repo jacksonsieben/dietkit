@@ -1,0 +1,1 @@
+ALTER TABLE "exercises" ADD COLUMN "unilateral" boolean DEFAULT false NOT NULL;
