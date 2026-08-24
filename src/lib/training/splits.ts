@@ -1,4 +1,4 @@
-import { exerciseBySlug } from "./catalog";
+import { exerciseBySlug } from "./catalog.ts";
 
 /**
  * The splits: what to do with the 117 movements in catalog.ts (#74).
