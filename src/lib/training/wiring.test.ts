@@ -79,6 +79,28 @@ describe("training wiring", () => {
     expect(source).not.toContain("repository.trainingSessions");
   });
 
+  it("says why the numbers are the numbers, on every movement", () => {
+    // The reason comes off the draft rather than being worked out again here,
+    // so the sentence and the numbers under it cannot disagree; and it is
+    // worded from `messages/` rather than assembled in `lib`, which is what
+    // makes it a sentence anybody can change (docs/DECISIONS.md § D5, § D20).
+    const source = screen();
+
+    expect(source).toContain("<Reason reason={exercise.reason}");
+    expect(source).toContain('useTranslations("Training.progression")');
+    expect(source).toContain("t(reason.kind)");
+    expect(source).not.toContain("nextPrescription(");
+  });
+
+  it("halves a rep count inside a reason, like every other rep count", () => {
+    // Everything crossing out of the log is a total across both sides. A
+    // reason saying "you closed twenty" for ten per arm would be the one
+    // number on the screen that lied.
+    const source = screen();
+
+    expect(source).toContain("shownReps(reason.reps, unilateral)");
+  });
+
   it("writes the session once, at the finish", () => {
     // A draft is not a record. Nothing on this screen persists a set as it is
     // checked off — the whole session is built by `finishedSession` and handed

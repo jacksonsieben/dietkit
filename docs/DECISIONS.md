@@ -507,3 +507,73 @@ time and the per-set done state come from as *ideas*. No code and no data were
 taken from it; nothing in this repository is derived from that project, and it
 is named here because studying a good answer and then writing your own is worth
 recording either way.
+
+### D20 — The next load is derived, never stored
+
+Every time the training screen opens, `src/lib/training/progression.ts` reads
+the log and works out what to do today: the reps, the load, and a tagged reason
+for both. Nothing is written back. There is no "current load" field on an
+exercise, no `nextWeight` in the rotation, no cached prescription anywhere —
+because the log already contains the answer, and a second copy of an answer is
+a thing that can disagree with the first.
+
+**Why derive it every time:** the alternative is one number that has to be kept
+correct through every edit, and the edits are the interesting part. Somebody
+types 12 where they did 2, closes the screen, notices, and fixes it. With a
+stored load, the fix repairs the history and leaves today's prescription
+sitting on the mistake. With a derived one, the fix *is* the fix: correcting a
+set from three weeks ago corrects today's number on the next render, and there
+is nowhere for the two to drift apart. The computation is a filter and a couple
+of `Math.min` calls over a handful of sessions, which is not a cost worth
+buying a consistency problem to avoid.
+
+**Double progression, because the data says so.** Our splits ship rep *ranges*
+(`reps: [min, max]`, since § D17 and #74). The rule that matches ranges is:
+work from the bottom of the range to the top at one load, hold the top in every
+set, then add the smallest pair of plates and drop back to the bottom. openGym
+defaults to linear progression — add weight every session — because its card
+carries a single rep target; ours does not, and picking the rule the data was
+written for is cheaper than converting the data to the rule.
+
+**Reading a session honestly.** A session counts as a hit only if every
+prescribed set was done, at the load the first set was worked at, at or above
+the bottom of the range. Fewer sets than the card asked for is a miss. A set
+where the weight came off is a miss — 60, 60, 55 is not three sets of 55, and
+reading it as the lightest set would offer to add weight to a session that fell
+apart. A miss holds the load and re-asks for the best set of the day, clamped
+back into the range; it never advances.
+
+**Stalls are counted at the load being worked**, not across the whole history.
+Three misses in a row backs the load off by a tenth, snapped *down* onto the
+2.5 kg grid — down, because rounding to the nearest turns a tenth off 5 kg back
+into 5 kg, which is the app announcing a change and not making one. Counting at
+the current load is what makes the deload self-clearing: the sessions after it
+are lighter, so the misses that triggered it are no longer being counted and
+the next stall starts from one. Counting across the whole history would deload
+again on every session forever.
+
+**Bodyweight progresses in reps**, and the trigger is the load that was
+*logged*, not the equipment flag — a dip with a belt on it has a load to add
+to. Past the top of the range with nothing on the bar there is no honest "one
+more rep" left, so the app says to add weight or move to a harder variation
+rather than proposing a fortieth push-up.
+
+**Reasons are data, not sentences.** `progression.ts` returns
+`{ kind: "addLoad", reps: 12 }`; `Training.tsx` turns it into "você fechou 12
+repetições em todas as séries". A sentence assembled in `lib` is a sentence
+next-intl never sees and nobody can rewrite (§ D5) — and a rep count inside a
+reason is a total across both sides, halved on the way to the screen like every
+other rep count. The line shows on every movement, including the weeks where
+the answer is "one more repetition", because a reason that only appears when
+something interesting happens is a reason nobody learns to read.
+
+**Consequence, on the draft:** the prescription *is* the pre-fill. Every set of
+a movement opens on the same numbers, which is what a straight prescription is;
+#79 opened each set on the corresponding set from last time, and that put a
+ragged 8/7/6 on screen as a target nobody had prescribed — which the rule would
+then read back as a session of sixes. What happened is typed over the top of
+what was asked for, which is the right way round. The set *count* still comes
+from the card, and the extra set is still one tap away.
+
+**On openGym:** its rules were read (AGPL-3.0) and its defaults deliberately not
+copied. No code and no data were taken.

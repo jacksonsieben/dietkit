@@ -8,8 +8,13 @@ import type {
 } from "@/lib/storage/types";
 
 import { exerciseBySlug } from "./catalog";
+import {
+  LOAD_STEP_KG,
+  nextPrescription,
+  type ProgressionReason,
+} from "./progression";
 import type { CurrentSession } from "./rotation";
-import type { SplitDay, SplitItem } from "./splits";
+import type { SplitDay } from "./splits";
 
 /**
  * Logging a session: what is on the card, what actually happened, and the
@@ -26,9 +31,6 @@ import type { SplitDay, SplitItem } from "./splits";
  * never checked off did not happen, and the record written at the end says so
  * by leaving it out (docs/DECISIONS.md § D19).
  */
-
-/** How much a load moves per tap. The smallest pair of plates in a gym. */
-export const LOAD_STEP_KG = 2.5;
 
 export interface DraftSet {
   /**
@@ -56,6 +58,14 @@ export interface DraftExercise {
   /** What the card prescribes, per side, exactly as `splits.ts` writes it. */
   readonly targetReps: readonly [number, number];
   readonly restSeconds: number;
+  /**
+   * Why today's numbers are today's numbers (#80), for the view to word.
+   *
+   * On the draft rather than fetched beside it so that the sentence on screen
+   * and the numbers under it cannot come from two different readings of the
+   * history.
+   */
+  readonly reason: ProgressionReason;
   readonly sets: readonly DraftSet[];
 }
 
@@ -90,54 +100,26 @@ export function repStep(unilateral: boolean): number {
 }
 
 /**
- * The sets of a movement the last time it was done, or nothing.
- *
- * The pre-fill is the whole point of the log: opening today's session should
- * fill in what was lifted last time so the common case is checking sets off
- * rather than typing on a phone with chalk on your hands.
- *
- * Sorts rather than trusting the order it is handed. The repository returns
- * sessions newest first, but a pure function that silently depends on a
- * caller's promise is one that breaks the first time somebody passes an array
- * they built themselves. A session that has the movement with no sets is
- * skipped — it was on the card and it did not happen, so it is not a
- * performance to carry forward.
- */
-export function lastPerformance(
-  history: readonly TrainingSession[],
-  slug: string,
-): LoggedSet[] | undefined {
-  const newestFirst = [...history].sort((a, b) =>
-    b.finishedAt.localeCompare(a.finishedAt),
-  );
-
-  for (const session of newestFirst) {
-    const logged = session.exercises.find(
-      (exercise) => exercise.exercise === slug,
-    );
-    if (logged && logged.sets.length > 0) return logged.sets.map(copySet);
-  }
-
-  return undefined;
-}
-
-/**
- * Today's card, pre-filled from history.
+ * Today's card, pre-filled with what to do about it.
  *
  * The *number* of sets comes from the card and the *numbers in them* come from
- * last time. Those are two different kinds of fact: how many sets to do today
- * is a prescription this build ships, while what was lifted is a measurement.
- * Doing four sets last week of a movement the card asks three of does not
- * change the card — and the extra set is one tap away (`addSet`) on a screen
- * where the alternative is silently prescribing something nobody wrote.
+ * `progression.ts`, which derives them from what was actually logged. Those are
+ * two different kinds of fact: how many sets to do today is a prescription this
+ * build ships, while the load and the reps are a conclusion drawn from
+ * measurements. Doing four sets last week of a movement the card asks three of
+ * does not change the card — and the extra set is one tap away (`addSet`).
  *
- * A set with no counterpart last time repeats the last one there was, because
- * that is what a fourth set of the same movement weighs.
+ * Every set opens at the same numbers, because a prescription is a straight
+ * one: "3 × 10 a 62,5 kg" is the thing being asked for, and pre-filling last
+ * week's ragged 8/7/6 would put a target on screen that nobody prescribed and
+ * that the rule then reads back as a session of sixes. The sets are still
+ * individually editable — what happened is typed over the top of what was
+ * asked for, which is the right way round.
  *
- * With no history at all the reps start at the *bottom* of the prescribed
- * range and the load is left blank. The bottom, because a session pre-filled at
- * the top and checked off unread would report a session nobody had; and blank
- * rather than zero, because zero is a claim about lifting nothing.
+ * The rep range crosses into `progression.ts` doubled for a unilateral
+ * movement, because everything downstream of the log is a total across both
+ * sides and a rule that had to remember which it was looking at is a rule with
+ * a bug in it.
  */
 export function startDraft(
   day: SplitDay,
@@ -145,19 +127,23 @@ export function startDraft(
 ): SessionDraft {
   return day.items.map((item) => {
     const unilateral = exerciseBySlug(item.exercise)?.unilateral === true;
-    const previous = lastPerformance(history, item.exercise);
+    const step = repStep(unilateral);
+    const next = nextPrescription(history, item.exercise, {
+      sets: item.sets,
+      reps: [item.reps[0] * step, item.reps[1] * step],
+      repStep: step,
+    });
 
     return {
       exercise: item.exercise,
       unilateral,
       targetReps: item.reps,
       restSeconds: item.restSeconds,
-      sets: Array.from({ length: item.sets }, (_unused, index) => {
-        const before = previous?.[index] ?? previous?.at(-1);
-        return before
-          ? { reps: before.reps, ...loadOf(before.loadKg) }
-          : blankSet(item, unilateral);
-      }),
+      reason: next.reason,
+      sets: Array.from({ length: item.sets }, () => ({
+        reps: next.reps,
+        ...loadOf(next.loadKg),
+      })),
     };
   });
 }
@@ -381,11 +367,6 @@ function mergeSet(set: DraftSet, change: Partial<DraftSet>): DraftSet {
   if (next.doneAt === undefined) delete next.doneAt;
 
   return next;
-}
-
-/** A set with nothing recorded yet: the bottom of the range, no load. */
-function blankSet(item: SplitItem, unilateral: boolean): DraftSet {
-  return { reps: item.reps[0] * repStep(unilateral) };
 }
 
 /**
