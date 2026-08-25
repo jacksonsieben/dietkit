@@ -790,3 +790,64 @@ for #99's list rather than a detail to discover later.
 only, incompatible with IP Allow and Private Networking, no built-in rate
 limiting (so #93's sign-in and reset limits are ours to write), free to 60,000
 monthly active users.
+
+---
+
+### D25 — The key is on the device, and losing it loses the data
+
+**#94.** § D23 wrote down what the server may learn, § D24 who runs the account.
+This is the mechanism that makes the first of those true: the server stores
+ciphertext and cannot open it, because the key that would open it never leaves
+the device.
+
+**AES-256-GCM per record**, with a fresh 96-bit random nonce for every write.
+Authenticated rather than merely encrypted, so a row that has been edited fails
+loudly instead of decrypting to a plausible wrong number — the difference
+between "sync is broken" and "you weighed 8,24 kg last Tuesday". No caller can
+supply a nonce; the only source is `crypto.getRandomValues`, on every call, and
+a test seals 500 times to prove it. GCM does not degrade on nonce reuse, it
+collapses, so that test is not decoration.
+
+**One data key per account**, 256 bits from the system generator, wrapped twice:
+once under a key derived from a **passphrase**, once under a key derived from a
+**recovery code**. Both wrapped blobs, the salt and the KDF parameters are
+public and live on the server. Neither opens without something only the person
+has. Two wrappings rather than one because both alternatives are bad — a
+passphrase alone means one forgotten word destroys years of logs, and a key the
+server can recover means the privacy notice has to say "we can read your data if
+we choose to", after which none of this was worth building.
+
+**Wrapping rather than re-encrypting** is what makes a passphrase change cheap:
+the data key never changes, so a rewrap touches 32 bytes instead of every record
+ever synced, and the recovery code survives the change untouched. The salt stays
+across a rewrap, deliberately: the recovery blob was wrapped under it and cannot
+be rewrapped, because the code that would derive its key was printed once and
+nobody here has it. Rotating the salt would look like hygiene and would silently
+orphan the only way back.
+
+**PBKDF2-HMAC-SHA256, 600 000 iterations**, over Argon2id. Argon2 is the better
+function and it is a WASM dependency; this project has eight runtime
+dependencies in total and § D24 already spent 205 packages on an auth SDK.
+WebCrypto is present in every browser this targets, 600k is OWASP's current
+figure for this construction, and the honest version is that PBKDF2 makes a weak
+passphrase expensive rather than impossible — the recovery code, at 125 bits, is
+where the security actually lives. Iterations are stored per vault rather than
+assumed, so raising them later is a rewrap and not a format change.
+
+**The recovery code is Crockford base32** — 25 symbols in five groups of five,
+no I, L, O or U. Reading it back maps I and L to 1 and O to 0, and ignores case,
+hyphens and spaces. A code refused because somebody wrote a 1 and read back an l
+would be technically correct and would cost them everything they have logged.
+Dropping U also means no code ever spells anything.
+
+**The cost, stated plainly:** forget the passphrase *and* lose the recovery code
+and the data is gone. Nobody can recover it, including us. That is not a
+shortcoming of the implementation — it is what "the server cannot read it"
+means, and #96 has to say so on screen, in the nd vocabulary, before anyone opts
+in.
+
+⚠️ **This is the one decision in #29 that was not explicitly signed off.** The
+alternative — a key the server can recover — makes every sentence in the privacy
+notice weaker, so it was taken as the recommendation rather than asked as a
+question. If it should be the other way, #94 is the issue to change, and it has
+to change before #95 writes rows against it.
