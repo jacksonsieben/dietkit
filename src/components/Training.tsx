@@ -4,8 +4,16 @@ import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { displayFontSize, DotText } from "@/components/dot/DotText";
-import { ActionButton, Ghost, Legend, Rule } from "@/components/nd/kit";
-import { exerciseBySlug } from "@/lib/training/catalog";
+import {
+  ActionButton,
+  Ghost,
+  Legend,
+  Rule,
+  TextLink,
+} from "@/components/nd/kit";
+import { recordLine } from "@/components/training/records";
+import { exerciseBySlug, isUnilateral } from "@/lib/training/catalog";
+import { brokenRecords, type BrokenRecord } from "@/lib/training/history";
 import {
   addSet,
   finishedSession,
@@ -82,6 +90,12 @@ export function Training() {
    */
   const [summary, setSummary] = useState<SessionSummary>();
   /**
+   * What that finish beat, worked out against the log as it stood before it.
+   * Empty is the ordinary case — most sessions break nothing, and a screen
+   * that congratulates every one of them says nothing by the third week.
+   */
+  const [broken, setBroken] = useState<BrokenRecord[]>([]);
+  /**
    * Whether the chooser is open over a rotation that already exists. Local,
    * and not a fourth `TrainingState`: it is a thing about this visit to the
    * screen, not a fact about the device, and putting it in the store would
@@ -148,6 +162,11 @@ export function Training() {
       // written is the newest thing in it.
       setHistory(await loadHistory(repository));
       setSummary(record ? summarise(record) : undefined);
+      // Against `history` — the log as it stood before this session was
+      // written. `brokenRecords` drops any copy of the session from both
+      // sides, so this is the same answer either way round; passing the older
+      // list is just the cheaper one.
+      setBroken(record ? brokenRecords(history, record) : []);
       setStatus("finished");
     } catch {
       setStatus("saveFailed");
@@ -192,7 +211,9 @@ export function Training() {
       ) : null}
 
       <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
-        {status === "finished" ? <Finished summary={summary} /> : null}
+        {status === "finished" ? (
+          <Finished summary={summary} broken={broken} />
+        ) : null}
         {status === "saveFailed" ? (
           <p className="text-sm text-nd-red-ink">{t("saveError")}</p>
         ) : null}
@@ -238,8 +259,18 @@ export function Training() {
  * zero: a session of bodyweight work moved a body, and "0 kg" is the screen
  * calling that nothing.
  */
-function Finished({ summary }: { summary: SessionSummary | undefined }) {
+function Finished({
+  summary,
+  broken,
+}: {
+  summary: SessionSummary | undefined;
+  broken: readonly BrokenRecord[];
+}) {
   const t = useTranslations("Training");
+  // The wording of a record belongs to the history screen's namespace, because
+  // it is the same record either way: the finish is only the first place it is
+  // said out loud.
+  const h = useTranslations("Training.history");
 
   if (!summary) {
     return <p className="text-sm text-nd-dim">{t("summary.nothing")}</p>;
@@ -260,6 +291,33 @@ function Finished({ summary }: { summary: SessionSummary | undefined }) {
         <p className="text-sm text-nd-dim" data-numeric="">
           {t("summary.volume", { volume: summary.volumeKg })}
         </p>
+      ) : null}
+      {broken.length > 0 ? (
+        <>
+          <p className="text-sm">
+            {t("summary.records", { count: broken.length })}
+          </p>
+          <ul className="flex flex-col gap-1">
+            {broken.map((record) => (
+              <li
+                key={`${record.exercise}-${record.kind}`}
+                className="text-sm text-nd-dim"
+                data-numeric=""
+              >
+                {[
+                  record.name,
+                  h(`records.${record.kind}`),
+                  recordLine(
+                    record.kind,
+                    record.set,
+                    isUnilateral(record.exercise),
+                    h,
+                  ),
+                ].join(" · ")}
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
     </>
   );
@@ -421,6 +479,15 @@ function Session({
                 }),
               })}
         </p>
+        {/*
+          Offered only once there is something to see. A device that has never
+          finished a session would get the empty state, which is an honest
+          screen but a pointless trip — and `lastFinishedAt` is written by the
+          same finish that writes the log, so the two cannot disagree.
+        */}
+        {lastFinishedAt === undefined ? null : (
+          <TextLink href="/treino/historico">{t("session.history")}</TextLink>
+        )}
       </section>
     </>
   );

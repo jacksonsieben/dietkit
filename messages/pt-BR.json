@@ -791,6 +791,7 @@
       "today": "HOJE",
       "diet": "DIETA",
       "training": "TREINO",
+      "trainingHistory": "HISTÓRICO",
       "weight": "PESO",
       "more": "MAIS",
       "foods": "ALIMENTOS",
@@ -900,7 +901,8 @@
       "change": "Trocar divisão",
       "done": "Treino registrado. O próximo já está na tela.",
       "never": "Nenhum treino registrado ainda.",
-      "last": "Último treino em {date}"
+      "last": "Último treino em {date}",
+      "history": "Ver o histórico"
     },
     "progression": {
       "first": "primeira vez neste exercício — comece leve e anote",
@@ -932,7 +934,8 @@
       "sets": "{count, plural, one {# série} other {# séries}}",
       "reps": "{count, plural, one {# repetição} other {# repetições}}",
       "duration": "{minutes, number} min",
-      "volume": "{volume, number} kg no total"
+      "volume": "{volume, number} kg no total",
+      "records": "{count, plural, one {Recorde novo} other {Recordes novos}}"
     },
     "muscles": {
       "peito": "Peito",
@@ -957,6 +960,49 @@
       "kettlebell": "Kettlebell",
       "elastico": "Elástico",
       "outro": "Outro"
+    },
+    "history": {
+      "title": "O que o registro diz",
+      "lead": "Tudo aqui é calculado a partir dos treinos que você registrou, toda vez que a tela abre. Nada fica guardado como recorde à parte, e nada sai deste aparelho.",
+      "back": "Voltar para o treino",
+      "loading": "Lendo o registro…",
+      "loadError": "Não deu para ler o registro neste aparelho.",
+      "empty": "Nenhum treino registrado ainda. Termine um treino e a primeira curva aparece aqui.",
+      "movements": "Exercício",
+      "sessions": "{count, plural, one {# treino} other {# treinos}}",
+      "unit": "kg · melhor 1RM estimado",
+      "unitReps": "repetições · melhor série",
+      "estimateFrom": "{estimate, number} kg estimado, de {load, number} × {reps, number}",
+      "estimateFromPerSide": "{estimate, number} kg estimado, de {load, number} × {reps, number} por lado",
+      "noEstimate": "Este exercício não carrega peso externo, então não há 1RM a estimar. O que dá para acompanhar aqui é a repetição.",
+      "capped": "Séries acima de {limit, number} repetições ficam de fora da estimativa: passando disso a fórmula chuta, e é melhor não escrever número nenhum.",
+      "chartLegend": "Progressão",
+      "chartLead": "A linha é o 1RM estimado da melhor série de cada dia. Os pontos claros são a carga que você realmente levantou nela.",
+      "chartEmpty": "Registre esse exercício com carga em dois dias diferentes e a curva aparece.",
+      "chartLabel": "Curva de {movement}, de {from} a {to}. O melhor 1RM estimado é {estimate, number} kg.",
+      "axisRange": "{low, number} – {high, number} kg",
+      "records": {
+        "legend": "Recordes",
+        "heaviest": "Mais peso",
+        "bestEstimate": "Melhor 1RM estimado",
+        "mostReps": "Mais repetições",
+        "load": "{load, number} kg × {reps, number}",
+        "loadPerSide": "{load, number} kg × {reps, number} por lado",
+        "reps": "{reps, number} repetições",
+        "repsPerSide": "{reps, number} repetições por lado",
+        "repsAt": "{reps, number} repetições com {load, number} kg",
+        "repsAtPerSide": "{reps, number} por lado com {load, number} kg",
+        "when": "em {date}",
+        "empty": "Ainda não há recorde para mostrar neste exercício."
+      },
+      "log": {
+        "legend": "Treinos",
+        "day": "{date} · {day}",
+        "sets": "{count, plural, one {# série} other {# séries}}",
+        "best": "melhor série",
+        "bodyweight": "{reps, number} repetições",
+        "bodyweightPerSide": "{reps, number} por lado"
+      }
     }
   }
 }
