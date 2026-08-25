@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import type { PGlite } from "@electric-sql/pglite";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
@@ -7,16 +10,23 @@ import { createReferenceDatabase, migrationFiles } from "./pglite.fixture";
 import * as schema from "./schema";
 
 /**
- * The reference database, migrated for real and then inspected.
+ * The server database, migrated for real and then inspected.
  *
  * PGlite is Postgres compiled to WebAssembly, so this applies the checked-in
  * DDL exactly as Neon will and asks the resulting catalog what exists. That
  * matters for the claim this file exists to defend: "no personal-data table"
  * has to be true of the database, not of a TypeScript file that may or may not
  * have been migrated.
+ *
+ * Until #92 the query filtered on `table_schema = 'public'`. Neon Auth creates
+ * its tables in `neon_auth`, so the one schema that is entirely personal data
+ * was the one schema the guard would have skipped — with every test still
+ * green. It now reads every non-system schema, and a schema nobody wrote a rule
+ * for fails on its own (docs/DECISIONS.md § D23).
  */
 
 interface TableColumn {
+  table_schema: string;
   table_name: string;
   column_name: string;
   data_type: string;
@@ -24,6 +34,9 @@ interface TableColumn {
 }
 
 let pg: PGlite;
+/** Every column in every schema this database is not obliged to have. */
+let catalog: TableColumn[];
+/** The reference data, which is all `public` is allowed to be. */
 let columns: TableColumn[];
 let tableNames: string[];
 
@@ -33,23 +46,50 @@ beforeAll(async () => {
   ({ pg } = await createReferenceDatabase());
 
   const result = await pg.query<TableColumn>(
-    `select table_name, column_name, data_type, is_nullable
+    `select table_schema, table_name, column_name, data_type, is_nullable
        from information_schema.columns
-      where table_schema = 'public'
-      order by table_name, ordinal_position`,
+      where table_schema not in ('pg_catalog', 'information_schema', 'pg_toast')
+        and table_schema not like 'pg\\_temp\\_%'
+        and table_schema not like 'pg\\_toast\\_temp\\_%'
+      order by table_schema, table_name, ordinal_position`,
   );
-  columns = result.rows;
+  catalog = result.rows;
+  columns = catalog.filter((column) => column.table_schema === "public");
   tableNames = [...new Set(columns.map((column) => column.table_name))].sort();
 }, 60_000);
 
+/** `table.column`, which is how both allowlists below are written. */
+function qualified(rows: TableColumn[]): string[] {
+  return rows
+    .map((column) => `${column.table_name}.${column.column_name}`)
+    .sort();
+}
+
+function inSchema(name: string): TableColumn[] {
+  return catalog.filter((column) => column.table_schema === name);
+}
+
 /**
- * Every table the reference database is allowed to have.
+ * Every schema that has a rule further down this file.
+ *
+ * The list is here so that adding a schema means writing a rule for it. A new
+ * schema with no rule is not "not yet covered", it is a failing test — which is
+ * the lesson of `neon_auth` having been invisible to this file by default.
+ */
+const KNOWN_SCHEMAS = new Set([
+  "public", // Reference data: TACO, the exercise catalog, the presets.
+  "neon_auth", // Accounts. Created and owned by Neon, not by our migrations.
+  "sync", // Encrypted rows. Opaque to the server by construction (#95).
+]);
+
+/**
+ * Every table `public` is allowed to have.
  *
  * An allowlist, not a denylist, because a denylist can be walked around by
  * naming a table `w_log` and a person's weight is still a person's weight. To
  * add a table here you have to look at this comment first — which is the whole
  * mechanism. Personal data belongs in IndexedDB behind `src/lib/storage`
- * (docs/DECISIONS.md § D1).
+ * (docs/DECISIONS.md § D1), or, once it syncs, encrypted in `sync`.
  */
 const ALLOWED_TABLES = [
   "dataset_versions",
@@ -65,9 +105,12 @@ const ALLOWED_TABLES = [
 ].sort();
 
 /**
- * Words that have no business in a reference database. Matched against
- * `snake_case` segments, so `age` does not fire on `storage` and `sets` does not
- * fire on `session` — the check is meant to be precise enough to be left on.
+ * Words that have no business in reference data. Matched against `snake_case`
+ * segments, so `age` does not fire on `storage` and `sets` does not fire on
+ * `session` — the check is meant to be precise enough to be left on.
+ *
+ * It applies to `public` only. `neon_auth` is made of these words by
+ * definition, which is exactly why it gets a named allowlist instead.
  */
 const PERSONAL_SEGMENTS = new Set([
   "account",
@@ -102,6 +145,85 @@ const PERSONAL_SEGMENTS = new Set([
   "weights",
 ]);
 
+/**
+ * Everything Better Auth is allowed to keep, with the reason next to it.
+ *
+ * Neon Auth is a **managed beta**: its schema can change in an upgrade we did
+ * not perform and would not be told about. An exact allowlist turns that from a
+ * quiet expansion of what the server knows into a red build — a `full_name`
+ * appearing here fails before it holds anybody's name.
+ *
+ * Written from Better Auth's documented core schema; #93 provisions the real
+ * thing and reconciles this list against it. A mismatch there is this test
+ * working, not this test being wrong.
+ */
+const NEON_AUTH_COLUMNS = new Set([
+  // user — one row per account. Its email is the whole of what § D23 permits.
+  "user.id", // Opaque server-generated key. Names nothing about the person.
+  "user.email", // The identifier, and the only personal field D23 allows.
+  "user.email_verified", // Whether the sign-in link was followed. A boolean.
+  "user.name", // Core field we never write to. Present, unused, said out loud.
+  "user.image", // Core field for social avatars. We have no social login.
+  "user.created_at", // When the account was made.
+  "user.updated_at", // When the row last changed.
+
+  // session — one row per signed-in device, which is where "how many devices"
+  // in § D23 comes from. Also where Better Auth's schema costs the most.
+  "session.id", // Opaque key.
+  "session.user_id", // Which account. The join, nothing more.
+  "session.token", // The session secret. Rotated, expiring, never exported.
+  "session.expires_at", // When it stops working.
+  "session.ip_address", // Personal data under the GDPR. Declared in #98.
+  "session.user_agent", // Same: declared rather than quietly excused.
+  "session.created_at",
+  "session.updated_at",
+
+  // account — the credential itself, one row per sign-in method.
+  "account.id", // Opaque key.
+  "account.user_id", // Which account.
+  "account.account_id", // The identifier at the provider. For us, the user id.
+  "account.provider_id", // Which method. `credential` for email + password.
+  "account.password", // A hash of the sign-in password. Never the sync
+  // passphrase, which has no column anywhere on the server (#94).
+  "account.access_token", // OAuth fields, unused while there is no OAuth.
+  "account.refresh_token",
+  "account.id_token",
+  "account.access_token_expires_at",
+  "account.refresh_token_expires_at",
+  "account.scope",
+  "account.created_at",
+  "account.updated_at",
+
+  // verification — short-lived proofs: e-mail confirmation, password reset.
+  "verification.id", // Opaque key.
+  "verification.identifier", // What is being proven. An email address.
+  "verification.value", // The one-time secret. Deleted once used.
+  "verification.expires_at", // Short. That is the point of the table.
+  "verification.created_at",
+  "verification.updated_at",
+]);
+
+/**
+ * The only column names the sync schema may use — the opposite kind of rule to
+ * `PERSONAL_SEGMENTS`. Not "no bad columns": *only these columns*.
+ *
+ * A name is data. `collection_name` would tell the server that this person
+ * tracks weight without storing one, and `row_count_hint` would hand it the
+ * shape of a diet. Neither is a bad-faith addition; both would be well meant,
+ * and both fail here (docs/DECISIONS.md § D23).
+ */
+const SYNC_COLUMNS = new Set([
+  "account_id", // Whose rows these are. The only link to `neon_auth`.
+  "collection", // Which set of rows, as an opaque string the client chooses.
+  "record_id", // Which row, opaque. Generated on the device.
+  "ciphertext", // The record. Unreadable here, and that is the product.
+  "nonce", // Per-record, never reused.
+  "updated_at", // Server clock, for the last-writer-wins merge (#95).
+  "rev", // Monotonic per record, so a stale device loses rather than clobbers.
+  "device_id", // Which device wrote it. Random, local, not a fingerprint.
+  "deleted_at", // A tombstone: deletion has to sync too, or it un-deletes.
+]);
+
 function segments(identifier: string): string[] {
   return identifier.split("_");
 }
@@ -112,7 +234,17 @@ function personalSegments(identifier: string): string[] {
   );
 }
 
-describe("reference database schema", () => {
+describe("server database schemas", () => {
+  it("has a rule for every schema it contains", () => {
+    const present = [...new Set(catalog.map((c) => c.table_schema))].sort();
+
+    // The failure that started #92 was silent: a schema nobody had written a
+    // rule for simply was not checked. Here it is loud instead.
+    expect(present.filter((name) => !KNOWN_SCHEMAS.has(name))).toEqual([]);
+  });
+});
+
+describe("reference data (public)", () => {
   it("applies its migrations to a real Postgres", () => {
     // Not a tautology: a broken CREATE TABLE fails in beforeAll, which is the
     // only proof available that the checked-in SQL runs without a Neon branch.
@@ -153,11 +285,100 @@ describe("reference database schema", () => {
     }
     fromCode.sort();
 
-    const fromDatabase = columns
-      .map((column) => `${column.table_name}.${column.column_name}`)
+    expect(qualified(columns)).toEqual(fromCode);
+  });
+});
+
+describe("accounts (neon_auth)", () => {
+  it("keeps only what Better Auth needs, and nothing it merely offers", () => {
+    // A subset check, one direction only: everything present must be named
+    // above. Absence is not a failure — Neon creates this schema, our
+    // migrations do not, so it is empty until #93 and the rule still holds.
+    const unexplained = qualified(inSchema("neon_auth")).filter(
+      (column) => !NEON_AUTH_COLUMNS.has(column),
+    );
+
+    expect(unexplained).toEqual([]);
+  });
+});
+
+describe("encrypted rows (sync)", () => {
+  it("has no column that says anything about what it holds", () => {
+    const speaking = inSchema("sync")
+      .map((column) => column.column_name)
+      .filter((name) => !SYNC_COLUMNS.has(name))
       .sort();
 
-    expect(fromDatabase).toEqual(fromCode);
+    expect(speaking).toEqual([]);
+  });
+
+  it("has no table whose name says it either", () => {
+    // `sync.rows` is fine. `sync.weights` would announce, in the table name,
+    // the thing the ciphertext was there to hide.
+    const tables = [...new Set(inSchema("sync").map((c) => c.table_name))];
+    for (const table of tables) {
+      expect(personalSegments(table), `sync.${table}`).toEqual([]);
+    }
+  });
+});
+
+/**
+ * Words that would turn the backup file into a record about an account rather
+ * than a file belonging to a person. Not the same list as `PERSONAL_SEGMENTS`:
+ * a `Snapshot` is *made of* personal data on purpose, because it is the only
+ * backup this architecture offers (docs/SCOPE.md § 3). What it must not carry
+ * is an identity (docs/DECISIONS.md § D23).
+ */
+const IDENTITY_SEGMENTS = new Set([
+  "account",
+  "device",
+  "email",
+  "server",
+  "session",
+  "subject",
+  "token",
+  "uid",
+  "user",
+]);
+
+const SNAPSHOT_TYPES = path.resolve(import.meta.dirname, "../storage/types.ts");
+
+/** The field names of `interface Snapshot`, read from the source that declares
+ *  it — a type has no runtime shape to interrogate, and an optional field is
+ *  exactly the kind that would be missing from an example object. */
+function snapshotFields(): string[] {
+  const source = fs.readFileSync(SNAPSHOT_TYPES, "utf8");
+  const body = /export interface Snapshot \{\n([\s\S]*?)\n\}/.exec(source)?.[1];
+  expect(body, "interface Snapshot not found in storage/types.ts").toBeTypeOf(
+    "string",
+  );
+
+  return [...(body ?? "").matchAll(/^ {2}(\w+)\??:/gm)].map(
+    (match) => match[1] as string,
+  );
+}
+
+describe("the export file", () => {
+  it("is read from the source that declares it", () => {
+    // Guards the regex above: a silent zero matches would make the next test
+    // pass for the wrong reason, permanently.
+    expect(snapshotFields()).toEqual(
+      expect.arrayContaining(["schemaVersion", "weight", "diets", "settings"]),
+    );
+  });
+
+  it("carries no account id, user id or device id", () => {
+    for (const field of snapshotFields()) {
+      const parts = field
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .toLowerCase()
+        .split("_");
+
+      expect(
+        parts.filter((part) => IDENTITY_SEGMENTS.has(part)),
+        `Snapshot.${field}`,
+      ).toEqual([]);
+    }
   });
 });
 

@@ -672,3 +672,61 @@ config tweak, so the test refuses to let it be one.
 would carry session cookies, password-reset tokens, the email address itself and
 every encrypted sync row. Fixing the region now is a setting; fixing it after
 the first account exists is a migration.
+
+---
+
+### D23 — What the server is allowed to learn
+
+**#92.** Sync gives the server an account to attach things to. This is the list
+of things it may attach, written before the account exists so that it is a
+decision rather than a description of whatever got built.
+
+**It may learn:**
+
+- that an account exists, and its email address
+- when it last synced, and from how many devices
+- how many encrypted rows it holds, and how big they are
+
+**It must never learn:** a kilogram, a food, a set, a date of birth, a diet. Not
+one number from any of them, and not the shape of them either — a column named
+`collection_name` would say "this person tracks weight" without storing a single
+weight, so the sync table carries an opaque `collection` string and nothing that
+explains it.
+
+**The privacy notice is only as good as this list**, which is why the list is
+published here rather than implied by the code. "End-to-end encrypted" is a
+claim about what we cannot read; a reader can check it against three bullets
+instead of against a schema they have no access to.
+
+**The guard that covered P0 does not cover this.** `boundary.test.ts` filtered
+on `table_schema = 'public'`. Neon Auth puts its tables in **`neon_auth`**, so
+the one schema that is entirely personal data was the one schema the check would
+have skipped — silently, with every test still green. The query now enumerates
+every non-system schema, and an unrecognised schema fails on its own: a rule per
+schema, and no schema without a rule.
+
+- **`public`** keeps the P0 allowlist and the banned-word list unchanged. It is
+  reference data. Nothing about a person belongs in it.
+- **`neon_auth`** gets an explicit allowlist with a reason written next to every
+  column. It is a **managed beta**, which means its schema can change under us
+  in an upgrade we did not perform; a `full_name` arriving that way now turns
+  the build red instead of quietly filling up. Depending on a beta is the risk,
+  and this is the risk expressed as a test.
+- **the sync schema** gets the opposite kind of rule: every column must be one
+  of nine known-opaque names. Not "no bad columns" — *only these columns*. A
+  well-meant `row_count_hint` fails.
+
+**Better Auth's core schema costs more than the three bullets.** Its `session`
+rows carry an IP address and a user agent, and its `user` row has a display name
+and an avatar field. We write nothing to the last two, but "we do not use it" is
+not the same as "it is not there", so they are in the allowlist with that said
+out loud, and the session fields go in the privacy notice (#98) rather than
+being quietly excused. The password column holds a hash of the sign-in password
+— never the sync passphrase, which does not leave the device and has no column
+anywhere on the server (#94).
+
+**The export file belongs to the person, not to us.** `Snapshot` is full of
+personal data on purpose: it is the only backup this architecture offers
+(docs/SCOPE.md § 3). What it must not grow is an *identity* — an account id, a
+user id, a device id — because that is the field that turns a private file into
+a record that can be matched against a server.
