@@ -730,3 +730,63 @@ personal data on purpose: it is the only backup this architecture offers
 (docs/SCOPE.md § 3). What it must not grow is an *identity* — an account id, a
 user id, a device id — because that is the field that turns a private file into
 a record that can be matched against a server.
+
+Who runs the account these rules are written around is § D24.
+
+---
+
+### D24 — The account is Neon Auth, and the way out is Better Auth
+
+**#93.** § D23 wrote down what the server may learn. This is who runs the part
+that learns it. **Neon Auth** — Neon's managed Better Auth, in beta — over
+self-hosting Better Auth ourselves, because the person operating this cannot
+host an auth service right now, and an auth service that nobody is patching is
+worse than a beta somebody else patches.
+
+**It runs where the data runs.** Neon deploys the auth service in the same
+region as the database, so it is in `eu-central-1` for the same reason the
+functions are (§ D22): the controller is established in Portugal, Frankfurt is
+domestic processing under the GDPR, and Resolution CD/ANPD nº 32/2026 makes it
+adequate under the LGPD. An auth provider in a third country would have undone
+D22 three weeks after we did it.
+
+**The rows are ours, which is the whole reason a beta is acceptable.** Accounts
+land in a `neon_auth` schema **inside our own Postgres** — queryable with SQL,
+included in a branch, included in a dump. Better Auth's core schema is a
+documented public contract, so the exit is not a migration: point a self-hosted
+Better Auth at the same four tables and the same accounts still sign in. We are
+renting the service, not the data. That is why the dependency is pinned rather
+than floating — `@neondatabase/auth@0.5.0-beta`, Better Auth 1.6.23 underneath —
+so a beta cannot change the schema under § D23's allowlist without a diff.
+
+**Passkeys are not in the product.** #93 asked for "email and password plus
+passkeys, so the common case is a fingerprint". Neon Auth does not have them and
+does not list them: the plugins are email and password, social OAuth, Email OTP,
+Admin, JWT, Magic Link, Open API, Phone Number, with MFA "coming soon". So the
+account is email and password, and the fingerprint has to wait for either the
+plugin or the self-hosted exit above. Writing it here rather than quietly
+shipping less than the issue asked for.
+
+**The SDK costs more than the code it replaces.** A clean install of
+`@neondatabase/auth` pulls **205 packages, 197 MB**, into a project with eight
+runtime dependencies. `@neondatabase/auth-ui` is a hard dependency even for
+server-only use, and it drags in `@daveyplate/better-auth-ui` →
+`@instantdb/react`, plus `@hcaptcha`, `@captchafox`, `core-js`, `kysely`,
+`comlink` and three deprecated `@react-email/*` packages. What the server
+actually *bundles* is much smaller — the `./next/server` entry reaches
+`better-auth`, `jose`, `zod` and `@supabase/auth-js`, and never touches the UI
+package — but installed is installed: those captcha vendors are in the lockfile,
+and § D9 says no third party gets to watch someone use this app. We import the
+server entry only, we never render Neon's UI components, and `Account.*` screens
+are written in the nd vocabulary like every other screen.
+
+**What is still unknown is a sub-processor.** The managed service sends the
+verification and password-reset email, and it does not document which sender it
+uses; there is no custom SMTP in the beta. That name has to appear in the
+privacy notice (#98) before the first account exists, so it is an open question
+for #99's list rather than a detail to discover later.
+
+**The beta's other edges**, recorded so they are not rediscovered: AWS regions
+only, incompatible with IP Allow and Private Networking, no built-in rate
+limiting (so #93's sign-in and reset limits are ours to write), free to 60,000
+monthly active users.

@@ -40,6 +40,7 @@ interface Row {
   label:
     | "profile"
     | "energy"
+    | "account"
     | "backup"
     | "import"
     | "sources"
@@ -65,6 +66,7 @@ const GROUPS: readonly {
     heading: "data",
     lead: "dataLead",
     rows: [
+      { href: "/conta", label: "account" },
       { href: "/backup", label: "backup" },
       { href: "/importar", label: "import" },
     ],

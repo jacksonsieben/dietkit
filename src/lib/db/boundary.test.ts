@@ -6,6 +6,7 @@ import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { PgTable } from "drizzle-orm/pg-core";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { NEON_AUTH_COLUMNS, compare } from "./accounts";
 import { createReferenceDatabase, migrationFiles } from "./pglite.fixture";
 import * as schema from "./schema";
 
@@ -146,64 +147,6 @@ const PERSONAL_SEGMENTS = new Set([
 ]);
 
 /**
- * Everything Better Auth is allowed to keep, with the reason next to it.
- *
- * Neon Auth is a **managed beta**: its schema can change in an upgrade we did
- * not perform and would not be told about. An exact allowlist turns that from a
- * quiet expansion of what the server knows into a red build — a `full_name`
- * appearing here fails before it holds anybody's name.
- *
- * Written from Better Auth's documented core schema; #93 provisions the real
- * thing and reconciles this list against it. A mismatch there is this test
- * working, not this test being wrong.
- */
-const NEON_AUTH_COLUMNS = new Set([
-  // user — one row per account. Its email is the whole of what § D23 permits.
-  "user.id", // Opaque server-generated key. Names nothing about the person.
-  "user.email", // The identifier, and the only personal field D23 allows.
-  "user.email_verified", // Whether the sign-in link was followed. A boolean.
-  "user.name", // Core field we never write to. Present, unused, said out loud.
-  "user.image", // Core field for social avatars. We have no social login.
-  "user.created_at", // When the account was made.
-  "user.updated_at", // When the row last changed.
-
-  // session — one row per signed-in device, which is where "how many devices"
-  // in § D23 comes from. Also where Better Auth's schema costs the most.
-  "session.id", // Opaque key.
-  "session.user_id", // Which account. The join, nothing more.
-  "session.token", // The session secret. Rotated, expiring, never exported.
-  "session.expires_at", // When it stops working.
-  "session.ip_address", // Personal data under the GDPR. Declared in #98.
-  "session.user_agent", // Same: declared rather than quietly excused.
-  "session.created_at",
-  "session.updated_at",
-
-  // account — the credential itself, one row per sign-in method.
-  "account.id", // Opaque key.
-  "account.user_id", // Which account.
-  "account.account_id", // The identifier at the provider. For us, the user id.
-  "account.provider_id", // Which method. `credential` for email + password.
-  "account.password", // A hash of the sign-in password. Never the sync
-  // passphrase, which has no column anywhere on the server (#94).
-  "account.access_token", // OAuth fields, unused while there is no OAuth.
-  "account.refresh_token",
-  "account.id_token",
-  "account.access_token_expires_at",
-  "account.refresh_token_expires_at",
-  "account.scope",
-  "account.created_at",
-  "account.updated_at",
-
-  // verification — short-lived proofs: e-mail confirmation, password reset.
-  "verification.id", // Opaque key.
-  "verification.identifier", // What is being proven. An email address.
-  "verification.value", // The one-time secret. Deleted once used.
-  "verification.expires_at", // Short. That is the point of the table.
-  "verification.created_at",
-  "verification.updated_at",
-]);
-
-/**
  * The only column names the sync schema may use — the opposite kind of rule to
  * `PERSONAL_SEGMENTS`. Not "no bad columns": *only these columns*.
  *
@@ -291,14 +234,28 @@ describe("reference data (public)", () => {
 
 describe("accounts (neon_auth)", () => {
   it("keeps only what Better Auth needs, and nothing it merely offers", () => {
-    // A subset check, one direction only: everything present must be named
-    // above. Absence is not a failure — Neon creates this schema, our
-    // migrations do not, so it is empty until #93 and the rule still holds.
-    const unexplained = qualified(inSchema("neon_auth")).filter(
-      (column) => !NEON_AUTH_COLUMNS.has(column),
-    );
+    // `unexplained` only: Neon creates this schema, our migrations do not, so
+    // in the fixture it is empty and every declared column is legitimately
+    // missing. The real comparison needs a real branch and lives in
+    // scripts/db/audit-accounts.ts; this is the half that can run in CI.
+    expect(compare(qualified(inSchema("neon_auth"))).unexplained).toEqual([]);
+  });
 
-    expect(unexplained).toEqual([]);
+  it("notices a column nobody wrote down", () => {
+    // The upgrade this file exists for: a managed beta grows a field, and the
+    // first person to hear about it should be a reviewer, not a regulator.
+    expect(compare(["user.email", "user.fullName"])).toEqual(
+      expect.objectContaining({ unexplained: ["user.fullName"] }),
+    );
+  });
+
+  it("notices a column that was declared and is no longer there", () => {
+    // The other direction, which the audit script acts on: a list describing a
+    // database that has moved on is how this stops being a check at all.
+    expect(compare([...NEON_AUTH_COLUMNS]).missing).toEqual([]);
+    expect(
+      compare([...NEON_AUTH_COLUMNS].filter((c) => c !== "user.email")).missing,
+    ).toEqual(["user.email"]);
   });
 });
 

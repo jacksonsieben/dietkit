@@ -30,6 +30,12 @@ const MIGRATED = [
   "src/app/[locale]/alimentos/meus/page.tsx",
   "src/app/[locale]/alimentos/page.tsx",
   "src/app/[locale]/backup/page.tsx",
+  "src/app/[locale]/conta/AccountForm.tsx",
+  "src/app/[locale]/conta/criar/page.tsx",
+  "src/app/[locale]/conta/entrar/page.tsx",
+  "src/app/[locale]/conta/page.tsx",
+  "src/app/[locale]/conta/recuperar/page.tsx",
+  "src/app/[locale]/conta/redefinir/page.tsx",
   "src/app/[locale]/dieta/page.tsx",
   "src/app/[locale]/energia/page.tsx",
   "src/app/[locale]/fontes/page.tsx",
@@ -155,7 +161,9 @@ describe("the instrument world", () => {
     // The check is on `ACTION`, the class string behind the filled button: a
     // screen that pastes it instead of importing it is how the kit stops being
     // the single definition of what a button looks like.
-    const users = MIGRATED.filter((file) => file !== "src/components/nd/kit.tsx")
+    const users = MIGRATED.filter(
+      (file) => file !== "src/components/nd/kit.tsx",
+    )
       .map((file) => fs.readFileSync(path.join(ROOT, file), "utf8"))
       .filter((source) => source.includes("bg-nd-ink px-5 py-3"));
 
