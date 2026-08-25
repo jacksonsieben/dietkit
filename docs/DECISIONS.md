@@ -626,3 +626,49 @@ estimate, and the gap between them is the reps.
 **One route, not one per movement.** `/treino/historico` picks a movement with
 chips. A `[slug]` segment would prerender two hundred catalog pages to hold the
 fifteen anybody trains.
+
+---
+
+### D22 — The functions run in Frankfurt, next to the database
+
+**#91.** Vercel's default function region is `iad1` — Washington DC — and
+production sat there while Neon sat in `eu-central-1`. The header said so:
+
+```
+x-vercel-id: cdg1::iad1::kswbr-1787660695295-3b2e2f103ad9
+```
+
+Paris took the request, Virginia ran the function, Frankfurt held the data. Every
+TACO food search crossed the Atlantic twice for no reason, which is most of why
+the food picker felt slower than every screen that never leaves the device.
+
+**The database does not move; the compute does.** The controller is established
+in Portugal, so the GDPR applies by establishment (art. 3(1)) and Frankfurt is a
+domestic processing location under it. Since **Resolution CD/ANPD nº 32/2026**
+recognised the EU/EEA as adequate, serving Brazilian users from Frankfurt runs
+on LGPD art. 33, I — no standard contractual clauses, no separate transfer
+consent, nothing to sign. `sa-east-1` was considered and rejected: it would put
+the data one hop from Brazilian users and an ocean from the person operating it.
+
+**The US trip was legal and still not worth having.** Vercel's own clauses cover
+it, so `iad1` was never a violation. It was a transfer bought for nothing — and
+`Privacy.serverSearch` admits the search term leaves the device without saying
+it leaves the continent. Removing the trip is cheaper than disclosing it.
+
+**It is checked in, not just clicked.** `vercel.json` `regions` overrides the
+Project Settings value, so the choice survives a project re-link, applies to
+preview deployments as well as production, and shows up in a diff. The failure
+mode is silent — a function drifting back to Virginia turns nothing red — so
+`src/deployment-region.test.ts` asserts it, along with the two ways back to
+`iad1` that leave `regions` untouched: `functionFailoverRegions`, and a
+per-function override.
+
+**The allowlist is EEA, not Europe.** `lhr1` is excluded. London is adequate
+under the UK's own decision but is not EU/EEA, and EU/EEA is the thing
+Resolution 32/2026 recognised. Moving there would be a transfer decision, not a
+config tweak, so the test refuses to let it be one.
+
+**Doing it before accounts, not after.** With sync on top (#29) the same detour
+would carry session cookies, password-reset tokens, the email address itself and
+every encrypted sync row. Fixing the region now is a setting; fixing it after
+the first account exists is a migration.
