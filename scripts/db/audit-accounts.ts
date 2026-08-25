@@ -44,12 +44,22 @@ function connectionString(): string {
 /**
  * The settings that decide what the auth service does, minus the ones that
  * hold credentials. `email_provider` names the sub-processor that sends a
- * password-reset mail, and `trusted_origins` is the list a reset link is
- * allowed to point at — both are answers somebody needs when writing the
- * privacy notice, and neither is otherwise visible outside Neon's console.
+ * password-reset mail, and `trusted_origins` is the list of origins the
+ * service answers at all — anything else gets 403 INVALID_ORIGIN, so this is
+ * also the list of deployments where signing in works. Both are answers
+ * somebody needs when writing the privacy notice, and neither is otherwise
+ * visible outside Neon's console.
+ *
+ * An origin is stored as an object rather than a string, so print the domain
+ * rather than the row: `String(row)` is `[object Object]`, which is how this
+ * was found.
  */
+interface Origin {
+  domain?: string;
+}
+
 interface Config {
-  trusted_origins: string[];
+  trusted_origins: Origin[];
   email_provider: { type?: string } | null;
   allow_localhost: boolean;
 }
@@ -125,7 +135,9 @@ async function main(): Promise<void> {
           `\nLocalhost allowed: ${row.allow_localhost}` +
           `\nTrusted origins: ${
             row.trusted_origins.length > 0
-              ? row.trusted_origins.join(", ")
+              ? row.trusted_origins
+                  .map((origin) => origin.domain ?? JSON.stringify(origin))
+                  .join(", ")
               : "none — a password-reset link can only point at localhost"
           }`,
       );
