@@ -15,8 +15,6 @@ import {
  * first attempt rather than sliding.
  */
 
-const LIMITS = { subject: SIGN_IN.subject, source: SIGN_IN.source };
-
 let store: Counters;
 
 beforeEach(() => {
@@ -25,7 +23,7 @@ beforeEach(() => {
 });
 
 function attempt(subject: string, source: string, at: number): boolean {
-  return allow({ subject, source }, LIMITS, at, store);
+  return allow({ subject, source }, SIGN_IN, at, store);
 }
 
 describe("the sign-in rate limit", () => {
@@ -87,6 +85,24 @@ describe("the reset rate limit", () => {
   it("is tighter than sign-in, because every attempt sends somebody an email", () => {
     expect(RESET.subject.attempts).toBeLessThan(SIGN_IN.subject.attempts);
     expect(RESET.source.attempts).toBeLessThan(SIGN_IN.source.attempts);
+  });
+
+  it("keeps its own count, so signing in does not spend the reset budget", () => {
+    // Found by using the app: sign up, sign in wrong, sign in right, then ask
+    // for a reset link and be told to wait. One counter per address meant the
+    // tightest limit was charged for every attempt any of them had ever seen.
+    for (let i = 0; i < SIGN_IN.subject.attempts; i += 1) {
+      attempt("someone@example.test", "203.0.113.7", 0);
+    }
+
+    expect(
+      allow(
+        { subject: "someone@example.test", source: "203.0.113.7" },
+        RESET,
+        0,
+        store,
+      ),
+    ).toBe(true);
   });
 });
 

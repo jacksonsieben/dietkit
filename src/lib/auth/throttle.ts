@@ -44,6 +44,21 @@ export interface Limit {
   readonly windowMs: number;
 }
 
+export interface Limits {
+  /**
+   * Names this pair of counters, and is part of every key they touch.
+   *
+   * Without it every limit shares one counter per address, and the tightest one
+   * is charged for attempts it never saw: three sign-ins would spend the whole
+   * reset budget and the reset form would answer "too many attempts" to somebody
+   * who had asked once. Signing in and asking for a link are different actions
+   * and are allowed different amounts of it.
+   */
+  readonly name: string;
+  readonly subject: Limit;
+  readonly source: Limit;
+}
+
 const MINUTE = 60_000;
 
 /**
@@ -52,7 +67,8 @@ const MINUTE = 60_000;
  * a script working through a list gets a hundred requests an hour from one
  * place, which is not enough to be worth building.
  */
-export const SIGN_IN: { subject: Limit; source: Limit } = {
+export const SIGN_IN: Limits = {
+  name: "sign-in",
   subject: { attempts: 10, windowMs: 10 * MINUTE },
   source: { attempts: 100, windowMs: 60 * MINUTE },
 };
@@ -62,7 +78,8 @@ export const SIGN_IN: { subject: Limit; source: Limit } = {
  * who did not ask for one. Three an hour per address is more than anybody needs
  * and few enough that the inbox stays usable.
  */
-export const RESET: { subject: Limit; source: Limit } = {
+export const RESET: Limits = {
+  name: "reset",
   subject: { attempts: 3, windowMs: 60 * MINUTE },
   source: { attempts: 20, windowMs: 60 * MINUTE },
 };
@@ -122,7 +139,7 @@ export interface Request {
  */
 export function allow(
   request: Request,
-  limits: { subject: Limit; source: Limit },
+  limits: Limits,
   now: number = Date.now(),
   store: Counters = counters,
 ): boolean {
@@ -130,11 +147,16 @@ export function allow(
 
   const subject = take(
     store,
-    key("subject", request.subject),
+    key(`${limits.name}:subject`, request.subject),
     limits.subject,
     now,
   );
-  const source = take(store, key("source", request.source), limits.source, now);
+  const source = take(
+    store,
+    key(`${limits.name}:source`, request.source),
+    limits.source,
+    now,
+  );
 
   return subject && source;
 }
