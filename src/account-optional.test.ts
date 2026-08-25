@@ -64,6 +64,19 @@ function sourceFiles(dir: string): string[] {
   return found;
 }
 
+/**
+ * Tests are excluded from both walls below.
+ *
+ * Not a loophole: a test cannot put a guard in front of a screen. Both of them
+ * name paths and modules in order to check them -- this file names the sign-in
+ * route so it can look for it, and the craft census names every screen file so
+ * it can count them -- and a rule that fires on the file enforcing it is a rule
+ * that gets deleted rather than obeyed.
+ */
+function isTest(file: string): boolean {
+  return file.endsWith(".test.ts") || file.endsWith(".test.tsx");
+}
+
 /** Path comparison in POSIX form, so this reads the same on either platform. */
 function posix(file: string): string {
   return file.split(path.sep).join("/");
@@ -99,9 +112,7 @@ describe("an account is optional", () => {
 
   it("lets nothing but the account screens import the auth module", () => {
     const trespassers = sourceFiles("src")
-      .filter(
-        (file) => !file.endsWith(".test.ts") && !file.endsWith(".test.tsx"),
-      )
+      .filter((file) => !isTest(file))
       .filter((file) =>
         MAY_IMPORT_AUTH.every((allowed) => !posix(file).startsWith(allowed)),
       )
@@ -115,7 +126,7 @@ describe("an account is optional", () => {
   it("sends nobody to a sign-in screen from a screen that is not about accounts", () => {
     // The other shape of the same mistake: not an import, but a bare redirect.
     const offenders = sourceFiles("src")
-      .filter((file) => file !== path.join("src", "account-optional.test.ts"))
+      .filter((file) => !isTest(file))
       .filter((file) =>
         MAY_IMPORT_AUTH.every((allowed) => !posix(file).startsWith(allowed)),
       )
