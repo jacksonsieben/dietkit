@@ -17,7 +17,8 @@
     "db:migrate": "drizzle-kit migrate",
     "taco:extract": "node scripts/taco/extract.ts",
     "db:seed": "node --env-file-if-exists=.env scripts/taco/seed.ts",
-    "db:seed:training": "node --env-file-if-exists=.env scripts/training/seed.ts"
+    "db:seed:training": "node --env-file-if-exists=.env scripts/training/seed.ts",
+    "db:audit:accounts": "node --env-file-if-exists=.env scripts/db/audit-accounts.ts"
   },
   "dependencies": {
     "@neondatabase/auth": "0.5.0-beta",

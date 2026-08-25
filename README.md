@@ -71,6 +71,7 @@ npm run dev          # http://localhost:3000
 | `npm run taco:extract` | Re-extract `data/taco-4ed.json` from the TACO PDF |
 | `npm run db:seed` | Load `data/taco-4ed.json` into the reference database |
 | `npm run db:seed:training` | Load the exercise catalog and the splits into the reference database |
+| `npm run db:audit:accounts` | Check a branch's Neon Auth schema against what we say it holds |
 
 ### Strings
 
@@ -140,6 +141,20 @@ Postgres compiled to WebAssembly — and then asks `information_schema` what
 exists: the table names must equal an exact allowlist, and no column name may
 contain a segment like `weight`, `email` or `profile`. It needs no credentials,
 so it runs in `npm test` on every change.
+
+Accounts (#93) live in a second schema, `neon_auth`, which Neon creates and
+upgrades — our migrations never touch it, and a managed beta can grow a column
+without asking. `src/lib/db/accounts.ts` names every column it is allowed to
+have and why, down to the ones belonging to plugins we do not use. The half of
+that check which needs a real branch is a command:
+
+```bash
+node --env-file=.env.preview scripts/db/audit-accounts.ts
+```
+
+It reads the catalog and counts rows, never a column value, and also prints who
+sends the password-reset mail and which origins a reset link may point at. Run
+it when Neon announces an upgrade, and before touching the privacy notice.
 
 Published values are stored as `numeric`, because § D12 treats them as
 quotations and `70.1` has to come back as `70.1`. TACO prints three kinds of
