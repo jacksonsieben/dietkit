@@ -13,6 +13,7 @@ import {
 
 import { accountsConfigured, auth } from "./server";
 import { RESET, SIGN_IN, allow, network } from "./throttle";
+import { configurationProblem, type UpstreamError } from "./upstream";
 
 /**
  * Everything the account screens can ask the server to do (#93).
@@ -64,12 +65,27 @@ async function source(): Promise<string> {
  * the screen, and the SDK does both depending on how far the request got.
  */
 async function attempt(
-  run: () => Promise<{ error?: { message?: string } | null }>,
+  run: () => Promise<{ error?: UpstreamError | null }>,
   onFailure: ErrorKey,
 ): Promise<AccountState> {
   try {
     const { error } = await run();
-    return error ? { error: onFailure } : { done: true };
+    if (!error) return { done: true };
+
+    // Before flattening: some refusals are about this deployment rather than
+    // about the person on the screen, and telling them apart is the difference
+    // between a five-minute fix and somebody being told their new address
+    // already has an account (./upstream.ts).
+    const misconfigured = configurationProblem(error);
+    if (misconfigured) {
+      console.error(
+        `Neon Auth refused this deployment: ${misconfigured}. Add this ` +
+          `origin to the branch's trusted domains -- see .env.example.`,
+      );
+      return { error: "unavailable" };
+    }
+
+    return { error: onFailure };
   } catch {
     // A network failure reaching Neon, or an auth service that is not there.
     return { error: "unavailable" };
