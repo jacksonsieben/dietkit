@@ -851,3 +851,79 @@ alternative — a key the server can recover — makes every sentence in the pri
 notice weaker, so it was taken as the recommendation rather than asked as a
 question. If it should be the other way, #94 is the issue to change, and it has
 to change before #95 writes rows against it.
+
+### D26 — A record is the unit of sync, and the revision is the argument
+
+#95. `exportAll`/`importAll` already existed and would have been a morning's
+work: push the whole `Snapshot`, pull the whole `Snapshot`, last one wins. It
+was rejected for one scenario that is not an edge case — the set logged on the
+phone at the gym, lost because the laptop had a diet open. **One row per
+record**, keyed `(account_id, collection, record_id)`.
+
+**A push carries the revision it believes it is replacing.** The server takes
+the write only if that is still the current one, and otherwise hands back the
+whole row that beat it — ciphertext included, so the loser settles it in the
+round trip it already paid for rather than in another one. This is also what
+makes a push safe to send twice: a replay arrives with a `baseRev` that has
+moved on and is refused, so a dropped connection costs a retry and never a
+duplicate. A write against a record the server does not have at all is refused
+with *no* conflict shown, which is the honest answer to a device that kept its
+journal through an account erasure.
+
+**The revision decides whether a write lands; it never decides which record
+wins.** That comparison happens on the device, on timestamps sealed inside the
+ciphertext, because the server cannot read those — and because a device that
+syncs a week late would otherwise win purely by arriving last. `updated_at` in
+Postgres orders the pull and nothing else.
+
+**Deletes are tombstones.** A delete that is merely an absent row comes back to
+life on the next pull from the other device, so a deletion is stored as a sealed
+row with `deleted_at` set. The record itself is still sealed: the server knows
+that something was deleted, not what.
+
+**The cursor is `(updated_at, collection, record_id)`, not `updated_at` alone.**
+One push stamps every row in it with the same clock reading, and a cursor made
+of a timestamp could not land between two of them — it would either skip rows or
+repeat them forever. The tests walk seven rows sharing an instant in pages of
+three and assert exactly three pages.
+
+**Two deliberate departures from the issue's text**, both because writing it
+down as drafted would have cost something:
+
+*No `device_id` column.* The draft schema had one, for the tiebreak. Nothing on
+the server reads it — the merge runs on the device, on a device id sealed inside
+the ciphertext — so in the table it would only ever have been a column recording
+how many devices somebody owns and which of them wrote each record. It is a
+fingerprint kept for nobody, and § D23 says the server learns nothing it does
+not need. Dropped. `sync.rows` has eight columns and
+`src/lib/db/boundary.test.ts` fails on a ninth.
+
+*`SNAPSHOT_SCHEMA_VERSION` stays 3.* The issue expected an `updatedAt` on every
+record and a version bump carrying the export/import path with it. It turned out
+not to be needed: `WeightEntry.recordedAt` and `TrainingSession.finishedAt`
+already *are* the write timestamps, and no adapter could stamp a new field
+anyway — `repository.contract.test.ts` asserts exact object equality, so an
+adapter that added one would be a failing test, correctly. `recordUpdatedAt()`
+names which existing field means "last written" for each collection. A schema
+version is a promise to everyone holding an old export file; bumping it to add a
+field nothing needed would have broken that promise for nothing.
+
+**The account id is read from the session and from nowhere else.** No request
+body on this path has a field for one, and `transport.http.test.ts` asserts that
+no body even contains the string. That is the entire boundary between one
+person's rows and another's, so it is stated in three places and tested in the
+one place a device could lie. Every response is `no-store`: there is nothing
+legible in it, but it is still one person's rows and the URL is the same for
+everybody.
+
+**A first sync is batched at 100 rows.** Restoring a phone means pushing the
+whole account, and one request carrying all of it would be refused by the
+route's own cap — failing on exactly the sync that matters most. Each batch is
+journalled before the next is sent, so an interrupted restore leaves the rows
+that landed marked as landed.
+
+**Nothing on screen turns this on yet**, by the issue's own instruction. The
+decorator wraps a `Repository`, takes a transport and a data key, and is
+constructed nowhere in the app: the passphrase prompt and the sentence that has
+to be true before anyone opts in are #96's, and until then the app runs signed
+out with no transport at all.
