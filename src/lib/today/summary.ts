@@ -1,5 +1,6 @@
 import { buildFoodBook } from "@/lib/diet/composition";
 import { groupCompositions } from "@/lib/diet/groups";
+import { effectiveItems } from "@/lib/diet/options";
 import { loadPlan } from "@/lib/diet/plan";
 import { reconcile, type Reconciliation } from "@/lib/diet/reconcile";
 import { planTotals, solvePlan } from "@/lib/diet/solve";
@@ -58,8 +59,7 @@ export interface TodayReady {
  * device is the ordinary path, and it is the path the app is worst at today.
  */
 export type TodayState =
-  | { status: "needs"; needs: "profile" | "weight" }
-  | TodayReady;
+  { status: "needs"; needs: "profile" | "weight" } | TodayReady;
 
 export async function loadToday(
   repository: Repository,
@@ -110,7 +110,9 @@ export async function loadToday(
     plan: {
       name: diet.name,
       mealCount: diet.meals.length,
-      filledMealCount: diet.meals.filter((meal) => meal.items.length > 0).length,
+      filledMealCount: diet.meals.filter(
+        (meal) => effectiveItems(meal).length > 0,
+      ).length,
       achieved,
       reconciliation: reconcile(targets, achieved),
     },

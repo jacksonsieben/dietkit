@@ -41,7 +41,9 @@ const oil: FoodComposition = {
 
 const book = buildFoodBook([chicken, rice, beans, oil], []);
 
-function item(over: Partial<DietItem> & { id: string; food: DietItem["food"] }): DietItem {
+function item(
+  over: Partial<DietItem> & { id: string; food: DietItem["food"] },
+): DietItem {
   return {
     quantityG: 100,
     mandatory: false,
@@ -72,7 +74,13 @@ describe("solvePlan", () => {
     // undid the previous one.
     const [solved] = solvePlan(
       targets(),
-      [meal([item({ id: "a", food: taco(1) }), item({ id: "b", food: taco(2) }), item({ id: "c", food: taco(3) })])],
+      [
+        meal([
+          item({ id: "a", food: taco(1) }),
+          item({ id: "b", food: taco(2) }),
+          item({ id: "c", food: taco(3) }),
+        ]),
+      ],
       book,
     );
 
@@ -87,7 +95,13 @@ describe("solvePlan", () => {
     // (0, 0, 1) with a wide bound and nothing in the code knows its name.
     const [solved] = solvePlan(
       targets({ fatG: 40 }),
-      [meal([item({ id: "a", food: taco(1) }), item({ id: "b", food: taco(2) }), item({ id: "c", food: taco(3) })])],
+      [
+        meal([
+          item({ id: "a", food: taco(1) }),
+          item({ id: "b", food: taco(2) }),
+          item({ id: "c", food: taco(3) }),
+        ]),
+      ],
       book,
     );
 
@@ -128,7 +142,12 @@ describe("solvePlan", () => {
     // The old pipeline returned a plan; this returns a plan plus the truth.
     const [solved] = solvePlan(
       targets({ fatG: 40 }),
-      [meal([item({ id: "a", food: taco(1), maxG: 200 }), item({ id: "b", food: taco(2), maxG: 200 })])],
+      [
+        meal([
+          item({ id: "a", food: taco(1), maxG: 200 }),
+          item({ id: "b", food: taco(2), maxG: 200 }),
+        ]),
+      ],
       book,
     );
 
@@ -139,12 +158,21 @@ describe("solvePlan", () => {
   it("names the foods holding a missed macro where it is", () => {
     const [solved] = solvePlan(
       targets({ proteinG: 120 }),
-      [meal([item({ id: "a", food: taco(1), maxG: 150 }), item({ id: "b", food: taco(2), maxG: 200 })])],
+      [
+        meal([
+          item({ id: "a", food: taco(1), maxG: 150 }),
+          item({ id: "b", food: taco(2), maxG: 200 }),
+        ]),
+      ],
       book,
     );
 
     expect(solved.feasible).toBe(false);
-    expect(solved.items.filter((entry) => entry.limiting).map((entry) => entry.item.id)).toContain("a");
+    expect(
+      solved.items
+        .filter((entry) => entry.limiting)
+        .map((entry) => entry.item.id),
+    ).toContain("a");
   });
 
   it("refuses to call a meal solved when one of its foods is unknown", () => {
@@ -157,7 +185,10 @@ describe("solvePlan", () => {
           item({ id: "a", food: taco(1) }),
           item({ id: "b", food: taco(2) }),
           item({ id: "c", food: taco(3) }),
-          item({ id: "gone", food: { source: "custom", customFoodId: "deleted" } }),
+          item({
+            id: "gone",
+            food: { source: "custom", customFoodId: "deleted" },
+          }),
         ]),
       ],
       book,
@@ -178,7 +209,11 @@ describe("solvePlan", () => {
 
     const [solved] = solvePlan(
       targets({ proteinG: 30, carbG: 10, fatG: 5, kcal: 205 }),
-      [meal([item({ id: "w", food: { source: "custom", customFoodId: "whey" } })])],
+      [
+        meal([
+          item({ id: "w", food: { source: "custom", customFoodId: "whey" } }),
+        ]),
+      ],
       buildFoodBook([], [whey]),
     );
 
@@ -199,22 +234,33 @@ describe("solvePlan", () => {
       targets({ proteinG: 100, carbG: 140, fatG: 40, kcal: 1320 }),
       [
         meal(items(), { id: "m1", share: 0.75 }),
-        meal(items().map((entry) => ({ ...entry, id: `${entry.id}2` })), {
-          id: "m2",
-          name: "Jantar",
-          share: 0.25,
-        }),
+        meal(
+          items().map((entry) => ({ ...entry, id: `${entry.id}2` })),
+          {
+            id: "m2",
+            name: "Jantar",
+            share: 0.25,
+          },
+        ),
       ],
       book,
     );
 
     expect(solved[0].targets.proteinG).toBe(75);
     expect(solved[1].targets.proteinG).toBe(25);
-    expect(solved[0].items[0].quantityG).toBeGreaterThan(solved[1].items[0].quantityG);
+    expect(solved[0].items[0].quantityG).toBeGreaterThan(
+      solved[1].items[0].quantityG,
+    );
   });
 
   it("does not drift a plan that is merely reopened", () => {
-    const plan = [meal([item({ id: "a", food: taco(1) }), item({ id: "b", food: taco(2) }), item({ id: "c", food: taco(3) })])];
+    const plan = [
+      meal([
+        item({ id: "a", food: taco(1) }),
+        item({ id: "b", food: taco(2) }),
+        item({ id: "c", food: taco(3) }),
+      ]),
+    ];
 
     const once = applySolution(plan, solvePlan(targets(), plan, book));
     const twice = applySolution(once, solvePlan(targets(), once, book));
@@ -225,7 +271,13 @@ describe("solvePlan", () => {
 
 describe("applySolution", () => {
   it("writes the solved grams back onto the plan", () => {
-    const plan = [meal([item({ id: "a", food: taco(1) }), item({ id: "b", food: taco(2) }), item({ id: "c", food: taco(3) })])];
+    const plan = [
+      meal([
+        item({ id: "a", food: taco(1) }),
+        item({ id: "b", food: taco(2) }),
+        item({ id: "c", food: taco(3) }),
+      ]),
+    ];
 
     const solved = solvePlan(targets(), plan, book);
     const [next] = applySolution(plan, solved);
@@ -241,7 +293,11 @@ describe("applySolution", () => {
     const plan = [
       meal([
         item({ id: "a", food: taco(1) }),
-        item({ id: "gone", food: { source: "custom", customFoodId: "deleted" }, quantityG: 77 }),
+        item({
+          id: "gone",
+          food: { source: "custom", customFoodId: "deleted" },
+          quantityG: 77,
+        }),
       ]),
     ];
 
@@ -251,15 +307,81 @@ describe("applySolution", () => {
   });
 });
 
+describe("meals that offer options", () => {
+  /** Chicken fixed, then rice or beans as the carbohydrate (#111). */
+  const withOptions = (selectedId = "o1"): Meal =>
+    meal([item({ id: "fixed", food: taco(1) })], {
+      optionSets: [
+        {
+          id: "s1",
+          name: "Carboidrato",
+          selectedId,
+          options: [
+            {
+              id: "o1",
+              name: "Arroz",
+              items: [item({ id: "a", food: taco(2) })],
+            },
+            {
+              id: "o2",
+              name: "Feijão",
+              items: [item({ id: "b", food: taco(4) })],
+            },
+          ],
+        },
+      ],
+    });
+
+  it("solves the selected option and never the others", () => {
+    // A solver that saw both would size two carbohydrates and hit the target
+    // with neither of the breakfasts a person could actually eat.
+    const [solved] = solvePlan(targets(), [withOptions()], book);
+
+    expect(solved.items.map((entry) => entry.item.id)).toEqual(["fixed", "a"]);
+  });
+
+  it("solves a different meal when the selection changes", () => {
+    const [solved] = solvePlan(targets(), [withOptions("o2")], book);
+
+    expect(solved.items.map((entry) => entry.item.id)).toEqual(["fixed", "b"]);
+  });
+
+  it("writes solved grams into the selected option's rows", () => {
+    const plan = [withOptions()];
+    const solved = solvePlan(targets(), plan, book);
+    const [next] = applySolution(plan, solved);
+
+    expect(next.optionSets![0].options[0].items[0].quantityG).toBe(
+      solved[0].items[1].quantityG,
+    );
+  });
+
+  it("leaves the unselected option's grams exactly as they were", () => {
+    // They were never solved, so writing anything there would be inventing a
+    // portion for a meal nobody asked for.
+    const plan = [withOptions()];
+    const [next] = applySolution(plan, solvePlan(targets(), plan, book));
+
+    expect(next.optionSets![0].options[1].items[0].quantityG).toBe(100);
+  });
+});
+
 describe("planTotals", () => {
   it("adds up what the meals were actually given", () => {
-    const items = () => [item({ id: "a", food: taco(1) }), item({ id: "b", food: taco(2) }), item({ id: "c", food: taco(3) })];
+    const items = () => [
+      item({ id: "a", food: taco(1) }),
+      item({ id: "b", food: taco(2) }),
+      item({ id: "c", food: taco(3) }),
+    ];
 
     const solved = solvePlan(
       targets({ proteinG: 100, carbG: 140, fatG: 40, kcal: 1320 }),
       [
         meal(items(), { id: "m1", share: 0.5 }),
-        meal(items().map((entry) => ({ ...entry, id: `${entry.id}2` })), { id: "m2", share: 0.5 }),
+        meal(
+          items().map((entry) => ({ ...entry, id: `${entry.id}2` })),
+          { id: "m2", share: 0.5 },
+        ),
       ],
       book,
     );

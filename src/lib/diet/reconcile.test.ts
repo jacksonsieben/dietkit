@@ -49,7 +49,10 @@ describe("reconcile", () => {
     // Not 149.6 against 150.4: the screen shows whole grams, so a delta taken
     // before rounding would read "150 · 150 · 1" and invite the user to check
     // the app's arithmetic by hand.
-    const result = reconcile(macros({ proteinG: 150.4 }), macros({ proteinG: 149.6 }));
+    const result = reconcile(
+      macros({ proteinG: 150.4 }),
+      macros({ proteinG: 149.6 }),
+    );
     const protein = lineFor(result, "proteinG");
 
     expect(protein.target).toBe(150);
@@ -83,10 +86,16 @@ describe("reconcile", () => {
     // A day 20 kcal off is a day whose macros are within a gram or two of
     // target. Holding energy to the gram band would mark every solved plan
     // off-target for a difference the solver was never asked to remove.
-    const nearly = reconcile(macros(), macros({ kcal: 2000 + TOLERANCE.gramsG * 4 }));
+    const nearly = reconcile(
+      macros(),
+      macros({ kcal: 2000 + TOLERANCE.gramsG * 4 }),
+    );
     expect(lineFor(nearly, "kcal").state).toBe("on");
 
-    const beyond = reconcile(macros(), macros({ kcal: 2000 + TOLERANCE.kcal + 1 }));
+    const beyond = reconcile(
+      macros(),
+      macros({ kcal: 2000 + TOLERANCE.kcal + 1 }),
+    );
     expect(lineFor(beyond, "kcal").state).toBe("over");
   });
 
@@ -99,12 +108,15 @@ describe("reconcile", () => {
 describe("reconcileMeal", () => {
   it("reads the meal's own targets against the meal's own foods", () => {
     const result = reconcileMeal(
-      meal(macros({ proteinG: 40, carbG: 50, fatG: 15, kcal: 495 }), macros({
-        proteinG: 40,
-        carbG: 50,
-        fatG: 22,
-        kcal: 558,
-      })),
+      meal(
+        macros({ proteinG: 40, carbG: 50, fatG: 15, kcal: 495 }),
+        macros({
+          proteinG: 40,
+          carbG: 50,
+          fatG: 22,
+          kcal: 558,
+        }),
+      ),
     );
 
     expect(lineFor(result, "fatG")).toMatchObject({
@@ -119,18 +131,24 @@ describe("reconcileMeal", () => {
 describe("reconcileDay", () => {
   it("sums the meals on screen rather than reading the goal they came from", () => {
     const result = reconcileDay([
-      meal(macros({ proteinG: 60, carbG: 80, fatG: 24, kcal: 776 }), macros({
-        proteinG: 58,
-        carbG: 80,
-        fatG: 24,
-        kcal: 768,
-      })),
-      meal(macros({ proteinG: 90, carbG: 120, fatG: 36, kcal: 1164 }), macros({
-        proteinG: 92,
-        carbG: 120,
-        fatG: 36,
-        kcal: 1172,
-      })),
+      meal(
+        macros({ proteinG: 60, carbG: 80, fatG: 24, kcal: 776 }),
+        macros({
+          proteinG: 58,
+          carbG: 80,
+          fatG: 24,
+          kcal: 768,
+        }),
+      ),
+      meal(
+        macros({ proteinG: 90, carbG: 120, fatG: 36, kcal: 1164 }),
+        macros({
+          proteinG: 92,
+          carbG: 120,
+          fatG: 36,
+          kcal: 1172,
+        }),
+      ),
     ]);
 
     expect(lineFor(result, "proteinG").target).toBe(150);

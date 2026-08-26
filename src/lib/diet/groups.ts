@@ -9,6 +9,7 @@ import type {
 
 import { foodKey, type FoodBook } from "./composition";
 import { sameFood } from "./items";
+import { siblingItems } from "./options";
 
 /**
  * Foods that may stand in for one another (#20).
@@ -65,8 +66,7 @@ export interface GroupInput {
 }
 
 export type GroupValidation =
-  | { ok: true; value: GroupInput }
-  | { ok: false; errors: GroupErrors };
+  { ok: true; value: GroupInput } | { ok: false; errors: GroupErrors };
 
 type Checked<T> = { value: T } | { error: GroupErrorCode };
 
@@ -269,14 +269,18 @@ export function alternativesFor(
   itemId: Id,
   book: FoodBook,
 ): Alternative[] {
-  const item = meal.items.find((candidate) => candidate.id === itemId);
+  // Scoped to the row's own container (#111): the same food may legitimately
+  // sit in a different option of the same set, and calling that "taken" would
+  // refuse a swap that clashes with nothing on the plate.
+  const siblings = siblingItems(meal, itemId);
+  const item = siblings.find((candidate) => candidate.id === itemId);
 
   return group.foods.map((ref) => ({
     ref,
     key: foodKey(ref),
     name: book.get(foodKey(ref))?.name,
     current: item !== undefined && sameFood(item.food, ref),
-    taken: meal.items.some(
+    taken: siblings.some(
       (other) => other.id !== itemId && sameFood(other.food, ref),
     ),
   }));

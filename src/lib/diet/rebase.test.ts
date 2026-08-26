@@ -16,7 +16,13 @@ const MEALS = mealsFromNames([
 ]);
 
 const plan = (basedOnWeightKg: number): Diet =>
-  newPlan({ id: "plan-1", name: "Meu plano" }, MEALS, TARGETS, basedOnWeightKg, NOW);
+  newPlan(
+    { id: "plan-1", name: "Meu plano" },
+    MEALS,
+    TARGETS,
+    basedOnWeightKg,
+    NOW,
+  );
 
 /**
  * A plan from before the weight was recorded, or one imported from the

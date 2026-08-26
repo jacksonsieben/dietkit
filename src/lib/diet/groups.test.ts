@@ -193,7 +193,10 @@ describe("toGroup", () => {
 
   it("omits the snapshot list entirely when there is nothing to snapshot", () => {
     const written = toGroup(
-      { name: "Proteína", foods: [whey, { source: "custom", customFoodId: "w2" }] },
+      {
+        name: "Proteína",
+        foods: [whey, { source: "custom", customFoodId: "w2" }],
+      },
       { id: "g2", createdAt: "2026-08-01T10:00:00.000Z" },
       "2026-08-17T10:00:00.000Z",
     );
@@ -318,6 +321,38 @@ describe("alternativesFor", () => {
     );
 
     expect(options.map((o) => o.taken)).toEqual([false, false, true]);
+  });
+
+  it("scopes `taken` to the row's own option, not the whole meal", () => {
+    // Apple sits in a different option of the same set: it will never be on
+    // the same plate as this row, so swapping onto it clashes with nothing.
+    const withOptions: Meal = {
+      id: "m1",
+      name: "Café da manhã",
+      share: 1,
+      items: [],
+      optionSets: [
+        {
+          id: "s1",
+          name: "Fruta",
+          selectedId: "o1",
+          options: [
+            { id: "o1", name: "A", items: [meal.items[0]] },
+            { id: "o2", name: "B", items: [meal.items[1]] },
+          ],
+        },
+      ],
+    };
+
+    const options = alternativesFor(
+      group({ foods: [banana, mamao, maca] }),
+      withOptions,
+      "i1",
+      book,
+    );
+
+    expect(options.map((o) => o.current)).toEqual([true, false, false]);
+    expect(options.map((o) => o.taken)).toEqual([false, false, false]);
   });
 
   it("still offers the member when the book cannot name it", () => {

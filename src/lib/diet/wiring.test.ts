@@ -7,6 +7,7 @@ import ptBR from "../../../messages/pt-BR.json";
 import { GROUP_ERROR_CODES, GROUP_LIMITS } from "./groups";
 import { ITEM_ERROR_CODES, ITEM_LIMITS } from "./items";
 import { MEAL_ERROR_CODES, MEAL_LIMITS } from "./meals";
+import { OPTION_ERROR_CODES } from "./options";
 import { RECONCILE_MACROS, TOLERANCE } from "./reconcile";
 import { ATWATER } from "@/lib/energy/macros";
 import { DEFAULT_TOLERANCE_G } from "@/lib/solver/macroSolver";
@@ -99,7 +100,9 @@ describe("meal planner wiring", () => {
   it("offers the newest weight rather than applying it", () => {
     const source = component();
 
-    expect(source).toContain("weightDrift(loaded.plan, loaded.current.weightKg)");
+    expect(source).toContain(
+      "weightDrift(loaded.plan, loaded.current.weightKg)",
+    );
     // The rebuild happens because a button was pressed, not because the screen
     // was opened: no effect and no render-time call may reach `rebasePlan`.
     expect(source).toContain("onClick={rebase}");
@@ -435,5 +438,107 @@ describe("reconciliation panel wiring", () => {
     // bug with better types.
     expect(planner()).not.toMatch(/useState[^;]*[Tt]otals/);
     expect(planner()).toContain("reconcileDay(solved)");
+  });
+});
+
+/**
+ * The parts of #111 that live in the screen rather than in `options.ts`: that
+ * the planner writes through the option functions instead of reaching into
+ * `optionSets` itself, that only the selected option is drawn, and that the
+ * limits and errors on screen are the ones the module publishes.
+ */
+describe("option set wiring", () => {
+  const planner = () => read("src/components/MealPlanner.tsx");
+  const items = () => read("src/components/MealItems.tsx");
+
+  it("draws the rows of the option that is selected", () => {
+    const source = items();
+
+    expect(source).toContain("selectedOption(");
+    expect(source).toContain("optionSetsOf(");
+  });
+
+  it("never draws grams for an option nobody picked", () => {
+    // `allItems` is the TACO snapshot's view — everything the plan mentions,
+    // including the alternatives. Anything on this screen that priced a row
+    // from it would be printing a portion the solver never chose.
+    for (const source of [planner(), items()]) {
+      expect(source).not.toContain("allItems(");
+    }
+  });
+
+  it("adds a food to the container it was asked about", () => {
+    // Without the `optionId`, every add lands in the meal's fixed rows and the
+    // option the user was editing silently stays empty.
+    expect(planner()).toContain(
+      "addItem(current.plan.meals, mealId, item, optionId)",
+    );
+    expect(items()).toContain("canAddTo(");
+  });
+
+  it("counts rows against the container's limit, not the meal's", () => {
+    expect(planner()).toContain("canAddItem(meal, optionId)");
+  });
+
+  it("stores the choice on the plan rather than in the screen's state", () => {
+    // A selection held in `useState` would reset to the first option every time
+    // the app is reopened, which is the plan quietly changing what it says.
+    const source = items();
+
+    expect(source).toContain('type="radio"');
+    expect(source).toContain("actions.onSelectOption(");
+    expect(planner()).toContain("selectOption(");
+  });
+
+  it("reaches every option verb the issue asks for", () => {
+    const source = planner();
+
+    for (const verb of [
+      "addSet(",
+      "removeSet(",
+      "renameSet(",
+      "addOption(",
+      "removeOption(",
+      "renameOption(",
+      "selectOption(",
+    ]) {
+      expect(source, `missing ${verb}`).toContain(verb);
+    }
+  });
+
+  it("asks before deleting a set, in the page rather than in a dialog", () => {
+    // Deleting a set deletes rows the user typed. `window.confirm` would also
+    // freeze the page for anything driving the browser, so the confirmation is
+    // two buttons in the block being deleted.
+    const source = items();
+
+    expect(source).toContain("options.removeSetWarning");
+    expect(source).not.toMatch(/window\.confirm|\bconfirm\(/);
+  });
+
+  it("quotes the real option limits rather than numbers typed into a sentence", () => {
+    const source = items();
+
+    expect(source).toContain("OPTION_LIMITS.sets.max");
+    expect(source).toContain("OPTION_LIMITS.options.max");
+    expect(source).toContain("OPTION_LIMITS.options.min");
+    expect(ptBR.Plan.options.setLimit).toContain("{max, number}");
+    expect(ptBR.Plan.options.optionLimit).toContain("{max, number}");
+    expect(ptBR.Plan.options.removeOptionLimit).toContain("{min, number}");
+  });
+
+  it("has a message for every error the option rules can produce", () => {
+    expect(Object.keys(ptBR.Plan.options.errors).sort()).toEqual(
+      [...OPTION_ERROR_CODES].sort(),
+    );
+  });
+
+  it("will not save a set or an option that has no name", () => {
+    // And stores the names trimmed, like every other name here: a plan whose
+    // choice is called " " is a question with a blank answer.
+    const source = planner();
+
+    expect(source).toContain("checkMealOptions(");
+    expect(source).toContain("trimOptionNames(");
   });
 });

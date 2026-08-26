@@ -75,8 +75,7 @@ export interface CustomFood {
  * is what stops a custom food ever being written to a server table.
  */
 export type FoodRef =
-  | { source: "taco"; tacoId: number }
-  | { source: "custom"; customFoodId: Id };
+  { source: "taco"; tacoId: number } | { source: "custom"; customFoodId: Id };
 
 export interface DietItem {
   id: Id;
@@ -153,6 +152,57 @@ export interface SubstitutionGroup {
   updatedAt: IsoTimestamp;
 }
 
+/**
+ * One way a meal can be made, chosen as a unit (#111).
+ *
+ * Not a food and not a group of foods: a *set of rows*. The predecessor's
+ * breakfast offered `pão branco + fruta + doce de leite` against `aveia + fruta
+ * + pasta de amendoim` — different foods, different counts of them, and the
+ * choice is one choice. A `SubstitutionGroup` cannot say that, because it swaps
+ * one food inside one row, and no amount of grouping turns three rows into one
+ * decision.
+ *
+ * The items are ordinary `DietItem`s, which is the point: quantity, bounds,
+ * `mandatory` and a substitution group all keep working inside an option, so
+ * "the fruit in whichever breakfast I picked" is still a swappable slot.
+ */
+export interface DietOption {
+  id: Id;
+  /** The user's word for this way of doing it — "Aveia", "Ovos". */
+  name: string;
+  items: DietItem[];
+}
+
+/**
+ * A decision a meal carries: several options, exactly one of them selected.
+ *
+ * `selectedId` lives here, on the record, and not in a screen's state. The
+ * predecessor learned that one the hard way — its own README calls the lesson
+ * *selection-dependence*: the plan, the daily summary and the export all have
+ * to render the same choice, and a selection held by a component is a selection
+ * the exporter has to guess at.
+ *
+ * The options that are *not* selected are still part of the plan. They survive
+ * a save, a backup and a sync round trip, and their foods keep a snapshot in
+ * `Diet.tacoFoods` — for `SubstitutionGroup.tacoFoods`'s reason, sharpened:
+ * they are by definition the foods the plan is not using, so their numbers are
+ * nowhere else on the device, and switching option would otherwise be the one
+ * action in the app that needs a network.
+ *
+ * They are not the plan *today*, though, so nothing counts them: the solver,
+ * the reconciliation panel, `/hoje` and the totals all read the selected option
+ * and only the selected option.
+ */
+export interface OptionSet {
+  id: Id;
+  /** The user's word for the decision — "Carboidrato", "Proteína". */
+  name: string;
+  /** Two or more. A set with one option is a decision nobody is making. */
+  options: DietOption[];
+  /** Which option is on the plate. Always one of `options`. */
+  selectedId: Id;
+}
+
 export interface Meal {
   id: Id;
   name: string;
@@ -168,7 +218,23 @@ export interface Meal {
    * silently feeds the user the wrong amount.
    */
   share: number;
+  /**
+   * The rows that are in this meal however it is made — the predecessor's
+   * `fixed_always`: the vegetables, the olive oil, the supplement.
+   */
   items: DietItem[];
+  /**
+   * The decisions this meal offers, if any (#111).
+   *
+   * Optional because most meals are a list of foods and should stay one: a
+   * plan written before this existed has none, and requiring an empty array
+   * would make every such plan a migration.
+   *
+   * What the meal actually contributes is `items` plus the selected option of
+   * each set — `effectiveItems` in `src/lib/diet/options.ts` is the single
+   * place that says so, and everything that adds a meal up reads it.
+   */
+  optionSets?: OptionSet[];
 }
 
 export interface Diet {

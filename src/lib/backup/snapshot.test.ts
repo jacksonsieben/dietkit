@@ -41,7 +41,10 @@ describe("parseSnapshotFile", () => {
 
   it("refuses JSON that is not a backup", () => {
     for (const text of ["[]", '"olá"', "42", "null", '{"foo":1}']) {
-      expect(parseSnapshotFile(text)).toEqual({ ok: false, error: "notSnapshot" });
+      expect(parseSnapshotFile(text)).toEqual({
+        ok: false,
+        error: "notSnapshot",
+      });
     }
   });
 
@@ -49,13 +52,15 @@ describe("parseSnapshotFile", () => {
     // An object where an array belongs is not one bad record, it is a file this
     // version does not understand — and restoring it would silently empty the
     // log it was meant to bring back.
-    expect(parseSnapshotFile(fileWith((raw) => (raw.weight = { "0": {} })))).toEqual(
-      { ok: false, error: "notSnapshot" },
-    );
+    expect(
+      parseSnapshotFile(fileWith((raw) => (raw.weight = { "0": {} }))),
+    ).toEqual({ ok: false, error: "notSnapshot" });
   });
 
   it("refuses a backup from a newer version, and says which", () => {
-    expect(parseSnapshotFile(fileWith((raw) => (raw.schemaVersion = 7)))).toEqual({
+    expect(
+      parseSnapshotFile(fileWith((raw) => (raw.schemaVersion = 7))),
+    ).toEqual({
       ok: false,
       error: "futureVersion",
       version: 7,
@@ -66,7 +71,10 @@ describe("parseSnapshotFile", () => {
     // The oldest backups this can meet are ones written before a section
     // existed. Nothing was lost in them; there was nothing there.
     const { snapshot, drops } = parsed(
-      JSON.stringify({ schemaVersion: 1, exportedAt: "2026-01-01T00:00:00.000Z" }),
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: "2026-01-01T00:00:00.000Z",
+      }),
     );
 
     expect(drops).toEqual([]);
@@ -138,6 +146,65 @@ describe("parseSnapshotFile", () => {
     expect(drops).toEqual([]);
   });
 
+  it("repairs a selection that points at an option that did not survive", () => {
+    // `selectedOption` would cover for it at read time, but a file restored
+    // holding a selection nobody can see is a bug that gets saved again on the
+    // next edit.
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => {
+        const diets = raw.diets as {
+          meals: { optionSets: Record<string, unknown>[] }[];
+        }[];
+        diets[0].meals[0].optionSets[0].selectedId = "op-gone";
+      }),
+    );
+
+    expect(snapshot.diets[0].meals[0].optionSets?.[0].selectedId).toBe("op-1");
+    expect(drops).toEqual([]);
+  });
+
+  it("drops an option it cannot read and keeps the rest of the set", () => {
+    const { snapshot } = parsed(
+      fileWith((raw) => {
+        const diets = raw.diets as {
+          meals: { optionSets: { options: unknown[] }[] }[];
+        }[];
+        diets[0].meals[0].optionSets[0].options[0] = { id: "op-1" };
+      }),
+    );
+
+    const set = snapshot.diets[0].meals[0].optionSets?.[0];
+
+    expect(set?.options.map((option) => option.id)).toEqual(["op-2"]);
+    expect(set?.selectedId).toBe("op-2");
+  });
+
+  it("drops a set with nothing left to choose between", () => {
+    const { snapshot } = parsed(
+      fileWith((raw) => {
+        const diets = raw.diets as {
+          meals: { optionSets: { options: unknown[] }[] }[];
+        }[];
+        diets[0].meals[0].optionSets[0].options = [];
+      }),
+    );
+
+    // Absent rather than empty: a meal that ends up with no options must
+    // restore to exactly the record a meal that never had one is.
+    expect("optionSets" in snapshot.diets[0].meals[0]).toBe(false);
+  });
+
+  it("leaves a meal that never had options without the key", () => {
+    const { snapshot } = parsed(
+      fileWith((raw) => {
+        const diets = raw.diets as { meals: Record<string, unknown>[] }[];
+        delete diets[0].meals[0].optionSets;
+      }),
+    );
+
+    expect("optionSets" in snapshot.diets[0].meals[0]).toBe(false);
+  });
+
   it("drops a plan with no targets", () => {
     const { snapshot, drops } = parsed(
       fileWith((raw) => {
@@ -150,7 +217,9 @@ describe("parseSnapshotFile", () => {
   });
 
   it("falls back to defaults when settings are unreadable", () => {
-    const { snapshot, drops } = parsed(fileWith((raw) => (raw.settings = "sim")));
+    const { snapshot, drops } = parsed(
+      fileWith((raw) => (raw.settings = "sim")),
+    );
 
     expect(snapshot.settings).toEqual({ locale: "pt-BR" });
     // Nothing the user typed was in there, so nothing is worth reporting.
@@ -269,14 +338,17 @@ describe("parseSnapshotFile", () => {
     const { snapshot, drops } = parsed(
       fileWith((raw) => {
         const sessions = raw.trainingSessions as Record<string, unknown>[];
-        sessions.push({ ...sessions[0], id: "s-2", dayName: "B · Costas", date: "não" });
+        sessions.push({
+          ...sessions[0],
+          id: "s-2",
+          dayName: "B · Costas",
+          date: "não",
+        });
       }),
     );
 
     expect(snapshot.trainingSessions).toHaveLength(1);
-    expect(drops).toEqual([
-      { kind: "trainingSession", subject: "B · Costas" },
-    ]);
+    expect(drops).toEqual([{ kind: "trainingSession", subject: "B · Costas" }]);
   });
 
   it("drops the whole session when one set inside it is broken", () => {

@@ -25,7 +25,9 @@ describe("saveGroup", () => {
     );
 
     expect(group.createdAt).toBe("2026-08-17T10:00:00.000Z");
-    await expect(repository.substitutionGroups.list()).resolves.toEqual([group]);
+    await expect(repository.substitutionGroups.list()).resolves.toEqual([
+      group,
+    ]);
   });
 
   it("keeps the id and the creation date across an edit", async () => {

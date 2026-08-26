@@ -68,7 +68,9 @@ describe("newItem", () => {
 
 describe("sameFood", () => {
   it("does not confuse the two id spaces", () => {
-    expect(sameFood(rice, { source: "custom", customFoodId: "12" })).toBe(false);
+    expect(sameFood(rice, { source: "custom", customFoodId: "12" })).toBe(
+      false,
+    );
   });
 
   it("matches a food with itself", () => {
@@ -105,15 +107,19 @@ describe("addItem", () => {
     );
 
     expect(canAddItem(full[0])).toBe(false);
-    expect(addItem(full, "m1", item({ id: "extra", food: beans }))[0].items).toHaveLength(
-      ITEM_LIMITS.count.max,
-    );
+    expect(
+      addItem(full, "m1", item({ id: "extra", food: beans }))[0].items,
+    ).toHaveLength(ITEM_LIMITS.count.max);
   });
 });
 
 describe("removeItem", () => {
   it("takes out the row asked for", () => {
-    const next = removeItem(meals([item(), item({ id: "i2", food: beans })]), "m1", "i1");
+    const next = removeItem(
+      meals([item(), item({ id: "i2", food: beans })]),
+      "m1",
+      "i1",
+    );
 
     expect(next[0].items.map((entry) => entry.id)).toEqual(["i2"]);
   });
@@ -130,7 +136,11 @@ describe("updateItem", () => {
   it("changes one field without disturbing the rest", () => {
     const next = updateItem(meals([item()]), "m1", "i1", { mandatory: true });
 
-    expect(next[0].items[0]).toMatchObject({ mandatory: true, quantityG: 100, maxG: 400 });
+    expect(next[0].items[0]).toMatchObject({
+      mandatory: true,
+      quantityG: 100,
+      maxG: 400,
+    });
   });
 
   it("pushes the ceiling up when the floor is raised past it", () => {
@@ -142,16 +152,23 @@ describe("updateItem", () => {
   });
 
   it("pulls the floor down when the ceiling is lowered under it", () => {
-    const next = updateItem(meals([item({ minG: 100 })]), "m1", "i1", { maxG: 50 });
+    const next = updateItem(meals([item({ minG: 100 })]), "m1", "i1", {
+      maxG: 50,
+    });
 
     expect(next[0].items[0].minG).toBe(50);
   });
 
   it("leaves a bound alone when the other one was the edit", () => {
     // Typing a quantity must not quietly widen the range around it.
-    const next = updateItem(meals([item({ minG: 50, maxG: 200 })]), "m1", "i1", {
-      quantityG: 900,
-    });
+    const next = updateItem(
+      meals([item({ minG: 50, maxG: 200 })]),
+      "m1",
+      "i1",
+      {
+        quantityG: 900,
+      },
+    );
 
     expect(next[0].items[0]).toMatchObject({ minG: 50, maxG: 200 });
   });
@@ -246,5 +263,123 @@ describe("setItemGroup", () => {
     // An explicit `undefined` would survive into IndexedDB and back out of a
     // JSON export as a key that reads like an unfinished write.
     expect("substitutionGroupId" in next[0].items[0]).toBe(false);
+  });
+});
+
+describe("rows that live inside an option", () => {
+  const oats = { source: "taco", tacoId: 5 } as const;
+
+  /** Rice fixed, then a choice between rice-and-beans and oats (#111). */
+  const withOptions = (): Meal[] => [
+    {
+      id: "m1",
+      name: "Café da manhã",
+      share: 1,
+      items: [item({ id: "fixed" })],
+      optionSets: [
+        {
+          id: "s1",
+          name: "Carboidrato",
+          selectedId: "o1",
+          options: [
+            {
+              id: "o1",
+              name: "Feijão",
+              items: [item({ id: "a", food: beans })],
+            },
+            { id: "o2", name: "Aveia", items: [item({ id: "b", food: oats })] },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const option = (meals: Meal[], id: string) =>
+    meals[0].optionSets![0].options.find((entry) => entry.id === id)!;
+
+  it("counts rows against the limit per container, not per meal", () => {
+    const meal = withOptions()[0];
+
+    expect(canAddItem(meal)).toBe(true);
+    expect(canAddItem(meal, "o1")).toBe(true);
+  });
+
+  it("lets the same food sit in two options of one set", () => {
+    // The predecessor's breakfast puts milk in all five protein options. Those
+    // are alternatives that are never on the same plate, so they are not the
+    // double-counting the one-row-per-food rule exists to prevent.
+    const meal = withOptions()[0];
+
+    expect(hasFood(meal, beans, "o1")).toBe(true);
+    expect(hasFood(meal, beans, "o2")).toBe(false);
+
+    const next = addItem(
+      withOptions(),
+      "m1",
+      item({ id: "new", food: beans }),
+      "o2",
+    );
+
+    expect(option(next, "o2").items.map((entry) => entry.id)).toEqual([
+      "b",
+      "new",
+    ]);
+  });
+
+  it("still refuses the same food twice inside one option", () => {
+    const next = addItem(
+      withOptions(),
+      "m1",
+      item({ id: "new", food: beans }),
+      "o1",
+    );
+
+    expect(option(next, "o1").items).toHaveLength(1);
+  });
+
+  it("adds to the meal's fixed rows when no option is named", () => {
+    const next = addItem(withOptions(), "m1", item({ id: "new", food: beans }));
+
+    expect(next[0].items.map((entry) => entry.id)).toEqual(["fixed", "new"]);
+  });
+
+  it("removes a row from the option that holds it", () => {
+    const next = removeItem(withOptions(), "m1", "b");
+
+    expect(option(next, "o2").items).toEqual([]);
+    expect(option(next, "o1").items).toHaveLength(1);
+    expect(next[0].items).toHaveLength(1);
+  });
+
+  it("updates a row inside an unselected option", () => {
+    // Editing an option nobody has picked is the ordinary case: that is how a
+    // person writes the alternative before switching to it.
+    const next = updateItem(withOptions(), "m1", "b", { minG: 40 });
+
+    expect(option(next, "o2").items[0].minG).toBe(40);
+    expect(option(next, "o1").items[0].minG).toBe(0);
+  });
+
+  it("swaps a food inside an option, against that option's rows only", () => {
+    const next = swapFood(withOptions(), "m1", "b", beans);
+
+    expect(option(next, "o2").items[0].food).toEqual(beans);
+  });
+
+  it("refuses a swap that clashes inside the same option", () => {
+    const clashing = withOptions();
+    clashing[0].optionSets![0].options[1].items.push(
+      item({ id: "b2", food: beans }),
+    );
+
+    const next = swapFood(clashing, "m1", "b", beans);
+
+    expect(option(next, "o2").items[0].food).toEqual(oats);
+  });
+
+  it("sets a substitution group on a row inside an option", () => {
+    const next = setItemGroup(withOptions(), "m1", "b", "g1");
+
+    expect(option(next, "o2").items[0].substitutionGroupId).toBe("g1");
   });
 });

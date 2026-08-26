@@ -51,6 +51,21 @@ import {
   setShare,
   type MealErrorCode,
 } from "@/lib/diet/meals";
+import {
+  addOption,
+  addSet,
+  canAddSet,
+  checkMealOptions,
+  newOptionSet,
+  optionSetsOf,
+  removeOption,
+  removeSet,
+  renameOption,
+  renameSet,
+  selectOption,
+  trimOptionNames,
+  type OptionErrorCode,
+} from "@/lib/diet/options";
 import { loadPlan, newPlan, savePlan } from "@/lib/diet/plan";
 import { planKnowsItsWeight, rebasePlan, weightDrift } from "@/lib/diet/rebase";
 import { reconcileDay } from "@/lib/diet/reconcile";
@@ -130,7 +145,17 @@ interface Loaded {
   groups: SubstitutionGroup[];
 }
 
-type MealErrors = Record<Id, { name?: MealErrorCode; share?: MealErrorCode }>;
+type MealErrors = Record<
+  Id,
+  { name?: MealErrorCode; share?: MealErrorCode; options?: OptionErrorCode }
+>;
+
+/** How many options a set already holds, so the next one can be numbered. */
+function optionCount(meal: Meal, setId: Id): number {
+  return (
+    optionSetsOf(meal).find((set) => set.id === setId)?.options.length ?? 0
+  );
+}
 
 export function MealPlanner() {
   const t = useTranslations("Plan");
@@ -353,7 +378,7 @@ export function MealPlanner() {
    * "unknown food" state — and there is no reason to pass through it when the
    * numbers are already in hand.
    */
-  const onAddFood = (mealId: Id, choice: FoodChoice) => {
+  const onAddFood = (mealId: Id, choice: FoodChoice, optionId?: Id) => {
     const item = newItem(choice.ref, crypto.randomUUID(), choice.servingG);
 
     setLoaded((current) => {
@@ -385,7 +410,7 @@ export function MealPlanner() {
         plan: {
           ...current.plan,
           tacoFoods,
-          meals: addItem(current.plan.meals, mealId, item),
+          meals: addItem(current.plan.meals, mealId, item, optionId),
         },
       };
     });
@@ -480,6 +505,8 @@ export function MealPlanner() {
       if (errors[meal.id]?.share) {
         found[meal.id] = { ...found[meal.id], share: errors[meal.id].share };
       }
+      const options = checkMealOptions(meal);
+      if (options) found[meal.id] = { ...found[meal.id], options };
     }
 
     if (Object.keys(found).length > 0) {
@@ -495,7 +522,7 @@ export function MealPlanner() {
     // ones the items were carrying before the solve. Anything else and reopening
     // the plan would show different portions from the ones just saved.
     const settled = applySolution(meals, solved).map((meal) => ({
-      ...meal,
+      ...trimOptionNames(meal),
       name: meal.name.trim(),
     }));
 
@@ -621,8 +648,10 @@ export function MealPlanner() {
                 solved={solved[index]}
                 groups={loaded.groups}
                 book={book}
-                canAdd={canAddItem(meal)}
-                onAdd={(choice) => onAddFood(meal.id, choice)}
+                canAddTo={(optionId) => canAddItem(meal, optionId)}
+                onAdd={(choice, optionId) =>
+                  onAddFood(meal.id, choice, optionId)
+                }
                 onChange={(itemId, changes) =>
                   onChangeItem(meal.id, itemId, changes)
                 }
@@ -631,6 +660,47 @@ export function MealPlanner() {
                 }
                 onSwap={(itemId, food) => onSwapFood(meal.id, itemId, food)}
                 onRemove={(itemId) => apply(removeItem(meals, meal.id, itemId))}
+                options={{
+                  canAddSet: canAddSet(meal),
+                  error: errors[meal.id]?.options,
+                  onAddSet: () =>
+                    apply(
+                      addSet(
+                        meals,
+                        meal.id,
+                        newOptionSet(
+                          {
+                            id: crypto.randomUUID(),
+                            name: t("options.newSetName"),
+                          },
+                          [1, 2].map((position) => ({
+                            id: crypto.randomUUID(),
+                            name: t("options.newOptionName", { position }),
+                          })),
+                        ),
+                      ),
+                    ),
+                  onRemoveSet: (setId) =>
+                    apply(removeSet(meals, meal.id, setId)),
+                  onRenameSet: (setId, name) =>
+                    apply(renameSet(meals, meal.id, setId, name)),
+                  onAddOption: (setId) =>
+                    apply(
+                      addOption(meals, meal.id, setId, {
+                        id: crypto.randomUUID(),
+                        name: t("options.newOptionName", {
+                          position: optionCount(meal, setId) + 1,
+                        }),
+                        items: [],
+                      }),
+                    ),
+                  onRemoveOption: (setId, optionId) =>
+                    apply(removeOption(meals, meal.id, setId, optionId)),
+                  onRenameOption: (setId, optionId, name) =>
+                    apply(renameOption(meals, meal.id, setId, optionId, name)),
+                  onSelectOption: (setId, optionId) =>
+                    apply(selectOption(meals, meal.id, setId, optionId)),
+                }}
               />
             </MealRow>
           ))}
@@ -889,7 +959,12 @@ function RowButton({
   onClick: () => void;
 }) {
   return (
-    <Ghost type="button" onClick={onClick} disabled={disabled} aria-label={name}>
+    <Ghost
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={name}
+    >
       {label}
     </Ghost>
   );
