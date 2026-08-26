@@ -29,12 +29,7 @@ import type { SolvedMeal } from "./solve";
  */
 
 /** kcal last: it is a consequence of the three above it, not a fourth dial. */
-export const RECONCILE_MACROS = [
-  "proteinG",
-  "carbG",
-  "fatG",
-  "kcal",
-] as const;
+export const RECONCILE_MACROS = ["proteinG", "carbG", "fatG", "kcal"] as const;
 
 export type ReconcileMacro = (typeof RECONCILE_MACROS)[number];
 
@@ -79,7 +74,11 @@ function toleranceFor(macro: ReconcileMacro): number {
   return macro === "kcal" ? TOLERANCE.kcal : TOLERANCE.gramsG;
 }
 
-function line(macro: ReconcileMacro, targets: MacroSet, actual: MacroSet): MacroLine {
+function line(
+  macro: ReconcileMacro,
+  targets: MacroSet,
+  actual: MacroSet,
+): MacroLine {
   const to = Math.round(targets[macro]);
   const at = Math.round(actual[macro]);
   const delta = at - to;
@@ -90,7 +89,11 @@ function line(macro: ReconcileMacro, targets: MacroSet, actual: MacroSet): Macro
     actual: at,
     delta,
     state:
-      Math.abs(delta) <= toleranceFor(macro) ? "on" : delta < 0 ? "under" : "over",
+      Math.abs(delta) <= toleranceFor(macro)
+        ? "on"
+        : delta < 0
+          ? "under"
+          : "over",
   };
 }
 

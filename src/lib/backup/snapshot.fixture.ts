@@ -64,6 +64,43 @@ export function fullSnapshot(): Snapshot {
                 substitutionGroupId: "g-1",
               },
             ],
+            optionSets: [
+              {
+                id: "os-1",
+                name: "Carboidrato",
+                selectedId: "op-2",
+                options: [
+                  {
+                    id: "op-1",
+                    name: "Arroz",
+                    items: [
+                      {
+                        id: "i-3",
+                        food: { source: "taco", tacoId: 4 },
+                        quantityG: 120,
+                        mandatory: false,
+                        minG: 0,
+                        maxG: 300,
+                      },
+                    ],
+                  },
+                  {
+                    id: "op-2",
+                    name: "Batata",
+                    items: [
+                      {
+                        id: "i-4",
+                        food: { source: "taco", tacoId: 9 },
+                        quantityG: 200,
+                        mandatory: false,
+                        minG: 0,
+                        maxG: 400,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
         ],
         tacoFoods: [

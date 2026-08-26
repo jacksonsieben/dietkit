@@ -25,7 +25,10 @@ export async function saveGroup(
 
   const group = toGroup(
     input,
-    { id: editing ?? crypto.randomUUID(), createdAt: existing?.createdAt ?? now },
+    {
+      id: editing ?? crypto.randomUUID(),
+      createdAt: existing?.createdAt ?? now,
+    },
     now,
   );
 

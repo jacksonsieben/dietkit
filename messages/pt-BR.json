@@ -782,6 +782,32 @@
     "swapUnknown": "Alimento sem dados neste aparelho",
     "groupsLink": "Criar grupos de substituição",
     "groupsNote": "Um grupo é uma lista de alimentos que se substituem. Ao trocar, os limites da linha continuam os mesmos e o app resolve as gramas de novo, então a meta continua fechando.",
+    "options": {
+      "addSet": "Criar opções",
+      "addSetHint": "Um conjunto de opções é uma escolha dentro da refeição — pão com queijo ou aveia com pasta de amendoim. Só a opção marcada entra na conta do dia.",
+      "setLimit": "Uma refeição pode ter no máximo {max, number} conjuntos de opções.",
+      "setNameLabel": "Nome do conjunto {position, number}",
+      "newSetName": "Escolha",
+      "newOptionName": "Opção {position, number}",
+      "optionNameLabel": "Nome da opção {position, number}",
+      "pickLegend": "Qual delas você come hoje",
+      "pickLabel": "Comer {name} hoje",
+      "optionEmpty": "Nenhum alimento nesta opção ainda.",
+      "rowCount": "{count, plural, =0 {sem alimentos} one {# alimento} other {# alimentos}}",
+      "addOption": "Acrescentar opção",
+      "optionLimit": "Um conjunto pode ter no máximo {max, number} opções.",
+      "removeOption": "Apagar opção",
+      "removeOptionLimit": "Um conjunto precisa de pelo menos {min, number} opções para ser uma escolha.",
+      "removeSet": "Apagar conjunto",
+      "removeSetWarning": "Apagar este conjunto apaga também {count, plural, one {a opção} other {as # opções}} e os alimentos que você pôs {count, plural, one {nela} other {nelas}}.",
+      "removeSetConfirm": "Apagar mesmo",
+      "cancel": "Cancelar",
+      "selectedRows": "Alimentos de {name}, a opção marcada. As outras ficam guardadas como estão: só o que está no prato entra na conta.",
+      "errors": {
+        "required": "Dê um nome a cada conjunto e a cada opção.",
+        "nameLength": "O nome pode ter no máximo {max, number} letras."
+      }
+    },
     "reconcile": {
       "mealHeading": "Meta e plano desta refeição, macro a macro",
       "deltaGrams": "{sign}{value, number} g",

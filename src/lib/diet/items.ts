@@ -1,6 +1,8 @@
 import { parseDecimal } from "@/lib/profile/validation";
 import type { DietItem, FoodRef, Id, Meal } from "@/lib/storage/types";
 
+import { addToContainer, containerItems, withContainer } from "./options";
+
 /**
  * What a meal is made of, and how much room the solver has in each item (#19).
  *
@@ -16,6 +18,11 @@ import type { DietItem, FoodRef, Id, Meal } from "@/lib/storage/types";
  *
  * Pure functions over `readonly Meal[]`, for `meals.ts`'s reason: the decisions
  * are worth testing without a browser around them.
+ *
+ * Every one of them addresses a row by id alone, and the row may be a fixed one
+ * or sit inside an option of an option set (#111) — `withContainer` finds it
+ * either way. The rules that are *about* a list of rows, though, are scoped to
+ * the container the row is in: see `canAddItem` and `hasFood`.
  */
 
 export const ITEM_LIMITS = {
@@ -52,9 +59,10 @@ type Checked<T> = { value: T } | { error: ItemErrorCode };
 export const DEFAULT_ITEM = { quantityG: 100, minG: 0, maxG: 500 } as const;
 
 export function newItem(food: FoodRef, id: Id, servingG?: number): DietItem {
-  const quantityG = servingG !== undefined && servingG > 0
-    ? Math.min(Math.round(servingG), ITEM_LIMITS.gramsG.max)
-    : DEFAULT_ITEM.quantityG;
+  const quantityG =
+    servingG !== undefined && servingG > 0
+      ? Math.min(Math.round(servingG), ITEM_LIMITS.gramsG.max)
+      : DEFAULT_ITEM.quantityG;
 
   return {
     id,
@@ -69,13 +77,27 @@ export function newItem(food: FoodRef, id: Id, servingG?: number): DietItem {
   };
 }
 
-export function canAddItem(meal: Meal): boolean {
-  return meal.items.length < ITEM_LIMITS.count.max;
+/**
+ * Whether another row fits in one container: an option if `optionId` is given,
+ * otherwise the meal's own fixed rows.
+ */
+export function canAddItem(meal: Meal, optionId?: Id): boolean {
+  return containerItems(meal, optionId).length < ITEM_LIMITS.count.max;
 }
 
-/** Whether the meal already points at this food — one row per food, not two. */
-export function hasFood(meal: Meal, food: FoodRef): boolean {
-  return meal.items.some((item) => sameFood(item.food, food));
+/**
+ * Whether that container already points at this food — one row per food.
+ *
+ * Per container, not per meal, and this is the rule #111 had to loosen: the
+ * predecessor's breakfast puts `doce de leite` in two different options and
+ * milk in all five protein ones. Those are alternatives that will never be on
+ * the same plate, so they are not the double-counting this check exists to
+ * prevent — while two rows of milk *inside one option* still are.
+ */
+export function hasFood(meal: Meal, food: FoodRef, optionId?: Id): boolean {
+  return containerItems(meal, optionId).some((item) =>
+    sameFood(item.food, food),
+  );
 }
 
 export function sameFood(a: FoodRef, b: FoodRef): boolean {
@@ -94,23 +116,30 @@ function withMeal(
   return meals.map((meal) => (meal.id === mealId ? change(meal) : meal));
 }
 
+/** Appends a row to the meal's fixed list, or to one option of one set. */
 export function addItem(
   meals: readonly Meal[],
   mealId: Id,
   item: DietItem,
+  optionId?: Id,
 ): Meal[] {
   return withMeal(meals, mealId, (meal) =>
-    !canAddItem(meal) || hasFood(meal, item.food)
+    !canAddItem(meal, optionId) || hasFood(meal, item.food, optionId)
       ? meal
-      : { ...meal, items: [...meal.items, item] },
+      : addToContainer(meal, optionId, item),
   );
 }
 
-export function removeItem(meals: readonly Meal[], mealId: Id, itemId: Id): Meal[] {
-  return withMeal(meals, mealId, (meal) => ({
-    ...meal,
-    items: meal.items.filter((item) => item.id !== itemId),
-  }));
+export function removeItem(
+  meals: readonly Meal[],
+  mealId: Id,
+  itemId: Id,
+): Meal[] {
+  return withMeal(meals, mealId, (meal) =>
+    withContainer(meal, itemId, (items) =>
+      items.filter((item) => item.id !== itemId),
+    ),
+  );
 }
 
 /**
@@ -122,9 +151,9 @@ export function removeItem(meals: readonly Meal[], mealId: Id, itemId: Id): Meal
  * new food against the same room and the macro targets still hold. That is the
  * whole mechanism: nothing here does arithmetic.
  *
- * Refuses a food the meal already holds in another row, for `addItem`'s reason:
- * one row per food, or the solver sizes the same food twice and the screen
- * shows two portions of it.
+ * Refuses a food the same container already holds in another row, for
+ * `addItem`'s reason: one row per food, or the solver sizes the same food twice
+ * and the screen shows two portions of it.
  */
 export function swapFood(
   meals: readonly Meal[],
@@ -132,19 +161,18 @@ export function swapFood(
   itemId: Id,
   food: FoodRef,
 ): Meal[] {
-  return withMeal(meals, mealId, (meal) => {
-    const clash = meal.items.some(
-      (item) => item.id !== itemId && sameFood(item.food, food),
-    );
-    if (clash) return meal;
+  return withMeal(meals, mealId, (meal) =>
+    withContainer(meal, itemId, (items) => {
+      const clash = items.some(
+        (item) => item.id !== itemId && sameFood(item.food, food),
+      );
+      if (clash) return [...items];
 
-    return {
-      ...meal,
-      items: meal.items.map((item) =>
+      return items.map((item) =>
         item.id === itemId ? { ...item, food } : item,
-      ),
-    };
-  });
+      );
+    }),
+  );
 }
 
 /**
@@ -160,17 +188,18 @@ export function setItemGroup(
   itemId: Id,
   substitutionGroupId: Id | undefined,
 ): Meal[] {
-  return withMeal(meals, mealId, (meal) => ({
-    ...meal,
-    items: meal.items.map((item) => {
-      if (item.id !== itemId) return item;
-      if (substitutionGroupId === undefined) {
-        const { substitutionGroupId: _dropped, ...rest } = item;
-        return rest;
-      }
-      return { ...item, substitutionGroupId };
-    }),
-  }));
+  return withMeal(meals, mealId, (meal) =>
+    withContainer(meal, itemId, (items) =>
+      items.map((item) => {
+        if (item.id !== itemId) return item;
+        if (substitutionGroupId === undefined) {
+          const { substitutionGroupId: _dropped, ...rest } = item;
+          return rest;
+        }
+        return { ...item, substitutionGroupId };
+      }),
+    ),
+  );
 }
 
 /**
@@ -199,12 +228,13 @@ export function updateItem(
   itemId: Id,
   changes: ItemChanges,
 ): Meal[] {
-  return withMeal(meals, mealId, (meal) => ({
-    ...meal,
-    items: meal.items.map((item) =>
-      item.id === itemId ? reconcile({ ...item, ...changes }, changes) : item,
+  return withMeal(meals, mealId, (meal) =>
+    withContainer(meal, itemId, (items) =>
+      items.map((item) =>
+        item.id === itemId ? reconcile({ ...item, ...changes }, changes) : item,
+      ),
     ),
-  }));
+  );
 }
 
 function reconcile(item: DietItem, changes: ItemChanges): DietItem {

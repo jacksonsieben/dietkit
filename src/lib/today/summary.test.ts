@@ -163,6 +163,49 @@ describe("loadToday", () => {
     });
   });
 
+  it("counts a meal whose only food is inside an option (#111)", async () => {
+    await withProfile();
+    const diet = planOf("Plano", 100, 2000);
+    diet.meals.push({
+      id: "meal-2",
+      name: "Café",
+      share: 0,
+      items: [],
+      optionSets: [
+        {
+          id: "set-1",
+          name: "Carboidrato",
+          selectedId: "opt-1",
+          options: [
+            {
+              id: "opt-1",
+              name: "Pão",
+              items: [
+                {
+                  id: "item-2",
+                  food: { source: "taco", tacoId: 1 },
+                  quantityG: 100,
+                  mandatory: false,
+                  minG: 0,
+                  maxG: 200,
+                },
+              ],
+            },
+            { id: "opt-2", name: "Aveia", items: [] },
+          ],
+        },
+      ],
+    });
+    await repository.diets.put(diet);
+
+    const state = await loadToday(repository, TODAY);
+
+    expect(state.status === "ready" && state.plan).toMatchObject({
+      mealCount: 2,
+      filledMealCount: 2,
+    });
+  });
+
   it("reports the plan against today's targets, not the ones it was written with", async () => {
     await withProfile();
     // A plan stamped with targets it visibly does not meet. If the screen read

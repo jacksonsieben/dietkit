@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { FoodSearchResult } from "@/lib/db/foods";
-import type { CustomFood, DietItem, FoodComposition, Meal } from "@/lib/storage/types";
+import type {
+  CustomFood,
+  DietItem,
+  FoodComposition,
+  Meal,
+} from "@/lib/storage/types";
 
 import {
   buildFoodBook,
@@ -69,7 +74,10 @@ describe("resolveItems", () => {
     const book = buildFoodBook([rice], [whey]);
 
     const { known, missing } = resolveItems(
-      [item(), item({ id: "i2", food: { source: "custom", customFoodId: "whey" } })],
+      [
+        item(),
+        item({ id: "i2", food: { source: "custom", customFoodId: "whey" } }),
+      ],
       book,
     );
 
@@ -85,7 +93,12 @@ describe("resolveItems", () => {
     // would look like a food that adds nothing, and the solver would make up
     // the difference elsewhere and call the meal solved.
     const { known, missing } = resolveItems(
-      [item({ id: "gone", food: { source: "custom", customFoodId: "deleted" } })],
+      [
+        item({
+          id: "gone",
+          food: { source: "custom", customFoodId: "deleted" },
+        }),
+      ],
       buildFoodBook([rice], []),
     );
 
@@ -141,7 +154,9 @@ describe("compositionFromResult", () => {
 
   it("refuses a food whose macro NEPA withdrew", () => {
     expect(
-      compositionFromResult(result({ proteinG: null, sentinels: { proteinG: "*" } })),
+      compositionFromResult(
+        result({ proteinG: null, sentinels: { proteinG: "*" } }),
+      ),
     ).toBeUndefined();
   });
 
@@ -163,6 +178,45 @@ describe("usedTacoFoods", () => {
     };
 
     expect(usedTacoFoods(meals([item()]), [rice, beans])).toEqual([rice]);
+  });
+
+  it("snapshots the options nobody selected", () => {
+    // They are by definition the foods the plan is not using, so their numbers
+    // are nowhere else on the device — without a copy, switching option would
+    // be the only action in this app that needs a network.
+    const beans: FoodComposition = {
+      tacoId: 88,
+      name: "Feijão",
+      per100g: { kcal: 76, proteinG: 4.8, carbG: 13.6, fatG: 0.5 },
+    };
+
+    const withOptions: Meal[] = [
+      {
+        id: "m1",
+        name: "Almoço",
+        share: 1,
+        items: [],
+        optionSets: [
+          {
+            id: "s1",
+            name: "Carboidrato",
+            selectedId: "o1",
+            options: [
+              { id: "o1", name: "Arroz", items: [item()] },
+              {
+                id: "o2",
+                name: "Feijão",
+                items: [
+                  item({ id: "i2", food: { source: "taco", tacoId: 88 } }),
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    expect(usedTacoFoods(withOptions, [rice, beans])).toEqual([rice, beans]);
   });
 
   it("copies a food once however many meals use it", () => {

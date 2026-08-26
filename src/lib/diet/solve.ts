@@ -9,6 +9,7 @@ import type { DietItem, Id, MacroSet, Meal } from "@/lib/storage/types";
 import type { FoodBook, ResolvedFood } from "./composition";
 import { resolveItems, toSolverFoods } from "./composition";
 import { distributeTargets } from "./distribute";
+import { effectiveItems, mapMealItems } from "./options";
 
 /**
  * The day's targets, solved into portions (#19).
@@ -41,6 +42,12 @@ import { distributeTargets } from "./distribute";
  *   honest answer is to say so.
  * - **There is no fat vehicle.** Oil is a food whose column is roughly
  *   (0, 0, 1) with a wide `maxG`. Nothing here knows its name.
+ *
+ * A meal is solved as `effectiveItems` says it is: its fixed rows plus the
+ * selected option of each set (#111). The options nobody picked are not zero
+ * and not missing — they are not part of today's meal at all, and a solver
+ * that saw them would size four breakfasts and hit the target with none of
+ * them.
  *
  * Pure, and per-meal: no day-level pooling, because there is no per-meal error
  * left to pool.
@@ -122,7 +129,7 @@ function solveMeal(
   share: number,
   options?: SolveOptions,
 ): SolvedMeal {
-  const { known, missing } = resolveItems(meal.items, book);
+  const { known, missing } = resolveItems(effectiveItems(meal), book);
 
   const solution: MacroSolution = solveMacros(
     toSolverFoods(known),
@@ -167,8 +174,9 @@ function solveMeal(
  *
  * Separate from the solve, and called on save rather than on every keystroke,
  * because a solve is a *proposal* until the user keeps it. Items the solve did
- * not cover — an unresolved food — keep the quantity they had: the plan should
- * come back the way it was left, not edited by a food that failed to load.
+ * not cover — an unresolved food, or a row in an option nobody selected — keep
+ * the quantity they had: the plan should come back the way it was left, not
+ * edited by a food that failed to load.
  */
 export function applySolution(
   meals: readonly Meal[],
@@ -185,13 +193,12 @@ export function applySolution(
     const quantities = byMeal.get(meal.id);
     if (quantities === undefined) return meal;
 
-    return {
-      ...meal,
-      items: meal.items.map((item) => {
+    return mapMealItems(meal, (items) =>
+      items.map((item) => {
         const quantityG = quantities.get(item.id);
         return quantityG === undefined ? item : { ...item, quantityG };
       }),
-    };
+    );
   });
 }
 

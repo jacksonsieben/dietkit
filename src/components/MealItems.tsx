@@ -19,17 +19,27 @@ import {
   type ItemChanges,
   type ItemErrorCode,
 } from "@/lib/diet/items";
+import {
+  OPTION_LIMITS,
+  canAddOption,
+  canRemoveOption,
+  optionSetsOf,
+  selectedOption,
+  type OptionErrorCode,
+} from "@/lib/diet/options";
 import { reconcileMeal } from "@/lib/diet/reconcile";
 import type { SolvedItem, SolvedMeal } from "@/lib/diet/solve";
 import type {
+  DietItem,
   FoodRef,
   Id,
   Meal,
+  OptionSet,
   SubstitutionGroup,
 } from "@/lib/storage/types";
 
 /**
- * What a meal is made of, and how much of it (#19).
+ * What a meal is made of, and how much of it (#19, #111).
  *
  * The numbers in here are not typed, they are solved — and that is the whole
  * difference from the predecessor. A free food shows the quantity the solver
@@ -45,10 +55,149 @@ import type {
  * When the target cannot be met the shortfall is printed with the foods that
  * are holding it there. An app that quietly hands back a plan missing 18 g of
  * fat is the failure this issue exists to end.
+ *
+ * A meal has more than one list of rows (#111): its own fixed rows, and one
+ * list per option inside each set of options — *pão com queijo* or *aveia com
+ * pasta de amendoim*, not "swap this bread for that oat". Each list is a
+ * `Container` here, adds its own food and answers to its own row limit, and
+ * only the selected option of each set is on the plate and therefore solved.
  */
+
+/** The writes a set of options accepts, all of them the planner's (#111). */
+export interface OptionActions {
+  canAddSet: boolean;
+  /** What is wrong with a name in this meal's sets, found on save. */
+  error?: OptionErrorCode;
+  onAddSet: () => void;
+  onRemoveSet: (setId: Id) => void;
+  onRenameSet: (setId: Id, name: string) => void;
+  onAddOption: (setId: Id) => void;
+  onRemoveOption: (setId: Id, optionId: Id) => void;
+  onRenameOption: (setId: Id, optionId: Id, name: string) => void;
+  onSelectOption: (setId: Id, optionId: Id) => void;
+}
 
 export function MealItems({
   solved,
+  groups,
+  book,
+  canAddTo,
+  onAdd,
+  onChange,
+  onSetGroup,
+  onSwap,
+  onRemove,
+  options,
+}: {
+  solved: SolvedMeal;
+  groups: readonly SubstitutionGroup[];
+  book: FoodBook;
+  /** Per container, not per meal: an option's rows have their own ceiling. */
+  canAddTo: (optionId?: Id) => boolean;
+  onAdd: (choice: FoodChoice, optionId?: Id) => void;
+  onChange: (itemId: Id, changes: ItemChanges) => void;
+  onSetGroup: (itemId: Id, groupId: Id | undefined) => void;
+  onSwap: (itemId: Id, food: FoodRef) => void;
+  onRemove: (itemId: Id) => void;
+  options: OptionActions;
+}) {
+  const t = useTranslations("Plan");
+
+  const meal = solved.meal;
+  const sets = optionSetsOf(meal);
+
+  /**
+   * Today's rows, by id.
+   *
+   * `solved.items` is `effectiveItems` minus whatever the book could not price,
+   * so a row that is on the plate and absent from here is a row this device has
+   * no numbers for — which is what `Container` prints instead of a portion.
+   */
+  const solvedById = new Map(
+    solved.items.map((entry) => [entry.item.id, entry] as const),
+  );
+
+  return (
+    <div className="flex flex-col gap-4 border-t border-nd-unlit pt-4">
+      <Legend as="h3">{t("itemsHeading")}</Legend>
+
+      <Container
+        meal={meal}
+        items={meal.items}
+        solvedById={solvedById}
+        groups={groups}
+        book={book}
+        canAdd={canAddTo(undefined)}
+        onAdd={(choice) => onAdd(choice, undefined)}
+        onChange={onChange}
+        onSetGroup={onSetGroup}
+        onSwap={onSwap}
+        onRemove={onRemove}
+      />
+
+      {sets.map((set, index) => (
+        <OptionSetBlock
+          key={set.id}
+          set={set}
+          position={index + 1}
+          meal={meal}
+          solvedById={solvedById}
+          groups={groups}
+          book={book}
+          canAddTo={canAddTo}
+          onAdd={onAdd}
+          onChange={onChange}
+          onSetGroup={onSetGroup}
+          onSwap={onSwap}
+          onRemove={onRemove}
+          actions={options}
+        />
+      ))}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <SmallButton
+          label={t("options.addSet")}
+          disabled={!options.canAddSet}
+          onClick={options.onAddSet}
+        />
+        {options.canAddSet ? (
+          <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
+            {t("options.addSetHint")}
+          </p>
+        ) : (
+          <p className="text-xs text-nd-dim">
+            {t("options.setLimit", { max: OPTION_LIMITS.sets.max })}
+          </p>
+        )}
+      </div>
+
+      {options.error ? (
+        <p className="text-xs text-nd-red-ink">
+          {t(`options.errors.${options.error}`, {
+            max: OPTION_LIMITS.nameLength.max,
+          })}
+        </p>
+      ) : null}
+
+      <Outcome solved={solved} />
+    </div>
+  );
+}
+
+/**
+ * One list of rows — the meal's own, or one option's — with the picker that
+ * adds to it.
+ *
+ * The rows are looked up rather than iterated from the solve, because the order
+ * on screen has to be the order in the plan and only this list knows it. A row
+ * the solve did not return is the unknown-food case: red, and said in a
+ * sentence beside it for anyone who cannot see red.
+ */
+function Container({
+  meal,
+  items,
+  optionId,
+  solvedById,
   groups,
   book,
   canAdd,
@@ -58,7 +207,10 @@ export function MealItems({
   onSwap,
   onRemove,
 }: {
-  solved: SolvedMeal;
+  meal: Meal;
+  items: readonly DietItem[];
+  optionId?: Id;
+  solvedById: ReadonlyMap<Id, SolvedItem>;
   groups: readonly SubstitutionGroup[];
   book: FoodBook;
   canAdd: boolean;
@@ -71,55 +223,54 @@ export function MealItems({
   const t = useTranslations("Plan");
   const [picking, setPicking] = useState(false);
 
-  const taken = new Set([
-    ...solved.items.map((entry) => entry.item.food),
-    ...solved.missing.map((item) => item.food),
-  ]);
+  // This list's own foods: the same food may sit in two options of one set,
+  // because those are alternatives that are never on the same plate.
+  const taken = new Set(items.map((item) => item.food));
 
   return (
-    <div className="flex flex-col gap-4 border-t border-nd-unlit pt-4">
-      <Legend as="h3">{t("itemsHeading")}</Legend>
-
-      {solved.items.length === 0 && solved.missing.length === 0 ? (
-        <p className="text-xs text-nd-dim">{t("itemsEmpty")}</p>
+    <div className="flex flex-col gap-3">
+      {items.length === 0 ? (
+        <p className="text-xs text-nd-dim">
+          {t(optionId === undefined ? "itemsEmpty" : "options.optionEmpty")}
+        </p>
       ) : (
         <ul className="flex flex-col">
-          {solved.items.map((entry) => (
-            <ItemRow
-              key={entry.item.id}
-              entry={entry}
-              meal={solved.meal}
-              groups={groups}
-              book={book}
-              onChange={(changes) => onChange(entry.item.id, changes)}
-              onSetGroup={(groupId) => onSetGroup(entry.item.id, groupId)}
-              onSwap={(food) => onSwap(entry.item.id, food)}
-              onRemove={() => onRemove(entry.item.id)}
-            />
-          ))}
+          {items.map((item) => {
+            const entry = solvedById.get(item.id);
 
-          {solved.missing.map((item) => (
-            <li
-              key={item.id}
-              // A food the device cannot price is genuinely off: the meal's
-              // numbers are wrong until it is dealt with. Red, and the sentence
-              // beside it says the same thing for anyone who cannot see red.
-              className="flex flex-wrap items-center justify-between gap-2 border-t border-nd-unlit py-3 first:border-t-0"
-            >
-              <p className="border-l-2 border-nd-red pl-3 text-xs text-nd-red-ink">
-                {t("itemUnknown")}
-              </p>
-              <SmallButton label={t("remove")} onClick={() => onRemove(item.id)} />
-            </li>
-          ))}
+            return entry === undefined ? (
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-nd-unlit py-3 first:border-t-0"
+              >
+                <p className="border-l-2 border-nd-red pl-3 text-xs text-nd-red-ink">
+                  {t("itemUnknown")}
+                </p>
+                <SmallButton
+                  label={t("remove")}
+                  onClick={() => onRemove(item.id)}
+                />
+              </li>
+            ) : (
+              <ItemRow
+                key={item.id}
+                entry={entry}
+                meal={meal}
+                groups={groups}
+                book={book}
+                onChange={(changes) => onChange(item.id, changes)}
+                onSetGroup={(groupId) => onSetGroup(item.id, groupId)}
+                onSwap={(food) => onSwap(item.id, food)}
+                onRemove={() => onRemove(item.id)}
+              />
+            );
+          })}
         </ul>
       )}
 
-      <Outcome solved={solved} />
-
       {picking ? (
         <FoodPicker
-          inputId={`${solved.meal.id}-food-picker`}
+          inputId={`${optionId ?? meal.id}-food-picker`}
           taken={taken}
           onPick={(choice) => {
             onAdd(choice);
@@ -142,6 +293,197 @@ export function MealItems({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One decision inside a meal: a named set of options, one of which is on the
+ * plate today (#111).
+ *
+ * The picker is a radio group because that is what it is — the options are
+ * mutually exclusive and exactly one is selected, and the selection is stored
+ * on the plan rather than held here, so reopening the app shows the breakfast
+ * that was chosen rather than the first one in the list.
+ *
+ * Only the selected option's rows are drawn. An unselected option is not solved
+ * — it is not part of today's meal at all — so there are no grams to print, and
+ * inventing a portion for it would be exactly the "four breakfasts, one target"
+ * arithmetic `solve.ts` refuses to do. Editing an alternative means selecting
+ * it, which is one click and is also how the person sees what it comes to.
+ */
+function OptionSetBlock({
+  set,
+  position,
+  meal,
+  solvedById,
+  groups,
+  book,
+  canAddTo,
+  onAdd,
+  onChange,
+  onSetGroup,
+  onSwap,
+  onRemove,
+  actions,
+}: {
+  set: OptionSet;
+  position: number;
+  meal: Meal;
+  solvedById: ReadonlyMap<Id, SolvedItem>;
+  groups: readonly SubstitutionGroup[];
+  book: FoodBook;
+  canAddTo: (optionId?: Id) => boolean;
+  onAdd: (choice: FoodChoice, optionId?: Id) => void;
+  onChange: (itemId: Id, changes: ItemChanges) => void;
+  onSetGroup: (itemId: Id, groupId: Id | undefined) => void;
+  onSwap: (itemId: Id, food: FoodRef) => void;
+  onRemove: (itemId: Id) => void;
+  actions: OptionActions;
+}) {
+  const t = useTranslations("Plan");
+  const [confirming, setConfirming] = useState(false);
+
+  const selected = selectedOption(set);
+  const nameId = `${set.id}-name`;
+
+  return (
+    <section className="flex flex-col gap-3 border border-nd-unlit p-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex min-w-40 flex-1 flex-col gap-1">
+          <label htmlFor={nameId} className="text-xs text-nd-dim">
+            {t("options.setNameLabel", { position })}
+          </label>
+          <input
+            id={nameId}
+            type="text"
+            autoComplete="off"
+            value={set.name}
+            onChange={(event) =>
+              actions.onRenameSet(set.id, event.target.value)
+            }
+            className={`${CONTROL_CLASS} py-1 text-sm`}
+          />
+        </div>
+
+        <SmallButton
+          label={t("options.removeSet")}
+          onClick={() => setConfirming(true)}
+        />
+      </div>
+
+      {/* Asked rather than done: a set is the only place its rows live, so
+          deleting it deletes food the user typed — and promoting the selected
+          option into the meal instead would silently make a choice permanent. */}
+      {confirming ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="max-w-prose text-xs leading-relaxed text-nd-red-ink">
+            {t("options.removeSetWarning", { count: set.options.length })}
+          </p>
+          <SmallButton
+            label={t("options.removeSetConfirm")}
+            onClick={() => actions.onRemoveSet(set.id)}
+          />
+          <SmallButton
+            label={t("options.cancel")}
+            onClick={() => setConfirming(false)}
+          />
+        </div>
+      ) : null}
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-xs text-nd-dim">
+          {t("options.pickLegend")}
+        </legend>
+
+        <ul className="flex flex-col">
+          {set.options.map((option, index) => (
+            <li
+              key={option.id}
+              className="flex flex-wrap items-center gap-2 border-t border-nd-unlit py-2 first:border-t-0"
+            >
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name={`${set.id}-selected`}
+                  className="accent-nd-ink"
+                  checked={option.id === selected?.id}
+                  onChange={() => actions.onSelectOption(set.id, option.id)}
+                />
+                <span className="sr-only">
+                  {t("options.pickLabel", { name: option.name })}
+                </span>
+              </label>
+
+              <input
+                type="text"
+                autoComplete="off"
+                aria-label={t("options.optionNameLabel", {
+                  position: index + 1,
+                })}
+                value={option.name}
+                onChange={(event) =>
+                  actions.onRenameOption(set.id, option.id, event.target.value)
+                }
+                className={`${CONTROL_CLASS} w-40 flex-1 py-1 text-sm`}
+              />
+
+              <span className="font-mono text-xs text-nd-dim" data-numeric="">
+                {t("options.rowCount", { count: option.items.length })}
+              </span>
+
+              <SmallButton
+                label={t("options.removeOption")}
+                disabled={!canRemoveOption(set)}
+                onClick={() => actions.onRemoveOption(set.id, option.id)}
+              />
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <SmallButton
+            label={t("options.addOption")}
+            disabled={!canAddOption(set)}
+            onClick={() => actions.onAddOption(set.id)}
+          />
+          {canAddOption(set) ? null : (
+            <p className="text-xs text-nd-dim">
+              {t("options.optionLimit", { max: OPTION_LIMITS.options.max })}
+            </p>
+          )}
+          {canRemoveOption(set) ? null : (
+            <p className="text-xs text-nd-dim">
+              {t("options.removeOptionLimit", {
+                min: OPTION_LIMITS.options.min,
+              })}
+            </p>
+          )}
+        </div>
+      </fieldset>
+
+      {selected === undefined ? null : (
+        <div className="flex flex-col gap-3 border-t border-nd-unlit pt-3">
+          <p className="text-xs text-nd-dim">
+            {t("options.selectedRows", { name: selected.name })}
+          </p>
+
+          <Container
+            meal={meal}
+            items={selected.items}
+            optionId={selected.id}
+            solvedById={solvedById}
+            groups={groups}
+            book={book}
+            canAdd={canAddTo(selected.id)}
+            onAdd={(choice) => onAdd(choice, selected.id)}
+            onChange={onChange}
+            onSetGroup={onSetGroup}
+            onSwap={onSwap}
+            onRemove={onRemove}
+          />
+        </div>
+      )}
+    </section>
   );
 }
 

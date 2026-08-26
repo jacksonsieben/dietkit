@@ -10,6 +10,8 @@ import type {
   Meal,
 } from "@/lib/storage/types";
 
+import { allItems } from "./options";
+
 /**
  * Turning what a plan *points at* into numbers the solver can use (#19).
  *
@@ -33,7 +35,9 @@ import type {
 export type FoodKey = string;
 
 export function foodKey(ref: FoodRef): FoodKey {
-  return ref.source === "taco" ? `taco:${ref.tacoId}` : `custom:${ref.customFoodId}`;
+  return ref.source === "taco"
+    ? `taco:${ref.tacoId}`
+    : `custom:${ref.customFoodId}`;
 }
 
 export interface ResolvedFood {
@@ -94,7 +98,10 @@ export interface Resolution {
   readonly missing: DietItem[];
 }
 
-export function resolveItems(items: readonly DietItem[], book: FoodBook): Resolution {
+export function resolveItems(
+  items: readonly DietItem[],
+  book: FoodBook,
+): Resolution {
   const known: ResolvedItem[] = [];
   const missing: DietItem[] = [];
 
@@ -168,6 +175,13 @@ export function compositionFromResult(
  * copy too. A plan that accumulates every food ever tried in it is a plan that
  * grows without bound in a store the user cannot see, and the export in #26 is
  * the only backup they have — it should carry the plan, not its history.
+ *
+ * Walks `allItems`, so the options nobody selected are snapshotted too (#111).
+ * That is the one place unselected options must be counted, and for
+ * `SubstitutionGroup.tacoFoods`' reason sharpened to a point: they are by
+ * definition the foods the plan is *not* using, so their numbers are nowhere
+ * else on the device, and without a copy here switching option would be the
+ * only action in this app that needs a network.
  */
 export function usedTacoFoods(
   meals: readonly Meal[],
@@ -178,7 +192,7 @@ export function usedTacoFoods(
   const seen = new Set<number>();
 
   for (const meal of meals) {
-    for (const item of meal.items) {
+    for (const item of allItems(meal)) {
       if (item.food.source !== "taco") continue;
       if (seen.has(item.food.tacoId)) continue;
 

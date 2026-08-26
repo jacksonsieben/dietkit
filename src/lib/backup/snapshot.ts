@@ -7,12 +7,14 @@ import {
   type CustomFood,
   type Diet,
   type DietItem,
+  type DietOption,
   type FoodComposition,
   type FoodRef,
   type IsoTimestamp,
   type MacroGoal,
   type MacroSet,
   type Meal,
+  type OptionSet,
   type Profile,
   type Settings,
   type Snapshot,
@@ -282,7 +284,11 @@ function readTrainingSession(value: unknown): TrainingSession | undefined {
 }
 
 function readLoggedExercise(value: unknown): LoggedExercise | undefined {
-  if (!isObject(value) || !isText(value.exercise) || !Array.isArray(value.sets)) {
+  if (
+    !isObject(value) ||
+    !isText(value.exercise) ||
+    !Array.isArray(value.sets)
+  ) {
     return undefined;
   }
 
@@ -411,6 +417,12 @@ function readMeal(value: unknown): Meal | undefined {
     return undefined;
   }
 
+  const optionSets = Array.isArray(value.optionSets)
+    ? value.optionSets
+        .map(readOptionSet)
+        .filter((set): set is OptionSet => set !== undefined)
+    : [];
+
   return {
     id: value.id,
     name: value.name,
@@ -418,6 +430,74 @@ function readMeal(value: unknown): Meal | undefined {
     items: value.items
       .map(readItem)
       .filter((item): item is DietItem => item !== undefined),
+    // Absent rather than empty when there are none, so a meal that never had
+    // options restores to exactly the record it was exported from.
+    ...(optionSets.length > 0 ? { optionSets } : {}),
+  };
+}
+
+/**
+ * One way of making the meal (#111).
+ *
+ * Dropped whole if its id or name is gone, rather than restored nameless: an
+ * option is picked by name from a list, and one with no name is a line the user
+ * cannot choose between.
+ */
+function readOption(value: unknown): DietOption | undefined {
+  if (
+    !isObject(value) ||
+    !isText(value.id) ||
+    !isText(value.name) ||
+    !Array.isArray(value.items)
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: value.id,
+    name: value.name,
+    items: value.items
+      .map(readItem)
+      .filter((item): item is DietItem => item !== undefined),
+  };
+}
+
+/**
+ * A decision, with its selection repaired rather than trusted.
+ *
+ * A set whose every option was dropped is dropped too — there is nothing left
+ * to choose between — and a `selectedId` that survives pointing at an option
+ * that did not is rewritten to the first one that did. `selectedOption` would
+ * have covered for it at read time, but a file that comes back holding a
+ * selection nobody can see is a bug that gets saved again on the next edit.
+ */
+function readOptionSet(value: unknown): OptionSet | undefined {
+  if (
+    !isObject(value) ||
+    !isText(value.id) ||
+    !isText(value.name) ||
+    !isText(value.selectedId) ||
+    !Array.isArray(value.options)
+  ) {
+    return undefined;
+  }
+
+  const options = value.options
+    .map(readOption)
+    .filter((option): option is DietOption => option !== undefined);
+
+  const first = options[0];
+  if (first === undefined) return undefined;
+
+  const selectedId = value.selectedId;
+
+  return {
+    id: value.id,
+    name: value.name,
+    options,
+    selectedId: options.some((option) => option.id === selectedId)
+      ? selectedId
+      : first.id,
   };
 }
 
@@ -517,11 +597,14 @@ function readSettings(value: unknown, drops: Drop[]): Settings {
     : DEFAULT_SETTINGS.locale;
 
   const goal = value.goal === undefined ? undefined : readGoal(value.goal);
-  if (value.goal !== undefined && goal === undefined) drops.push({ kind: "goal" });
+  if (value.goal !== undefined && goal === undefined)
+    drops.push({ kind: "goal" });
 
   return {
     locale,
-    ...(isInstant(value.lastBackupAt) ? { lastBackupAt: value.lastBackupAt } : {}),
+    ...(isInstant(value.lastBackupAt)
+      ? { lastBackupAt: value.lastBackupAt }
+      : {}),
     ...(isInstant(value.backupRemindedAt)
       ? { backupRemindedAt: value.backupRemindedAt }
       : {}),
@@ -618,7 +701,11 @@ export function parseSnapshotFile(text: string): SnapshotParse {
     raw.profile === undefined || raw.profile === null
       ? undefined
       : readProfile(raw.profile);
-  if (raw.profile !== undefined && raw.profile !== null && profile === undefined) {
+  if (
+    raw.profile !== undefined &&
+    raw.profile !== null &&
+    profile === undefined
+  ) {
     drops.push({ kind: "profile" });
   }
 
