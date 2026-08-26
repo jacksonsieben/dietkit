@@ -188,18 +188,38 @@ describe("opening a vault", () => {
   });
 });
 
+describe("the length rule", () => {
+  it("refuses a passphrase too short to be worth guessing at", async () => {
+    // Eleven characters, one under the floor. The failure is loud rather than
+    // a warning, because there is no "reset passphrase" path anywhere in this
+    // design: a weak one here is a weak one until the account is deleted.
+    await expect(createVault("curta demais")).resolves.toBeTruthy();
+    await expect(createVault("curta demai")).rejects.toThrow(RangeError);
+  });
+
+  it("applies the same floor to a change of passphrase", async () => {
+    await expect(
+      changePassphrase(created.vault, PASSPHRASE, "curta demai"),
+    ).rejects.toThrow(RangeError);
+  });
+});
+
 describe("changing the passphrase", () => {
   let changed: Vault;
 
   beforeAll(async () => {
-    changed = await changePassphrase(created.vault, PASSPHRASE, "outra frase");
+    changed = await changePassphrase(
+      created.vault,
+      PASSPHRASE,
+      "outra frase longa",
+    );
   });
 
   it("keeps the data key, so nothing has to be re-encrypted", async () => {
     expect(
       await sameKey(
         created.dataKey,
-        await openWithPassphrase(changed, "outra frase"),
+        await openWithPassphrase(changed, "outra frase longa"),
       ),
     ).toBe(true);
   });
@@ -227,7 +247,7 @@ describe("changing the passphrase", () => {
 
   it("needs the current passphrase, not just the vault", async () => {
     await expect(
-      changePassphrase(created.vault, "não é essa", "outra frase"),
+      changePassphrase(created.vault, "não é essa", "outra frase longa"),
     ).rejects.toThrow(WrongKeyError);
   });
 });

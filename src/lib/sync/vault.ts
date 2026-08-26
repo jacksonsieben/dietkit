@@ -48,6 +48,22 @@ export const VAULT_VERSION = 1;
  */
 export const KDF_ITERATIONS = 600_000;
 
+/**
+ * The shortest passphrase this app will seal an account with.
+ *
+ * Longer than the sign-in password's eight (`src/lib/auth/contract.ts`), and
+ * the difference is not fussiness: a forgotten sign-in password is an email
+ * away from being reset, and a forgotten passphrase with a lost recovery code
+ * is a year of logs nobody can ever open again. PBKDF2 at 600 000 iterations
+ * makes a short passphrase expensive to guess rather than impossible, so the
+ * length is the other half of that number.
+ *
+ * A count of characters rather than a rule about which ones. Four ordinary
+ * words are both stronger and more memorable than `Xk9$q!`, and a policy that
+ * demands a symbol is a policy that gets written on a sticky note.
+ */
+export const MINIMUM_PASSPHRASE_LENGTH = 12;
+
 const SALT_BYTES = 16;
 const KEY_BITS = 256;
 
@@ -157,6 +173,19 @@ async function unwrap(sealed: Sealed, under: CryptoKey): Promise<CryptoKey> {
   return importDataKey(decode(await open(under, sealed)));
 }
 
+/**
+ * Here rather than on the screen, because the screen is not the only caller and
+ * a length rule that lives in a form is a length rule until somebody writes a
+ * second form.
+ */
+function refuseShort(passphrase: string): void {
+  if (passphrase.length < MINIMUM_PASSPHRASE_LENGTH) {
+    throw new RangeError(
+      `A sync passphrase must be at least ${MINIMUM_PASSPHRASE_LENGTH} characters.`,
+    );
+  }
+}
+
 /** Refuses a vault this version does not understand, rather than guessing at it. */
 function understood(vault: Vault): void {
   if (vault.version !== VAULT_VERSION || vault.kdf !== "PBKDF2-SHA256") {
@@ -169,6 +198,8 @@ function understood(vault: Vault): void {
 
 /** Turning sync on, on the first device. Everything else follows from this call. */
 export async function createVault(passphrase: string): Promise<CreatedVault> {
+  refuseShort(passphrase);
+
   const recoveryCode = generateRecoveryCode();
   const dataKey = await importDataKey(
     crypto.getRandomValues(new Uint8Array(KEY_BITS / 8)),
@@ -256,6 +287,7 @@ export async function changePassphrase(
   current: string,
   next: string,
 ): Promise<Vault> {
+  refuseShort(next);
   const dataKey = await openWithPassphrase(vault, current);
 
   return {

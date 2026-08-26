@@ -10,8 +10,9 @@
  *
  * `sync` is the one exception, and it is the exception that proves the rule: its
  * rows belong to people and the server cannot read a single one of them (#95).
- * It gets the opposite guard — an allowlist of nine column names — for the same
- * reason.
+ * It gets the opposite guard — a column allowlist written out table by table —
+ * for the same reason, and a table with no allowlist fails rather than passing
+ * unexamined.
  *
  * Profile, weight log, diets, custom foods, training and settings live in
  * IndexedDB behind `src/lib/storage`. They leave the device only sealed, and

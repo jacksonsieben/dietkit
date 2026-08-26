@@ -20,17 +20,28 @@ export async function generateMetadata({
 }
 
 /**
- * The privacy notice (#10).
+ * The privacy notice (#10, rewritten for accounts and sync in #98).
  *
  * Written to be read, not to be defensible — a notice that lists every
  * conceivable processing activity in case one of them happens is how the genuine
- * claim here ("none of this leaves your device") gets buried. So it says what is
- * true, in order of what a reader actually wants to know.
+ * claim here gets buried. So it says what is true, in order of what a reader
+ * actually wants to know.
  *
- * The two disclosures that cost something are deliberate. A food search sends
- * the typed term to the server, and Vercel's request logs record IP and user
- * agent like any origin's do — both are named plainly, because the value of
- * § D1 is that the honest version is still a good answer.
+ * That claim used to be "none of this leaves your device", and #96 made it
+ * false: there is an account, and there are sealed rows on a server in
+ * Frankfurt. The replacement is narrower and still worth making — nothing
+ * personal leaves the device *unless you turn sync on*, and when you do, what
+ * arrives is bytes nobody at this end can open. A notice that had kept the old
+ * sentence for even one release would have been the reason to disbelieve every
+ * other sentence in it.
+ *
+ * The disclosures that cost something are deliberate, and there are more of
+ * them now. A food search sends the typed term to the server; Vercel's request
+ * logs record IP and user agent like any origin's do; a session row records the
+ * same two; and the auth service has a column that would record somebody
+ * signing in as you. All of them are named plainly, because the value of § D1
+ * is that the honest version is still a good answer — and because the § D23
+ * list only means anything if the unflattering half is in it too.
  */
 export default async function Privacy({
   params,
@@ -52,10 +63,36 @@ export default async function Privacy({
           <li>{t("deviceProfile")}</li>
           <li>{t("deviceWeight")}</li>
           <li>{t("deviceDiets")}</li>
+          <li>{t("deviceTraining")}</li>
           <li>{t("deviceFoods")}</li>
           <li>{t("deviceSettings")}</li>
         </ul>
         <p>{t("deviceNote")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("syncHeading")}>
+        <p>{t("syncBody")}</p>
+        <p>{t("syncSees")}</p>
+        <ul>
+          <li>{t("syncSeesAccount")}</li>
+          <li>{t("syncSeesDevices")}</li>
+          <li>{t("syncSeesRows")}</li>
+        </ul>
+        <p>{t("syncBlind")}</p>
+        <p>{t("syncKey")}</p>
+        <p>{t("syncOff")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("accountHeading")}>
+        <p>{t("accountBody")}</p>
+        <ul>
+          <li>{t("accountEmail")}</li>
+          <li>{t("accountPassword")}</li>
+          <li>{t("accountSession")}</li>
+          <li>{t("accountImpersonation")}</li>
+          <li>{t("accountVerification")}</li>
+        </ul>
+        <p>{t("accountUnused")}</p>
       </LegalSection>
 
       <LegalSection heading={t("serverHeading")}>
@@ -76,18 +113,42 @@ export default async function Privacy({
         </ul>
       </LegalSection>
 
+      <LegalSection heading={t("whereHeading")}>
+        <p>{t("whereBody")}</p>
+        <ul>
+          <li>{t("whereNeon")}</li>
+          <li>{t("whereVercel")}</li>
+        </ul>
+        <p>{t("whereEmail")}</p>
+        <p>{t("whereTransfers")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("retentionHeading")}>
+        <p>{t("retentionBody")}</p>
+        <ul>
+          <li>{t("retentionSync")}</li>
+          <li>{t("retentionAccount")}</li>
+          <li>{t("retentionConsent")}</li>
+          <li>{t("retentionLogs")}</li>
+        </ul>
+      </LegalSection>
+
       <LegalSection heading={t("rightsHeading")}>
         <p>{t("rightsBody")}</p>
         <ul>
           <li>{t("rightsAccess")}</li>
           <li>{t("rightsExport")}</li>
           <li>{t("rightsDelete")}</li>
+          <li>{t("rightsAccount")}</li>
+          <li>{t("rightsConsent")}</li>
         </ul>
         <p>{t("rightsLogs")}</p>
+        <p>{t("rightsComplaint")}</p>
       </LegalSection>
 
       <LegalSection heading={t("riskHeading")}>
         <p>{t("riskBody")}</p>
+        <p>{t("riskSync")}</p>
       </LegalSection>
 
       <LegalSection heading={t("changesHeading")}>
@@ -95,7 +156,14 @@ export default async function Privacy({
       </LegalSection>
 
       <LegalSection heading={t("contactHeading")}>
-        <p>{t("contactBody")}</p>
+        <p>{t("contactBody", { name: LEGAL_CONTACT.controller })}</p>
+        <a
+          href={`mailto:${LEGAL_CONTACT.email}`}
+          className="w-fit underline underline-offset-4"
+        >
+          {LEGAL_CONTACT.email}
+        </a>
+        <p>{t("contactRepo")}</p>
         <a
           href={LEGAL_CONTACT.url}
           rel="noreferrer"

@@ -147,24 +147,63 @@ const PERSONAL_SEGMENTS = new Set([
 ]);
 
 /**
- * The only column names the sync schema may use — the opposite kind of rule to
- * `PERSONAL_SEGMENTS`. Not "no bad columns": *only these columns*.
+ * The only column names each table in the sync schema may use — the opposite
+ * kind of rule to `PERSONAL_SEGMENTS`. Not "no bad columns": *only these
+ * columns*, table by table.
  *
  * A name is data. `collection_name` would tell the server that this person
  * tracks weight without storing one, and `row_count_hint` would hand it the
  * shape of a diet. Neither is a bad-faith addition; both would be well meant,
  * and both fail here (docs/DECISIONS.md § D23).
+ *
+ * Per table since #96, because the schema stopped being one table. A table
+ * with no entry here fails on its own, the same way a schema with no rule
+ * fails: `vault` may hold key material and `consent` may hold two dates, and
+ * neither of them may hold a column that `rows` was refused.
  */
-const SYNC_COLUMNS = new Set([
-  "account_id", // Whose rows these are. The only link to `neon_auth`.
-  "collection", // Which set of rows, as an opaque string the client chooses.
-  "record_id", // Which row, opaque. Generated on the device.
-  "ciphertext", // The record. Unreadable here, and that is the product.
-  "nonce", // Per-record, never reused.
-  "updated_at", // Server clock, for the last-writer-wins merge (#95).
-  "rev", // Monotonic per record, so a stale device loses rather than clobbers.
-  "deleted_at", // A tombstone: deletion has to sync too, or it un-deletes.
-]);
+const SYNC_TABLES: Readonly<Record<string, ReadonlySet<string>>> = {
+  rows: new Set([
+    "account_id", // Whose rows these are. The only link to `neon_auth`.
+    "collection", // Which set of rows, as an opaque string the client chooses.
+    "record_id", // Which row, opaque. Generated on the device.
+    "ciphertext", // The record. Unreadable here, and that is the product.
+    "nonce", // Per-record, never reused.
+    "updated_at", // Server clock, for the last-writer-wins merge (#95).
+    "rev", // Monotonic per record, so a stale device loses rather than clobbers.
+    "deleted_at", // A tombstone: deletion has to sync too, or it un-deletes.
+  ]),
+  vault: new Set([
+    "account_id",
+    "version", // The envelope format. A newer one is refused, not guessed at.
+    "kdf", // "PBKDF2-SHA256". Stored so a later scheme can coexist with it.
+    "iterations", // Stored, because raising it must not orphan old vaults.
+    "salt", // Not a secret: an anti-rainbow-table, useless without the secret.
+    "passphrase_nonce",
+    "passphrase_ciphertext", // The data key, sealed under the passphrase.
+    "recovery_nonce",
+    "recovery_ciphertext", // The same key, sealed under the recovery code.
+  ]),
+  consent: new Set([
+    "account_id",
+    "notice", // Which version of the notice was on screen. See #96.
+    "consented_at",
+    "revoked_at", // Withdrawal is an event (GDPR art. 7(3)), not an absence.
+  ]),
+};
+
+/**
+ * `sync.consent` is allowed to say what it is, and it is the only one.
+ *
+ * The table-name rule below asks whether a name describes what is inside a
+ * record — `sync.weights` would announce, in the table name, the thing the
+ * ciphertext was there to hide. `consent` describes no record. It is the legal
+ * fact that permits the records to exist, and LGPD art. 8 § 2 puts the burden
+ * of proving it on the controller: a table that cannot be found is a proof
+ * that cannot be produced. Naming it honestly costs nothing, because what it
+ * holds — a date, a date, and the effective date of a public web page — is
+ * already true of every account that turned sync on.
+ */
+const SYNC_NAMES_A_FACT = new Set(["consent"]);
 
 function segments(identifier: string): string[] {
   return identifier.split("_");
@@ -273,30 +312,46 @@ describe("accounts (neon_auth)", () => {
 describe("encrypted rows (sync)", () => {
   it("has no column that says anything about what it holds", () => {
     const speaking = inSchema("sync")
-      .map((column) => column.column_name)
-      .filter((name) => !SYNC_COLUMNS.has(name))
+      .filter(
+        (column) => !SYNC_TABLES[column.table_name]?.has(column.column_name),
+      )
+      .map((column) => `${column.table_name}.${column.column_name}`)
       .sort();
 
     expect(speaking).toEqual([]);
   });
 
-  it("has no table whose name says it either", () => {
+  it("has a rule for every table it contains", () => {
+    // The same lesson as `KNOWN_SCHEMAS`, one level down: a table nobody wrote
+    // an allowlist for must not be quietly waved through by a filter that only
+    // knows about the tables it already had.
+    const tables = [...new Set(inSchema("sync").map((c) => c.table_name))];
+
+    expect(tables.filter((table) => !(table in SYNC_TABLES))).toEqual([]);
+  });
+
+  it("has no table whose name says what a record contains", () => {
     // `sync.rows` is fine. `sync.weights` would announce, in the table name,
-    // the thing the ciphertext was there to hide.
+    // the thing the ciphertext was there to hide. `sync.consent` is the named
+    // exception, and the reason is written where the exception is.
     const tables = [...new Set(inSchema("sync").map((c) => c.table_name))];
     for (const table of tables) {
+      if (SYNC_NAMES_A_FACT.has(table)) continue;
       expect(personalSegments(table), `sync.${table}`).toEqual([]);
     }
   });
 
-  it("exists, so the two rules above are about something", () => {
-    // Until #95 this schema was empty and both checks above passed by having
+  it("exists, so the rules above are about something", () => {
+    // Until #95 this schema was empty and the checks above passed by having
     // nothing to look at. A guard that is satisfied by absence is not a guard.
-    expect(
-      inSchema("sync")
-        .map((column) => column.column_name)
-        .sort(),
-    ).toEqual([...SYNC_COLUMNS].sort());
+    const present = inSchema("sync")
+      .map((column) => `${column.table_name}.${column.column_name}`)
+      .sort();
+    const declared = Object.entries(SYNC_TABLES)
+      .flatMap(([table, names]) => [...names].map((name) => `${table}.${name}`))
+      .sort();
+
+    expect(present).toEqual(declared);
   });
 
   it("never stores a record it could not have sealed", async () => {

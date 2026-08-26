@@ -927,3 +927,88 @@ decorator wraps a `Repository`, takes a transport and a data key, and is
 constructed nowhere in the app: the passphrase prompt and the sentence that has
 to be true before anyone opts in are #96's, and until then the app runs signed
 out with no transport at all.
+
+---
+
+### D27 — Turning it on is a decision, and the notice is the version of it
+
+**#96 and #98, in one commit.** § D25 built the key and § D26 the merge; this is
+the part where a person is asked. It ships with the rewritten privacy notice
+because the screen and the notice make the same promise, and a release where one
+of them said something the other did not would be the release that proves the
+promise is decoration.
+
+**The order lives in `src/lib/sync/session.ts`, not in the screen.** Every
+mistake available here is expensive and none of them is visible: seed the
+journal before the first pull and the second device resolves a conflict for
+every record it owns; drop the local key before the server copy is deleted and
+those rows can never be read by anybody again. So `enable`, `unlock`, `sync` and
+`disable` are four methods on a plain object with no React in it, and
+`SyncPanel.tsx` is four buttons that call them. `unlock` is pull → seed → push,
+in that order, for the reason written above it; `disable` erases the server copy
+*first* and forgets the key second.
+
+**`lastSyncedAt` is stamped only on the way out of a success.** "Last synced
+Tuesday" is the sentence that tells somebody their phone has not reached the
+server all week, and a clock that moved on every attempt could never say it. The
+test that holds this up needed a clock of its own: the real one can be read
+twice inside the same millisecond, so moving the stamp to before the round trip
+left all sixteen tests green. A deliberate mutation that does not fail is a test
+that is not there — the harness now advances a minute per read.
+
+**The screen informs before it asks, and the informing is § D23's list.** Not a
+reassurance — the three bullets, in order, including *that an account exists and
+its email address*. Below them, what the server cannot see; below that, in a red
+panel, the part that has no undo: forget the passphrase and lose the recovery
+code and the rows stay on the server, unreadable, for good. Consent is recorded
+with the effective date of the notice that was on screen, because health data is
+sensível under LGPD art. 5º II and special category under GDPR art. 9, and a
+controller who cannot say *what* was agreed to has no record of consent at all.
+Withdrawal deletes the rows and the vault and keeps two dates (art. 7(3)).
+
+**The old notice's best sentence is now false, and it goes.** "O DietKit não
+guarda nada seu em servidor nenhum" was true for a year and stopped being true
+the moment this merged. The replacement is narrower and still worth making:
+nothing personal leaves the device *unless you turn sync on*, and when you do,
+what arrives is bytes nobody at this end can open. Three other sentences went
+with it — no accounts, no server copy to look at, nothing to recover. A notice
+that keeps a flattering sentence one release past its truth is the reason to
+disbelieve every other sentence in it.
+
+**What the rewrite adds, beyond correcting those four:**
+
+- **The account, itemised.** Email, a password hash, and one session row per
+  signed-in device carrying an IP address and a user agent. Also
+  `session.impersonatedBy`, which is where a session opened *as* somebody by the
+  platform would be recorded — declared rather than quietly excused, because it
+  is the exact reason the encryption is the load-bearing control and the login
+  is not.
+- **Where and who.** Frankfurt for the database, the auth service beside it and
+  the functions (§ D22). Neon and Vercel by name, and nobody else.
+- **Transfers, in one sentence.** The controller is established in Portugal, so
+  EU storage is domestic under the GDPR; Resolution CD/ANPD nº 32/2026 makes the
+  EU adequate under the LGPD art. 33, I. There is no SCC paragraph to write.
+- **Retention with numbers**, because "pelo tempo necessário" is not a period.
+  Sealed rows and vault: gone the instant sync is turned off. Account, sessions
+  and the consent record: gone with the account. The 5-minute window in which a
+  signed-out session still looks signed in is Neon's `sessionDataTtl`, named on
+  the page rather than left as a surprise.
+- **A named controller.** `LEGAL_CONTACT` carried a `TODO(before public launch)`
+  defended on the argument that there was nothing to hand over. The first
+  account ends that argument. Published as a name and a privacy address, with
+  no postal address: an individual controller is identified by a name and a
+  channel that reaches them, and printing a home address in a public notice
+  protects nobody. The same person is the encarregado, which is what a
+  one-maintainer project honestly has.
+- **Where to complain**: CNPD in Portugal (GDPR art. 77), ANPD for Brazil.
+
+**The terms take 18, not 13.** Lei n.º 58/2019 art. 16 puts Portugal's floor for
+information-society services at 13. A threshold written for social networks is
+not a threshold for an app that computes an energy target from a body weight, so
+this one is chosen rather than inherited.
+
+**One sub-processor is still unnamed.** The managed auth service sends the
+verification and reset email and does not document which sender it uses, and the
+beta has no custom SMTP (§ D24). The notice says exactly that, in those words,
+rather than omitting the line — and the question is on #99's list. A gap a
+reader can see is a different thing from a gap only we can see.
