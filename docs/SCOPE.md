@@ -114,6 +114,7 @@ Choosing a public launch converted five items from "later" into "cannot ship wit
 | Health disclaimer & positioning | In Brazil, prescribing individualised diets is restricted to nutritionists (CFN). A calculator people self-manage with is a different thing from a prescription tool, and the copy has to reflect that. |
 | Cookieless analytics only | A conventional analytics tag would break the "we collect nothing" claim and re-create the LGPD obligations the architecture exists to avoid. |
 | Backup & restore a stranger can succeed at | The direct consequence of local-first plus public. |
+| Privacy paperwork, once sync exists | Encrypted or not, the service now holds personal data, and health data is what art. 30(5) of the GDPR takes the small-organisation exemption away for. The record of processing, the impact assessment and the incident procedure are [docs/PRIVACY-OPERATIONS.md](PRIVACY-OPERATIONS.md); the Brazilian lawyer review is the gate before telling anyone else the app exists. |
 
 ---
 
