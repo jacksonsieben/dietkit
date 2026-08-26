@@ -256,6 +256,9 @@ Full findings, including the two algorithms that were tried and rejected:
 
 - [docs/SCOPE.md](docs/SCOPE.md) — goals, phases P0–P3, launch blockers, open risks
 - [docs/DECISIONS.md](docs/DECISIONS.md) — decisions on record, with reasoning
+- [docs/PRIVACY-OPERATIONS.md](docs/PRIVACY-OPERATIONS.md) — the record of processing,
+  the impact assessment, the incident clock, the retention schedule and the runbook
+  for a request from a person
 - [docs/MACRO-RECONCILIATION.md](docs/MACRO-RECONCILIATION.md) — prior art from the
   predecessor app: how per-meal macro targets were reconciled, what broke, and the
   joint-solve approach that should replace it here
