@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { PGlite } from "@electric-sql/pglite";
-import { getTableColumns, getTableName, is } from "drizzle-orm";
-import { PgTable } from "drizzle-orm/pg-core";
+import { is } from "drizzle-orm";
+import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { NEON_AUTH_COLUMNS, compare } from "./accounts";
@@ -163,7 +163,6 @@ const SYNC_COLUMNS = new Set([
   "nonce", // Per-record, never reused.
   "updated_at", // Server clock, for the last-writer-wins merge (#95).
   "rev", // Monotonic per record, so a stale device loses rather than clobbers.
-  "device_id", // Which device wrote it. Random, local, not a fingerprint.
   "deleted_at", // A tombstone: deletion has to sync too, or it un-deletes.
 ]);
 
@@ -184,6 +183,35 @@ describe("server database schemas", () => {
     // The failure that started #92 was silent: a schema nobody had written a
     // rule for simply was not checked. Here it is loud instead.
     expect(present.filter((name) => !KNOWN_SCHEMAS.has(name))).toEqual([]);
+  });
+
+  it("matches the Drizzle schema it was generated from", () => {
+    // Fails when src/lib/db/schema is edited without running `db:generate`, so
+    // the migration a reviewer reads is the migration the app expects.
+    // The barrel exports enums and `relations()` too; `is` is what tells a
+    // table from those at runtime, and narrowing here beats a cast.
+    //
+    // Qualified by schema since #95, because `sync.rows` and a hypothetical
+    // `public.rows` are different tables and a check that could not tell them
+    // apart would go on passing while the encrypted one drifted. `neon_auth`
+    // is excluded: Neon creates it, this codebase does not declare it, and it
+    // has its own comparison below.
+    const fromCode: string[] = [];
+    for (const value of Object.values(schema)) {
+      if (!is(value, PgTable)) continue;
+      const table = getTableConfig(value);
+      for (const column of table.columns) {
+        fromCode.push(
+          `${table.schema ?? "public"}.${table.name}.${column.name}`,
+        );
+      }
+    }
+
+    const fromDatabase = catalog
+      .filter((column) => column.table_schema !== "neon_auth")
+      .map((c) => `${c.table_schema}.${c.table_name}.${c.column_name}`);
+
+    expect(fromDatabase.sort()).toEqual(fromCode.sort());
   });
 });
 
@@ -212,23 +240,6 @@ describe("reference data (public)", () => {
         `${column.table_name}.${column.column_name}`,
       ).toEqual([]);
     }
-  });
-
-  it("matches the Drizzle schema it was generated from", () => {
-    // Fails when src/lib/db/schema is edited without running `db:generate`, so
-    // the migration a reviewer reads is the migration the app expects.
-    // The barrel exports enums and `relations()` too; `is` is what tells a
-    // table from those at runtime, and narrowing here beats a cast.
-    const fromCode: string[] = [];
-    for (const value of Object.values(schema)) {
-      if (!is(value, PgTable)) continue;
-      for (const column of Object.values(getTableColumns(value))) {
-        fromCode.push(`${getTableName(value)}.${column.name}`);
-      }
-    }
-    fromCode.sort();
-
-    expect(qualified(columns)).toEqual(fromCode);
   });
 });
 
@@ -276,6 +287,70 @@ describe("encrypted rows (sync)", () => {
     for (const table of tables) {
       expect(personalSegments(table), `sync.${table}`).toEqual([]);
     }
+  });
+
+  it("exists, so the two rules above are about something", () => {
+    // Until #95 this schema was empty and both checks above passed by having
+    // nothing to look at. A guard that is satisfied by absence is not a guard.
+    expect(
+      inSchema("sync")
+        .map((column) => column.column_name)
+        .sort(),
+    ).toEqual([...SYNC_COLUMNS].sort());
+  });
+
+  it("never stores a record it could not have sealed", async () => {
+    // `ciphertext` and `nonce` are NOT NULL, deletion included: a tombstone is
+    // a sealed record saying "gone", not a row with the bytes left out. An
+    // empty ciphertext would be the one row on the server that says something.
+    await expect(
+      pg.exec(`
+        insert into sync.rows (account_id, collection, record_id, nonce)
+        values ('acc', 'weight', 'rec', 'AAAAAAAAAAAAAAAA');
+      `),
+    ).rejects.toThrow(/null value|not-null/i);
+  });
+
+  it("keeps one row per record per account, and lets the other one lose", async () => {
+    // The primary key is what makes a push an upsert rather than an append —
+    // without it two devices writing the same record would leave two rows and
+    // the pull would have to guess.
+    await pg.exec(`
+      insert into sync.rows
+        (account_id, collection, record_id, ciphertext, nonce)
+      values ('acc', 'weight', 'rec', 'c1', 'n1');
+    `);
+
+    await expect(
+      pg.exec(`
+        insert into sync.rows
+          (account_id, collection, record_id, ciphertext, nonce)
+        values ('acc', 'weight', 'rec', 'c2', 'n2');
+      `),
+    ).rejects.toThrow(/duplicate key/i);
+
+    // Same record id, different account: a different row, never a collision.
+    await pg.exec(`
+      insert into sync.rows
+        (account_id, collection, record_id, ciphertext, nonce)
+      values ('other', 'weight', 'rec', 'c3', 'n3');
+    `);
+
+    const mine = await pg.query<{ count: number }>(
+      `select count(*)::int as count from sync.rows where account_id = 'acc'`,
+    );
+    expect(mine.rows[0]?.count).toBe(1);
+  });
+
+  it("stamps the write clock itself", async () => {
+    // The cursor a pull walks. A client-supplied value would let a device with
+    // a wrong clock either re-send everything forever or be skipped entirely.
+    const stored = await pg.query<{ updated_at: Date; rev: number }>(
+      `select updated_at, rev from sync.rows where account_id = 'acc'`,
+    );
+
+    expect(stored.rows[0]?.updated_at).toBeInstanceOf(Date);
+    expect(stored.rows[0]?.rev).toBe(1);
   });
 });
 
@@ -342,7 +417,8 @@ describe("the export file", () => {
 describe("food composition columns", () => {
   it("stores every nutrient as exact numeric, nullable", async () => {
     const nutrients = columns.filter(
-      (column) => column.table_name === "foods" && column.data_type === "numeric",
+      (column) =>
+        column.table_name === "foods" && column.data_type === "numeric",
     );
 
     // 26 published nutrient columns. Exact decimal because the values are
@@ -386,7 +462,9 @@ describe("food composition columns", () => {
       moisture_percent: string;
       cholesterol_mg: string | null;
       sentinels: unknown;
-    }>(`select moisture_percent, cholesterol_mg, sentinels from foods where id = 1`);
+    }>(
+      `select moisture_percent, cholesterol_mg, sentinels from foods where id = 1`,
+    );
 
     // 70.1 comes back as 70.1, not 70.09999999999999 — the point of numeric.
     expect(Number(stored.rows[0]?.moisture_percent)).toBe(70.1);

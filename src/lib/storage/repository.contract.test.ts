@@ -2,6 +2,11 @@ import "fake-indexeddb/auto";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createMemoryJournal } from "@/lib/sync/journal";
+import { generateDataKey } from "@/lib/sync/sealed";
+import { createSyncRepository } from "@/lib/sync/repository";
+import { createMemoryTransport } from "@/lib/sync/transport.fixture";
+
 import { createDietKitDatabase } from "./dexie/db";
 import { createDexieRepository } from "./dexie/repository";
 import { createMemoryRepository } from "./memory";
@@ -25,6 +30,11 @@ import { SNAPSHOT_SCHEMA_VERSION } from "./types";
  * in-memory implementation and the real IndexedDB one are held to identical
  * behaviour, down to ordering and the one-weight-per-day rule. A third adapter
  * (sync, later) earns its place by passing this file unchanged.
+ *
+ * That third adapter arrived in #95, and it did pass this file unchanged: not
+ * one assertion below moved to accommodate it. What it adds is the case in the
+ * list -- proof that a repository which is quietly sealing every write and
+ * journalling it is, to everything above this seam, still just a repository.
  *
  * `fake-indexeddb` matters here — it means the Dexie rows below go through a
  * real IndexedDB implementation, transactions and unique indexes included,
@@ -61,6 +71,24 @@ const adapters: AdapterCase[] = [
           db.close();
           await db.delete();
         },
+      };
+    },
+  },
+  {
+    // Wrapping `memory` rather than `dexie` on purpose: what is under test here
+    // is that the decorator changes nothing a caller can see, and the adapter
+    // underneath is the one variable that should not also be moving.
+    name: "sync",
+    async create() {
+      return {
+        repository: createSyncRepository({
+          inner: createMemoryRepository(),
+          journal: createMemoryJournal(),
+          transport: createMemoryTransport(),
+          dataKey: await generateDataKey(),
+          deviceId: "contract",
+        }),
+        dispose: async () => {},
       };
     },
   },
@@ -261,9 +289,9 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       const session = makeSession();
       await repository.trainingSessions.put(session);
 
-      await expect(repository.trainingSessions.get("session-1")).resolves.toEqual(
-        session,
-      );
+      await expect(
+        repository.trainingSessions.get("session-1"),
+      ).resolves.toEqual(session);
     });
 
     it("keeps a movement that was on the card and not done", async () => {
@@ -281,9 +309,7 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
     it("keeps a set logged without a weight absent rather than zero", async () => {
       await repository.trainingSessions.put(
         makeSession({
-          exercises: [
-            { exercise: "barra-fixa-pronada", sets: [{ reps: 10 }] },
-          ],
+          exercises: [{ exercise: "barra-fixa-pronada", sets: [{ reps: 10 }] }],
         }),
       );
 
@@ -320,7 +346,9 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
     it("edits a session in place when it is put again", async () => {
       await repository.trainingSessions.put(makeSession());
       await repository.trainingSessions.put(
-        makeSession({ exercises: [{ exercise: "supino-reto-barra", sets: [] }] }),
+        makeSession({
+          exercises: [{ exercise: "supino-reto-barra", sets: [] }],
+        }),
       );
 
       const all = await repository.trainingSessions.list();
@@ -433,8 +461,9 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
       await expect(
         repository.weight.getByDate("2026-08-01"),
       ).resolves.toMatchObject({ weightKg: 84 });
-      await expect(repository.weight.getByDate("2026-07-01")).resolves
-        .toBeUndefined();
+      await expect(
+        repository.weight.getByDate("2026-07-01"),
+      ).resolves.toBeUndefined();
       await expect(repository.weight.latest()).resolves.toMatchObject({
         date: "2026-08-17",
       });
@@ -612,7 +641,9 @@ describe.each(adapters)("Repository contract: $name", ({ create }) => {
     });
 
     it("merges patches instead of replacing the record", async () => {
-      await repository.settings.patch({ lastBackupAt: "2026-08-17T09:00:00.000Z" });
+      await repository.settings.patch({
+        lastBackupAt: "2026-08-17T09:00:00.000Z",
+      });
       const returned = await repository.settings.patch({
         disclaimerAcceptedAt: "2026-08-17T09:05:00.000Z",
       });

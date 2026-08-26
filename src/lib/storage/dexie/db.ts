@@ -1,5 +1,7 @@
 import Dexie, { type Table } from "dexie";
 
+import type { JournalEntry } from "@/lib/sync/journal";
+
 import type {
   CustomFood,
   Diet,
@@ -18,6 +20,12 @@ export type ProfileRow = Profile & { id: typeof SINGLETON_KEY };
 export type SettingsRow = Settings & { id: typeof SINGLETON_KEY };
 export type TrainingRow = TrainingRotation & { id: typeof SINGLETON_KEY };
 
+/** The cursor, and anything else sync needs to remember that is not a record. */
+export interface SyncMetaRow {
+  key: string;
+  value: unknown;
+}
+
 export class DietKitDatabase extends Dexie {
   profile!: Table<ProfileRow, string>;
   weight!: Table<WeightEntry, string>;
@@ -27,6 +35,8 @@ export class DietKitDatabase extends Dexie {
   training!: Table<TrainingRow, string>;
   trainingSessions!: Table<TrainingSession, string>;
   settings!: Table<SettingsRow, string>;
+  syncJournal!: Table<JournalEntry, [string, string]>;
+  syncMeta!: Table<SyncMetaRow, string>;
 
   constructor(name: string) {
     super(name);
@@ -66,6 +76,19 @@ export class DietKitDatabase extends Dexie {
     // second copy of the truth to keep in sync.
     this.version(4).stores({
       trainingSessions: "id, date, finishedAt",
+    });
+
+    // Additive again (#95), and the first version that stores something which
+    // is not a record: what this device has and has not yet sent.
+    //
+    // Keyed on the pair, because a record id is only unique inside its
+    // collection and a diet and a weight entry could in principle share one.
+    // `dirty` is deliberately not indexed -- IndexedDB has no boolean key type,
+    // and the journal holds one small row per record, so the scan `pending()`
+    // does is cheaper than the derived column it would take to avoid it.
+    this.version(5).stores({
+      syncJournal: "[collection+recordId]",
+      syncMeta: "key",
     });
   }
 }

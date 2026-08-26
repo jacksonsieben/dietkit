@@ -39,6 +39,14 @@ const MAY_IMPORT_AUTH = [
   AUTH_MODULE, // The wrapper itself.
   "src/app/[locale]/conta", // Sign in, sign out, "signed in as ___", delete.
   "src/app/api/auth", // The route handler Neon Auth proxies through.
+  // Sync (#95). The only route here whose subject really is the account: it
+  // reads the account id from the session and hands it to the store, because
+  // that is the entire boundary between one person's sealed rows and another's
+  // — and there is nothing for it to do for somebody who has not got one. Every
+  // screen that *writes* those rows still knows nothing about any of it: the
+  // decorator in src/lib/sync/repository.ts takes a transport, and the app runs
+  // signed out with no transport at all.
+  "src/app/api/sync",
 ];
 
 /** The route a guard would send somebody to. Named here so it can be looked for. */
