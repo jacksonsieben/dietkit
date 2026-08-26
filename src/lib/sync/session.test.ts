@@ -361,6 +361,31 @@ describe("a sync session", { timeout: 30_000 }, () => {
     });
   });
 
+  it("forgets this device without asking the server for anything", async () => {
+    // What is left to do after the account is deleted (#97). There is no vault
+    // endpoint to call by then and no session to call it with, so this drops
+    // the local half on its own -- and the memory server below, still holding
+    // everything it held before, is what makes that assertion mean something.
+    const first = device();
+    await first.inner.weight.put(weight("w-1", "2026-01-02", 72.4));
+    await first.session.enable(PASSPHRASE);
+    await first.session.sync();
+
+    await first.session.forget();
+
+    await expect(first.journal.pending()).resolves.toEqual([]);
+    await expect(first.enrollment.read()).resolves.toBeUndefined();
+
+    await expect(vaults.read()).resolves.toBeDefined();
+    expect((await rows.pull(null)).rows).not.toEqual([]);
+
+    // This device is now indistinguishable from one that never had the key:
+    // the account syncs, just not from here.
+    await expect(first.session.state()).resolves.toMatchObject({
+      status: "elsewhere",
+    });
+  });
+
   it("stops journalling writes once it is off", async () => {
     const first = device();
     await first.session.enable(PASSPHRASE);

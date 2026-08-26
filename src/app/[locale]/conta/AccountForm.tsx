@@ -30,6 +30,7 @@ import {
 const MESSAGE = {
   credentials: "errorCredentials",
   exists: "errorExists",
+  identityRemains: "errorIdentityRemains",
   invalidEmail: "errorInvalidEmail",
   invalidToken: "errorInvalidToken",
   shortPassword: "errorShortPassword",

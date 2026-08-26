@@ -33,6 +33,8 @@ const MIGRATED = [
   "src/app/[locale]/conta/AccountForm.tsx",
   "src/app/[locale]/conta/criar/page.tsx",
   "src/app/[locale]/conta/entrar/page.tsx",
+  "src/app/[locale]/conta/excluir/DeleteForm.tsx",
+  "src/app/[locale]/conta/excluir/page.tsx",
   "src/app/[locale]/conta/page.tsx",
   "src/app/[locale]/conta/recuperar/page.tsx",
   "src/app/[locale]/conta/redefinir/page.tsx",

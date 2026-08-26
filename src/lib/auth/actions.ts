@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
 
 import { redirect } from "@/i18n/navigation";
+import { db } from "@/lib/db/client";
+import { eraseAccount } from "@/lib/db/erasure";
 
 import {
   MINIMUM_PASSWORD_LENGTH,
@@ -56,6 +58,20 @@ async function toAccount(): Promise<never> {
 
 async function source(): Promise<string> {
   return network((await headers()).get("x-forwarded-for"));
+}
+
+/** Who the cookie says this is, or nobody. Never throws at the caller. */
+async function currentAccount(): Promise<
+  { id: string; email: string } | undefined
+> {
+  try {
+    const { data } = await auth().getSession();
+    const user = data?.user;
+
+    return user?.email ? { id: user.id, email: user.email } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -207,6 +223,84 @@ export async function resetPassword(
     () => auth().resetPassword({ token, newPassword: password }),
     "invalidToken",
   );
+}
+
+/**
+ * Deletes the account: the sealed rows, the wrapped key, the record of consent,
+ * and then the identity itself (#97).
+ *
+ * The order is the design. The data goes first, from our own database, in one
+ * statement that names every table holding an `account_id`
+ * (`src/lib/db/erasure.ts`); the identity goes second, upstream, where we have
+ * no way to reach anything else. Reversed, a failure between the two would
+ * leave sealed rows keyed to an id that no longer belongs to anybody -- rows
+ * nobody can ask about, delete, or open.
+ *
+ * The password is checked *before* either. `signIn.email` is the check, because
+ * the Neon Auth server client has no `verifyPassword`: it either succeeds or it
+ * does not, and a wrong one has to stop here rather than after the data is
+ * gone. It also leaves the session freshly minted, which is the state
+ * `deleteUser` wants to be called in.
+ *
+ * Not a soft delete, and no grace period: there is no `deleted_at` on anything
+ * this touches, and nothing waits for a cron.
+ */
+export async function deleteAccount(
+  _state: AccountState,
+  form: FormData,
+): Promise<AccountState> {
+  if (!accountsConfigured()) return { error: "unavailable" };
+
+  const password = form.get("password");
+  if (typeof password !== "string" || password === "") {
+    return { error: "credentials" };
+  }
+
+  // The account comes from the session, never from the form. A body that could
+  // name an account is a body that could name somebody else's.
+  const account = await currentAccount();
+  if (!account) return { error: "unavailable" };
+
+  if (!allow({ subject: account.email, source: await source() }, SIGN_IN)) {
+    return { error: "throttled" };
+  }
+
+  const proved = await attempt(
+    () => auth().signIn.email({ email: account.email, password }),
+    "credentials",
+  );
+  if (proved.error) return proved;
+
+  try {
+    await eraseAccount(db(), account.id);
+  } catch (error) {
+    // Nothing was deleted: it is one statement, so it either ran or it did not.
+    console.error("Deleting an account's data failed.", error);
+    return { error: "unexpected" };
+  }
+
+  const removed = await attempt(
+    () => auth().deleteUser({ password }),
+    "unexpected",
+  );
+
+  if (removed.error) {
+    // The half-done state, said out loud rather than reported as success. The
+    // likeliest cause by far is that account deletion is switched off on the
+    // Neon Auth branch, which answers 404 -- a deployment problem, and one the
+    // person on the screen cannot do anything about except write to us.
+    console.error(
+      "The account's data was deleted but the identity was not. Check that " +
+        "user deletion is enabled for this Neon Auth branch.",
+    );
+    return { error: "identityRemains" };
+  }
+
+  // `done` rather than a redirect, because there is one more thing to do and
+  // only the browser can do it: this device still holds the data key and the
+  // journal for an account that no longer exists (`./excluir/DeleteForm.tsx`).
+  // The upstream call already cleared the session cookie on its way out.
+  return { done: true };
 }
 
 export async function signOut(): Promise<void> {

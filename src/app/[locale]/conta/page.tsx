@@ -91,6 +91,7 @@ export default async function AccountPage({
             )}
 
             <TextLink href="/conta/sincronizar">{t("syncLink")}</TextLink>
+            <TextLink href="/conta/excluir">{t("deleteLink")}</TextLink>
 
             <form action={signOut}>
               <ActionButton type="submit">{t("signOut")}</ActionButton>

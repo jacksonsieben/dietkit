@@ -17,6 +17,13 @@ export interface AccountState {
 export type ErrorKey =
   | "credentials"
   | "exists"
+  /**
+   * The rare half-done state of a deletion (#97): everything this server held
+   * was deleted, and the identity upstream was not. It exists as its own key
+   * because the honest sentence is neither "done" nor "nothing happened", and
+   * because the person needs to be told what is left and who to write to.
+   */
+  | "identityRemains"
   | "invalidEmail"
   | "invalidToken"
   | "shortPassword"
