@@ -114,6 +114,19 @@ export interface SyncSession {
 
   /** Deletes the server copy, then forgets the key. Returns rows deleted. */
   disable(): Promise<{ readonly rows: number }>;
+
+  /**
+   * Drops everything this device keeps — the key, the journal, the decorator —
+   * and asks the server for nothing.
+   *
+   * Which is the whole reason it is separate from `disable()`. After the
+   * account is deleted (#97) there is no vault endpoint left to call and no
+   * session to call it with, so the order `disable()` insists on has nothing to
+   * be careful about: the server copy is already gone. Anywhere else, this is
+   * the wrong method — dropping the local key while rows are still on the
+   * server makes them unreadable by everybody, forever.
+   */
+  forget(): Promise<void>;
 }
 
 export function createSyncSession(options: SyncSessionOptions): SyncSession {
@@ -257,6 +270,8 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
 
       return { pending: waiting.length, lastSyncedAt: local?.lastSyncedAt };
     },
+
+    forget,
 
     async disable(): Promise<{ rows: number }> {
       // The server first, always. The other order deletes the only key that

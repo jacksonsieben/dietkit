@@ -129,6 +129,7 @@ export default async function Privacy({
           <li>{t("retentionSync")}</li>
           <li>{t("retentionAccount")}</li>
           <li>{t("retentionConsent")}</li>
+          <li>{t("retentionBackups")}</li>
           <li>{t("retentionLogs")}</li>
         </ul>
       </LegalSection>
