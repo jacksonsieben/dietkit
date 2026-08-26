@@ -94,8 +94,12 @@ const KNOWN_SCHEMAS = new Set([
  */
 const ALLOWED_TABLES = [
   "dataset_versions",
+  "diet_preset_group_foods",
+  "diet_preset_groups",
   "diet_preset_items",
   "diet_preset_meals",
+  "diet_preset_option_sets",
+  "diet_preset_options",
   "diet_presets",
   "exercises",
   "food_groups",
@@ -546,5 +550,198 @@ describe("food composition columns", () => {
         values (${meal.rows[0]?.id}, 1, 9999, 100, 50, 200);
       `),
     ).rejects.toThrow(/foreign key/i);
+  });
+});
+
+/**
+ * The tables #112 added, exercised against the migrated database rather than
+ * described in prose.
+ *
+ * Everything here is a claim the schema makes and the seed will lean on: a
+ * group lists real foods, a set has one default, positions number per
+ * container, and none of it outlives the preset it belongs to. A comment
+ * saying so is a wish; a failing insert is the guarantee.
+ */
+describe("preset groups and option sets", () => {
+  /** The one preset these tests build, torn down by the last of them. */
+  const SLUG = "opcoes-teste";
+
+  let mealId: number;
+  let setId: number;
+  let optionId: number;
+  let otherOptionId: number;
+  let groupId: number;
+
+  beforeAll(async () => {
+    // Seeded here rather than borrowed from the tests above: a food is what a
+    // group and an item both point at, and a fixture that depends on another
+    // test having run is a fixture that fails for the wrong reason.
+    await pg.exec(`
+      insert into dataset_versions
+        (id, dataset, edition, sha256, file_bytes, row_count, source_url, citation, retrieved_at)
+      values (99, 'taco', '4a', 'opcoes', 1, 1, 'https://example.test', 'citation', '2026-08-17')
+      on conflict do nothing;
+      insert into food_groups (slug, name, position)
+      values ('opcoes', 'Opções', 99) on conflict do nothing;
+      insert into foods (id, group_slug, description, search_text, sentinels, dataset_version_id)
+      values (901, 'opcoes', 'Aveia em flocos', 'aveia em flocos', '{}'::jsonb, 99),
+             (902, 'opcoes', 'Pão francês', 'pao frances', '{}'::jsonb, 99)
+      on conflict do nothing;
+
+      insert into diet_presets (slug, name, description)
+      values ('${SLUG}', 'Opções', 'Um café da manhã com escolhas.');
+      insert into diet_preset_meals (preset_slug, position, name)
+      values ('${SLUG}', 1, 'Café da manhã');
+    `);
+
+    const meal = await pg.query<{ id: number }>(
+      `select id from diet_preset_meals where preset_slug = '${SLUG}'`,
+    );
+    mealId = meal.rows[0]!.id;
+
+    await pg.exec(`
+      insert into diet_preset_option_sets (meal_id, position, name)
+      values (${mealId}, 1, 'Carboidrato');
+    `);
+    const set = await pg.query<{ id: number }>(
+      `select id from diet_preset_option_sets where meal_id = ${mealId}`,
+    );
+    setId = set.rows[0]!.id;
+
+    await pg.exec(`
+      insert into diet_preset_options (set_id, position, name, is_default)
+      values (${setId}, 1, 'Aveia', true), (${setId}, 2, 'Pão com ovo', false);
+      insert into diet_preset_groups (preset_slug, slug, name)
+      values ('${SLUG}', 'frutas', 'Frutas');
+    `);
+    const options = await pg.query<{ id: number; position: number }>(
+      `select id, position from diet_preset_options where set_id = ${setId} order by position`,
+    );
+    optionId = options.rows[0]!.id;
+    otherOptionId = options.rows[1]!.id;
+
+    const group = await pg.query<{ id: number }>(
+      `select id from diet_preset_groups where preset_slug = '${SLUG}'`,
+    );
+    groupId = group.rows[0]!.id;
+  }, 30_000);
+
+  it("refuses a group naming a food that does not exist", async () => {
+    // The argument of § D13, one table further down: a group is members by
+    // `foods.id`, so it cannot name a food the server has never heard of —
+    // and a custom food, which lives only in IndexedDB, is precisely that.
+    // There is no id a preset could write here to reach one.
+    await expect(
+      pg.exec(`
+        insert into diet_preset_group_foods (group_id, food_id, position)
+        values (${groupId}, 9999, 1);
+      `),
+    ).rejects.toThrow(/foreign key/i);
+  });
+
+  it("offers each food once, in an order it chose", async () => {
+    await pg.exec(`
+      insert into diet_preset_group_foods (group_id, food_id, position)
+      values (${groupId}, 901, 1), (${groupId}, 902, 2);
+    `);
+
+    // The same food twice in one group is a swap control with a duplicate in
+    // it, not a richer group.
+    await expect(
+      pg.exec(`
+        insert into diet_preset_group_foods (group_id, food_id, position)
+        values (${groupId}, 901, 3);
+      `),
+    ).rejects.toThrow(/duplicate key/i);
+
+    // And two foods at the same position is an order that does not exist.
+    await expect(
+      pg.exec(`
+        insert into diet_preset_group_foods (group_id, food_id, position)
+        values (${groupId}, 901, 2);
+      `),
+    ).rejects.toThrow(/duplicate key/i);
+  });
+
+  it("lets a set have exactly one default", async () => {
+    // The database half of "a preset arrives with a coherent plan". At most
+    // one, here; at least one is the loader's, because Postgres cannot check
+    // it without a deferred key back into a row that does not exist yet.
+    await expect(
+      pg.exec(`
+        update diet_preset_options set is_default = true where id = ${otherOptionId};
+      `),
+    ).rejects.toThrow(/duplicate key/i);
+
+    const defaults = await pg.query<{ count: number }>(
+      `select count(*)::int as count from diet_preset_options
+        where set_id = ${setId} and is_default`,
+    );
+    expect(defaults.rows[0]?.count).toBe(1);
+  });
+
+  it("numbers positions per container, fixed rows included", async () => {
+    // A meal's own row 1 and an option's row 1 are different rows in different
+    // containers — that is what `nulls not distinct` buys, and without it the
+    // constraint would apply to every option and to none of the fixed rows.
+    await pg.exec(`
+      insert into diet_preset_items
+        (meal_id, option_id, position, food_id, quantity_g, min_g, max_g)
+      values (${mealId}, null, 1, 901, 100, 50, 200),
+             (${mealId}, ${optionId}, 1, 902, 60, 40, 90);
+    `);
+
+    // Two fixed rows at position 1 is the case Postgres's default NULL
+    // semantics would have waved through.
+    await expect(
+      pg.exec(`
+        insert into diet_preset_items
+          (meal_id, option_id, position, food_id, quantity_g, min_g, max_g)
+        values (${mealId}, null, 1, 902, 30, 10, 50);
+      `),
+    ).rejects.toThrow(/duplicate key/i);
+
+    // And so is two rows at position 1 inside one option.
+    await expect(
+      pg.exec(`
+        insert into diet_preset_items
+          (meal_id, option_id, position, food_id, quantity_g, min_g, max_g)
+        values (${mealId}, ${optionId}, 1, 901, 30, 10, 50);
+      `),
+    ).rejects.toThrow(/duplicate key/i);
+  });
+
+  it("keeps a slot pointing at a group of this preset", async () => {
+    await pg.exec(`
+      insert into diet_preset_items
+        (meal_id, option_id, position, food_id, quantity_g, min_g, max_g, group_id)
+      values (${mealId}, null, 2, 901, 100, 50, 200, ${groupId});
+    `);
+
+    await expect(
+      pg.exec(`
+        insert into diet_preset_items
+          (meal_id, option_id, position, food_id, quantity_g, min_g, max_g, group_id)
+        values (${mealId}, null, 3, 901, 100, 50, 200, 9999);
+      `),
+    ).rejects.toThrow(/foreign key/i);
+  });
+
+  it("takes its groups, sets, options and rows with it when it goes", async () => {
+    // A preset is a template, and a retired template that leaves four tables
+    // of orphans behind is a seed that grows every time it runs.
+    await pg.exec(`delete from diet_presets where slug = '${SLUG}';`);
+
+    const left = await pg.query<{ table_name: string; count: number }>(`
+      select 'groups' as table_name, count(*)::int as count from diet_preset_groups
+      union all select 'group_foods', count(*)::int from diet_preset_group_foods
+      union all select 'sets', count(*)::int from diet_preset_option_sets
+      union all select 'options', count(*)::int from diet_preset_options
+      union all select 'items', count(*)::int from diet_preset_items
+    `);
+
+    for (const row of left.rows) {
+      expect(row.count, `diet_preset_${row.table_name}`).toBe(0);
+    }
   });
 });
