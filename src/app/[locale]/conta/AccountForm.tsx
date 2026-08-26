@@ -120,6 +120,15 @@ export function AccountForm({
                 name={spec.name}
                 type={spec.type}
                 autoComplete={spec.autoComplete}
+                /**
+                 * Only the address survives a refused submit, and only because
+                 * the action hands it back (#108). React resets an uncontrolled
+                 * form once the action resolves, which is right for the
+                 * password — a wrong one should be typed again, and it is never
+                 * in the state to restore — and wrong for the address, which
+                 * had nothing to do with the failure.
+                 */
+                defaultValue={field === "email" ? state.email : undefined}
                 required
                 minLength={
                   spec.autoComplete === "new-password"

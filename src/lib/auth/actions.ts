@@ -112,18 +112,21 @@ export async function signIn(
   _state: AccountState,
   form: FormData,
 ): Promise<AccountState> {
-  if (!accountsConfigured()) return { error: "unavailable" };
-
+  // Read before anything can refuse, because every refusal below hands it
+  // back: the address is the one thing on these forms worth not losing.
   const email = field(form, "email");
+
+  if (!accountsConfigured()) return { error: "unavailable", email };
+
   const password = form.get("password");
 
-  if (!EMAIL.test(email)) return { error: "invalidEmail" };
+  if (!EMAIL.test(email)) return { error: "invalidEmail", email };
   if (typeof password !== "string" || password === "") {
-    return { error: "credentials" };
+    return { error: "credentials", email };
   }
 
   if (!allow({ subject: email, source: await source() }, SIGN_IN)) {
-    return { error: "throttled" };
+    return { error: "throttled", email };
   }
 
   // One key for a wrong password and for an address that has no account: the
@@ -134,7 +137,7 @@ export async function signIn(
     "credentials",
   );
 
-  if (state.error) return state;
+  if (state.error) return { ...state, email };
   return toAccount();
 }
 
@@ -142,21 +145,22 @@ export async function signUp(
   _state: AccountState,
   form: FormData,
 ): Promise<AccountState> {
-  if (!accountsConfigured()) return { error: "unavailable" };
-
   const email = field(form, "email");
+
+  if (!accountsConfigured()) return { error: "unavailable", email };
+
   const password = form.get("password");
 
-  if (!EMAIL.test(email)) return { error: "invalidEmail" };
+  if (!EMAIL.test(email)) return { error: "invalidEmail", email };
   if (
     typeof password !== "string" ||
     password.length < MINIMUM_PASSWORD_LENGTH
   ) {
-    return { error: "shortPassword" };
+    return { error: "shortPassword", email };
   }
 
   if (!allow({ subject: email, source: await source() }, SIGN_IN)) {
-    return { error: "throttled" };
+    return { error: "throttled", email };
   }
 
   // Better Auth wants a display name. It is not asked for and never shown:
@@ -167,7 +171,7 @@ export async function signUp(
     "exists",
   );
 
-  if (state.error) return state;
+  if (state.error) return { ...state, email };
   return toAccount();
 }
 
@@ -175,17 +179,17 @@ export async function requestPasswordReset(
   _state: AccountState,
   form: FormData,
 ): Promise<AccountState> {
-  if (!accountsConfigured()) return { error: "unavailable" };
-
   const email = field(form, "email");
-  if (!EMAIL.test(email)) return { error: "invalidEmail" };
+
+  if (!accountsConfigured()) return { error: "unavailable", email };
+  if (!EMAIL.test(email)) return { error: "invalidEmail", email };
 
   if (!allow({ subject: email, source: await source() }, RESET)) {
     // Safe to say out loud: the counter is charged for whatever was typed,
     // real address or not, so being told to wait says nothing about whether
     // an account exists. It is the one honest answer available here, since
     // the alternative is claiming to have sent a link that was never sent.
-    return { error: "throttled" };
+    return { error: "throttled", email };
   }
 
   await attempt(

@@ -12,6 +12,17 @@
 export interface AccountState {
   error?: ErrorKey;
   done?: boolean;
+  /**
+   * The address that was typed, handed back so a refused submit does not make
+   * somebody retype it — React resets an uncontrolled form once the action
+   * resolves, and an empty box is what that looks like on a phone.
+   *
+   * There is deliberately no password here, and there never will be. Anything
+   * in this object is serialised into the response the browser gets back, and
+   * a password that has already failed is not worth putting in a payload,
+   * a log line or a screenshot to save one person one retype.
+   */
+  email?: string;
 }
 
 export type ErrorKey =
