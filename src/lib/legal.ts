@@ -19,13 +19,13 @@
  * when a typo is fixed: it is the date a reader uses to work out whether the
  * terms they agreed to are the ones on screen.
  */
-export const LEGAL_EFFECTIVE_DATE = "2026-08-18";
+export const LEGAL_EFFECTIVE_DATE = "2026-08-26";
 
 /**
  * `LEGAL_EFFECTIVE_DATE` as a `Date`, fixed at UTC midnight.
  *
- * The zone is not decoration. `new Date("2026-08-18")` is UTC midnight, and
- * rendering that in São Paulo (UTC−3) prints the 17th — a notice that claims to
+ * The zone is not decoration. `new Date("2026-08-26")` is UTC midnight, and
+ * rendering that in São Paulo (UTC−3) prints the 25th — a notice that claims to
  * have taken effect a day before it did. Callers must format it with
  * `timeZone: "UTC"` so the date that comes out is the date written above.
  */
@@ -50,19 +50,29 @@ export const LEGAL_ROUTES = [
 export type LegalRoute = (typeof LEGAL_ROUTES)[number]["href"];
 
 /**
- * Where to reach whoever is responsible for the service.
+ * Who answers for the service, and where.
  *
- * TODO(before public launch): the LGPD expects a *controlador* to be
- * identifiable, and expects a named channel for data-subject requests
- * (art. 41). DietKit holds no personal data on the server, which makes those
- * requests close to vacuous — there is nothing to hand over or erase — but
- * "there is no controller" is not a thing a notice can say. Whoever publishes
- * this has to appear here: a name, and a real address for enquiries.
+ * The LGPD expects a *controlador* to be identifiable and expects a named
+ * channel for data-subject requests (art. 41); the GDPR expects the same
+ * identity in the notice itself (art. 13). While nothing personal reached the
+ * server, that duty was close to vacuous — there was nothing to hand over or
+ * erase — and this constant pointed at the issue tracker. Accounts (#93) and
+ * sync (#96) end that argument: there is now an email address on a server, a
+ * consent record beside it, and a person who has to answer for both.
  *
- * Until then this points at the public repository, which is a real channel and
- * an honest one for a project that has not launched.
+ * The same person is the *encarregado* / DPO, which is what a one-maintainer
+ * project honestly has. No postal address is published: an individual
+ * controller is identified by name and by a channel that reaches them, and
+ * printing a home address in a public notice protects nobody.
+ *
+ * The repository stays alongside it, because a bug report and a data-subject
+ * request are different things and only one of them belongs in a public issue.
  */
 export const LEGAL_CONTACT = {
+  /** The controller, and the encarregado: the same person, in Portugal. */
+  controller: "Jackson Sieben",
+  /** The channel for privacy requests. Monitored by the controller. */
+  email: "privacidade@dietkit.jacksonsieben.com",
   /** Issue tracker — public, archived, and monitored by the maintainer. */
   url: "https://github.com/jacksonsieben/dietkit/issues",
   label: "github.com/jacksonsieben/dietkit",

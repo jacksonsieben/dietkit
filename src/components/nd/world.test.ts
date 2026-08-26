@@ -36,6 +36,8 @@ const MIGRATED = [
   "src/app/[locale]/conta/page.tsx",
   "src/app/[locale]/conta/recuperar/page.tsx",
   "src/app/[locale]/conta/redefinir/page.tsx",
+  "src/app/[locale]/conta/sincronizar/SyncPanel.tsx",
+  "src/app/[locale]/conta/sincronizar/page.tsx",
   "src/app/[locale]/dieta/page.tsx",
   "src/app/[locale]/energia/page.tsx",
   "src/app/[locale]/fontes/page.tsx",

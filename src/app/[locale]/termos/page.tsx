@@ -19,11 +19,19 @@ export async function generateMetadata({
 }
 
 /**
- * The terms of use (#10).
+ * The terms of use (#10, extended for accounts and sync in #98).
  *
- * Short on purpose. There is no account to suspend, no payment to dispute and
- * no user content to moderate, so most of what a standard terms document exists
- * to handle simply does not arise here.
+ * Short on purpose. There is no payment to dispute and no user content to
+ * moderate, so most of what a standard terms document exists to handle still
+ * does not arise here.
+ *
+ * Two things do now. There is an account, so there is a minimum age — 18,
+ * chosen rather than inherited: Lei n.º 58/2019 art. 16 puts Portugal's floor
+ * for information-society services at 13, and an app that computes energy
+ * targets and tracks a weight has no business holding a thirteen-year-old's
+ * data. And there is a key we cannot reset, which has to be said in the terms
+ * as well as in the notice, because it is the one consequence a reader cannot
+ * undo by changing their mind later.
  *
  * The liability section is written knowing it cannot do what such sections
  * usually try to do: the Código de Defesa do Consumidor voids blanket
@@ -52,6 +60,16 @@ export default async function Terms({ params }: PageProps<"/[locale]/termos">) {
       <LegalSection heading={t("useHeading")}>
         <p>{t("useBody")}</p>
         <p>{t("useAvailability")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("ageHeading")}>
+        <p>{t("ageBody")}</p>
+      </LegalSection>
+
+      <LegalSection heading={t("accountHeading")}>
+        <p>{t("accountBody")}</p>
+        <p>{t("accountSecurity")}</p>
+        <p>{t("accountDeletion")}</p>
       </LegalSection>
 
       <LegalSection heading={t("responsibilityHeading")}>

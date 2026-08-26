@@ -90,3 +90,69 @@ export const syncRows = sync.table(
     index("rows_account_updated_idx").on(table.accountId, table.updatedAt),
   ],
 );
+
+/**
+ * The wrapped data key, so a second device can be let in (#96).
+ *
+ * It is the one thing on this server that *looks* like a secret and is not.
+ * What is stored is the key to the account's records sealed twice over — once
+ * under a key derived from a passphrase, once under a key derived from a
+ * recovery code — and neither the passphrase nor the code has a column
+ * anywhere (docs/DECISIONS.md § D25). Handing this row to a stranger buys them
+ * a PBKDF2 attack against 600 000 iterations and nothing else, which is exactly
+ * why it can be kept here at all: without it a second device could never be
+ * enrolled, and "end-to-end encrypted" would mean "one device or nothing".
+ *
+ * The KDF parameters are stored beside the blobs rather than assumed, because
+ * the day `KDF_ITERATIONS` goes up, every vault written before it still has to
+ * open. `src/lib/sync/vault.ts` refuses a version it does not understand
+ * instead of guessing.
+ *
+ * One row per account, and no row at all until somebody turns sync on. Turning
+ * it off deletes it along with the records (#96); deleting the account deletes
+ * it too, explicitly, because there is no cascade (#97).
+ */
+export const syncVault = sync.table("vault", {
+  /** The Better Auth user id, as in `rows`. */
+  accountId: text("account_id").primaryKey(),
+  /** The envelope format. `1` today; a future one is refused, not guessed at. */
+  version: integer("version").notNull(),
+  /** `PBKDF2-SHA256`. Stored so a later scheme can coexist with this one. */
+  kdf: text("kdf").notNull(),
+  iterations: integer("iterations").notNull(),
+  /** Public by construction: a salt is not a secret, it is an anti-rainbow-table. */
+  salt: text("salt").notNull(),
+  passphraseNonce: text("passphrase_nonce").notNull(),
+  passphraseCiphertext: text("passphrase_ciphertext").notNull(),
+  recoveryNonce: text("recovery_nonce").notNull(),
+  recoveryCiphertext: text("recovery_ciphertext").notNull(),
+});
+
+/**
+ * What was agreed to, and when (#96).
+ *
+ * Health data is *dado pessoal sensível* under LGPD art. 5º II and a special
+ * category under GDPR art. 9, so uploading it needs consent that is specific
+ * and highlighted (LGPD art. 11, I) / explicit (GDPR art. 9(2)(a)). A
+ * controller who cannot say *what* was agreed to has not got a record of
+ * consent, so `notice` holds the effective date of the privacy notice that was
+ * on screen — the version, in the only vocabulary this project versions notices
+ * in (`LEGAL_EFFECTIVE_DATE`).
+ *
+ * `revoked_at` is here rather than the row being deleted, because GDPR art.
+ * 7(3) makes withdrawal a thing that *happens* — and a controller who answers
+ * "was consent withdrawn?" with an absent row cannot tell that from "never
+ * given". The records and the vault are deleted when sync is turned off; this
+ * one row survives, holding two dates and a version string and nothing else
+ * about anybody. It goes when the account goes (#97).
+ */
+export const syncConsent = sync.table("consent", {
+  accountId: text("account_id").primaryKey(),
+  /** The `LEGAL_EFFECTIVE_DATE` of the notice that was displayed. */
+  notice: text("notice").notNull(),
+  consentedAt: timestamp("consented_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  /** Set when sync was turned off. Cleared if it is turned back on. */
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});

@@ -75,13 +75,17 @@ export function createDexieJournal(database: DietKitDatabase): Journal {
     },
 
     async clear() {
+      // The cursor by key, not the whole of `syncMeta` — the enrollment lives
+      // in that table too (#96), and a journal that quietly un-enrolled the
+      // device would be doing something its interface does not say it does.
+      // Turning sync off clears both, and says so in both places.
       await database.transaction(
         "rw",
         database.syncJournal,
         database.syncMeta,
         async () => {
           await database.syncJournal.clear();
-          await database.syncMeta.clear();
+          await database.syncMeta.delete(CURSOR_KEY);
         },
       );
     },

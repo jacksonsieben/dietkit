@@ -52,8 +52,8 @@ describe("legal notices", () => {
   });
 
   it("states the same effective date whichever zone the reader is in", () => {
-    // `new Date("2026-08-18")` is UTC midnight, so formatting it in São Paulo
-    // prints the 17th. The notices claim a date they took effect; printing the
+    // `new Date("2026-08-26")` is UTC midnight, so formatting it in São Paulo
+    // prints the 25th. The notices claim a date they took effect; printing the
     // day before is a small error that undermines a document whose only asset
     // is being believed.
     const formatted = new Intl.DateTimeFormat("en-CA", {

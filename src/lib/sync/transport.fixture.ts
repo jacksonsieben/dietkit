@@ -45,6 +45,15 @@ interface MemoryTransportOptions {
 export interface MemoryTransport extends SyncTransport {
   /** Everything the server holds. Used to assert it holds nothing legible. */
   rows(): ServerRow[];
+  /**
+   * Deletes every row, and says how many there were.
+   *
+   * Not part of `SyncTransport`, because no device does this over the sync
+   * wire: turning sync off goes through `vault-store.ts` (#96), which deletes
+   * the records and the vault together. This is here so the memory store has
+   * something real to delete.
+   */
+  erase(): number;
 }
 
 export function createMemoryTransport(
@@ -121,6 +130,12 @@ export function createMemoryTransport(
 
     rows() {
       return [...stored.values()].sort(compare);
+    },
+
+    erase() {
+      const count = stored.size;
+      stored.clear();
+      return count;
     },
   };
 }
