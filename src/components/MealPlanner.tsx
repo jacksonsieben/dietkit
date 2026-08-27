@@ -143,6 +143,16 @@ interface Loaded {
    * using, so nothing else on the device knows what they are worth.
    */
   groups: SubstitutionGroup[];
+  /**
+   * Whether this plan is one nobody has written yet.
+   *
+   * The three ways to start a diet are peers (#114): an empty list, a published
+   * model, or a file from the predecessor. Only the first one is a screen, so
+   * the other two have to be offered on it -- and only while it is still empty,
+   * because a link marked "start over" beside a plan somebody spent an evening
+   * on is not an offer, it is a hazard.
+   */
+  fresh: boolean;
 }
 
 type MealErrors = Record<
@@ -219,6 +229,7 @@ export function MealPlanner() {
         });
 
         setLoaded({
+          fresh: stored === undefined,
           current: {
             targets: macros.targets,
             weightKg: energy.summary.weightKg,
@@ -609,6 +620,19 @@ export function MealPlanner() {
       </section>
 
       <Rule />
+
+      {loaded.fresh ? (
+        <section className="flex flex-col gap-3">
+          <Legend as="h2">{t("startTitle")}</Legend>
+          <p className="max-w-prose text-sm leading-relaxed text-nd-dim">
+            {t("startLead")}
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <TextLink href="/dieta/modelos">{t("startPreset")}</TextLink>
+            <TextLink href="/importar">{t("startImport")}</TextLink>
+          </div>
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
