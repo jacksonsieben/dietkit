@@ -99,6 +99,27 @@ export const dietPresetMeals = pgTable(
     /** Meal count is the preset's, never hardcoded to four (#18). */
     position: integer("position").notNull(),
     name: text("name").notNull(),
+    /**
+     * The fraction of the day this meal is meant to carry, as `Meal.share`
+     * means it locally (#18): a fraction of one, and the preset's meals add to
+     * one.
+     *
+     * Added in #113, because the first preset that was actually written could
+     * not be written without it. A preset whose meals have no shares is a
+     * preset that copies into a diet where breakfast and dinner are the same
+     * meal, which is true of no plan anyone eats — and the alternative, an
+     * even split derived from the meal count, is a number the app invents and
+     * then presents as the plan's.
+     *
+     * `numeric(5,4)` rather than a percentage: the fraction is what the local
+     * model stores, and converting at a boundary is where a decimal point goes
+     * missing.
+     */
+    share: numeric("share", {
+      precision: 5,
+      scale: 4,
+      mode: "number",
+    }).notNull(),
   },
   (table) => [
     unique("diet_preset_meals_preset_position_key").on(
