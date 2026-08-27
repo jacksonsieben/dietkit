@@ -71,8 +71,16 @@ export type LegalRoute = (typeof LEGAL_ROUTES)[number]["href"];
 export const LEGAL_CONTACT = {
   /** The controller, and the encarregado: the same person, in Portugal. */
   controller: "Jackson Sieben",
-  /** The channel for privacy requests. Monitored by the controller. */
-  email: "privacidade@dietkit.jacksonsieben.com",
+  /**
+   * The channel for privacy requests. Monitored by the controller.
+   *
+   * At the apex, not at the app's own host: `dietkit.jacksonsieben.com` is a
+   * CNAME to the deployment, and a name holding a CNAME can hold no other
+   * record — an MX there is impossible while the site resolves. An address at
+   * that host would be a contact channel in the notice that silently bounces
+   * every request art. 41 exists to let somebody make.
+   */
+  email: "dietkit.privacidade@jacksonsieben.com",
   /** Issue tracker — public, archived, and monitored by the maintainer. */
   url: "https://github.com/jacksonsieben/dietkit/issues",
   label: "github.com/jacksonsieben/dietkit",

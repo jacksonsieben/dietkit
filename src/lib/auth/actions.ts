@@ -289,13 +289,19 @@ export async function deleteAccount(
   );
 
   if (removed.error) {
-    // The half-done state, said out loud rather than reported as success. The
-    // likeliest cause by far is that account deletion is switched off on the
-    // Neon Auth branch, which answers 404 -- a deployment problem, and one the
-    // person on the screen cannot do anything about except write to us.
+    // The half-done state, said out loud rather than reported as success.
+    //
+    // Not, as this comment used to claim, because deletion is switched off:
+    // there is no such setting in the Neon console, and both branches were
+    // checked -- `delete-user` answers 401 unauthenticated, the way an enabled
+    // route does, where a missing one answers 404. So what is left is an
+    // upstream failure or a session that went stale between the password check
+    // and this call, and either way the person on the screen can do nothing
+    // about it except write to us.
     console.error(
-      "The account's data was deleted but the identity was not. Check that " +
-        "user deletion is enabled for this Neon Auth branch.",
+      "The account's data was deleted but the identity was not. The " +
+        "delete-user endpoint is enabled on both Neon Auth branches, so look " +
+        "upstream or at the session, not for a console setting.",
     );
     return { error: "identityRemains" };
   }

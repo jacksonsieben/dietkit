@@ -12,7 +12,7 @@ where the honest answer is "we do not hold that", the answer is written down as
 "we do not hold that" rather than as a procedure for handling it.
 
 - **Controller:** Jackson Sieben, established in Portugal. Sole controller.
-- **Contact for privacy matters:** privacidade@dietkit.jacksonsieben.com
+- **Contact for privacy matters:** dietkit.privacidade@jacksonsieben.com
 - **Encarregado / DPO:** the controller, acting personally. Whether the LGPD
   requires a separately named *encarregado* at this scale is [question 1](#questions-for-the-lawyer).
 - **Supervisory authorities:** CNPD (Portugal) for the GDPR; ANPD (Brazil) for
@@ -241,7 +241,7 @@ notice; if one changes, both change.
 | Consent record (`sync.consent`) | While the account exists, including after withdrawal | Deleting the account |
 | Account, credential, verification proofs (`neon_auth`) | While the account exists | Deleting the account |
 | Sessions | Until sign-out or expiry | Sign-out, with up to a 5-minute window where the upstream cache may still accept it |
-| Storage-layer restore window | Neon's history retention, **currently understood to be 1 day** — confirm in the console and correct here and in both notice strings if it differs | Elapsing. The rows it holds are ciphertext whose key was deleted with them |
+| Storage-layer restore window | Neon's history retention, **6 hours to 1 day** (confirmed in the Neon console on 2026-08-27). The notices say *até 1 dia*, which is the ceiling and therefore the honest number to publish | Elapsing. The rows it holds are ciphertext whose key was deleted with them |
 | Infrastructure logs | Vercel's platform retention | Not ours to delete; not copied anywhere of ours |
 | Everything on the device | Until the person clears it | Clearing site data in the browser; uninstalling |
 
@@ -304,7 +304,7 @@ an immediate answer in simplified form and **fifteen days** for the full
 declaration (art. 19, § 1º, II). The public notices promise the tighter pair, so
 answer within fifteen days and do not use the extension without a real reason.
 
-**Identity.** Requests arrive at privacidade@dietkit.jacksonsieben.com. The only
+**Identity.** Requests arrive at dietkit.privacidade@jacksonsieben.com. The only
 identifier we hold is an email address, so a request from the address on the
 account is the check. **Never ask for an identity document** — collecting a
 passport scan to prove a right over an email address would gather more sensitive
@@ -367,11 +367,15 @@ three notices and this file.
 
 - [ ] Neon's answer on the email sub-processor, then name it in the notice.
 - [ ] File the art. 28 terms and sub-processor lists for Neon and Vercel.
-- [ ] Confirm Neon's history-retention window and correct the number here,
-      in `Account.deleteLag` and in `Privacy.retentionBackups` if it is not 1 day.
-- [ ] Confirm user deletion is enabled for the Neon Auth branches, or the last
-      step of account deletion fails and the person is told the registration
-      remains.
+- [x] Confirm Neon's history-retention window. Neon states 6 hours to 1 day
+      (2026-08-27), so the *até 1 dia* in `Account.deleteLag` and in
+      `Privacy.retentionBackups` is correct as published: it is the ceiling.
+- [x] Confirm user deletion is enabled for the Neon Auth branches. It is, on
+      both. There is no console setting for it — Neon Auth runs the upstream
+      server — so it was verified by probe instead: an unauthenticated POST to
+      `delete-user` answers 401 on both branches, exactly as the known-enabled
+      `update-user` does, while a path that does not exist answers 404
+      (2026-08-27).
 - [ ] Create the private repository that holds the incident register and the
       request log, so that "one file per incident" is a place and not a plan.
 - [ ] The Brazilian lawyer review itself (#99 is the paperwork; the review is
