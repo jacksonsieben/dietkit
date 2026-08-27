@@ -252,6 +252,17 @@ export const DIET_PRESETS: readonly DietPresetSource[] = [
       "salada que acompanha. As quantidades são calculadas a partir das suas " +
       "metas — o que está aqui é o formato, não uma prescrição.",
     groups: [FRUTAS, OLEAGINOSAS, LEGUMES, SALADA],
+    /**
+     * The day, in the order it is eaten and in the proportions it is usually
+     * eaten in: lunch is the largest meal, dinner a little smaller, breakfast
+     * a fifth, and the afternoon snack what is left. These are the shares of
+     * whatever the person's targets turn out to be, so they say when the day
+     * is heaviest and nothing about how much anybody eats.
+     *
+     * Nobody has to keep them. A share is the one number on the plan screen
+     * that is meant to be dragged, and the rest of the day re-apportions
+     * around it (#18) -- somebody who works nights should move it on day one.
+     */
     meals: [
       {
         name: "Café da manhã",
@@ -335,7 +346,7 @@ export const DIET_PRESETS: readonly DietPresetSource[] = [
       },
       {
         name: "Almoço",
-        share: 0.28,
+        share: 0.39,
         items: [
           slot("legumes", FOODS.cenoura, 100, 50, 200),
           slot("salada", FOODS.alface, 60, 20, 150),
@@ -423,7 +434,7 @@ export const DIET_PRESETS: readonly DietPresetSource[] = [
       },
       {
         name: "Jantar",
-        share: 0.39,
+        share: 0.28,
         items: [
           slot("legumes", FOODS.abobrinha, 120, 60, 250),
           slot("salada", FOODS.rucula, 60, 20, 150),
