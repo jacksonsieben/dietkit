@@ -224,8 +224,9 @@ nothing about adaptation.
 
 ### D13 — The server database holds reference data and is checked, not trusted
 
-Neon holds ten tables: food composition, food groups, the exercise catalogue,
-diet and training presets, and one provenance table. No table describes a
+Neon holds fourteen tables: food composition, food groups, the exercise
+catalogue, diet and training presets — seven of the fourteen are the diet preset
+and the parts it is made of — and one provenance table. No table describes a
 person. That is enforced by `src/lib/db/boundary.test.ts`, which applies the
 checked-in migrations to a real Postgres (PGlite, Postgres compiled to WASM) and
 then interrogates `information_schema` — an exact allowlist of table names plus a
@@ -250,6 +251,24 @@ Presets are relational rather than one JSONB blob so that a preset referencing a
 food that does not exist fails at seed time, and referencing somebody's custom
 food is structurally impossible. There is deliberately no column for a load in
 kilograms anywhere in this database.
+
+**Consequence, on what a preset can say (#112):** the same argument decided the
+two things a preset could not express and a local diet could. A **group** — the
+set a slot draws from, "Frutas" — is a preset-level row whose members are listed
+by `foods.id` in `diet_preset_group_foods`, replacing the free-text
+`substitution_group` label that the seed could spell any way it liked and no
+client could resolve; the column was dropped rather than migrated, because no
+diet preset had ever been seeded and nothing read it. An **option set** — the
+breakfast that offers four carbohydrates and expects one to be chosen — is a
+meal-level row with named options, and an option's rows are `diet_preset_items`
+like any other, so `mandatory`, the bounds and the group reference keep their
+meaning inside one (#111). Two rules are the database's rather than the seed's:
+a partial unique index allows at most one default option per set, and the
+position key is `(meal_id, option_id, position)` with `nulls not distinct`, so
+the fixed rows and each option number from one and Postgres does not quietly
+stop constraining the commonest case. That a set has *at least* one default
+cannot be a key — it would need a deferred constraint pointing back at a row
+that does not exist yet — so it is the loader's to refuse by name.
 
 ---
 
