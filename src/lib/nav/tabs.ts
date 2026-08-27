@@ -84,6 +84,7 @@ function normalise(pathname: string): string {
 export const PLATES: Readonly<Record<string, string>> = {
   "/": "today",
   "/dieta": "diet",
+  "/dieta/modelos": "presets",
   "/treino": "training",
   "/treino/historico": "trainingHistory",
   "/peso": "weight",
