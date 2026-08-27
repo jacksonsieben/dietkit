@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import ptBR from "../../messages/pt-BR.json";
 import {
   CFN_REFERENCE,
+  LEGAL_CONTACT,
   LEGAL_EFFECTIVE_DATE,
   LEGAL_ROUTES,
   legalEffectiveDate,
@@ -64,6 +65,18 @@ describe("legal notices", () => {
     }).format(legalEffectiveDate());
 
     expect(formatted).toBe(LEGAL_EFFECTIVE_DATE);
+  });
+
+  it("publishes a contact address that can hold mail records", () => {
+    // The app's own host, dietkit.jacksonsieben.com, is a CNAME to the
+    // deployment, and RFC 1034 lets no other record share a name with a CNAME —
+    // so no MX can exist there and no forwarding can ever be pointed at it. An
+    // address at that host looks correct in the notice and bounces every
+    // request. The mail records live at the apex; so must the address.
+    const [mailbox, host] = LEGAL_CONTACT.email.split("@");
+
+    expect(mailbox).not.toBe("");
+    expect(host).toBe("jacksonsieben.com");
   });
 
   it("names the law the health disclaimer's position rests on", () => {
