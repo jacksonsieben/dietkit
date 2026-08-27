@@ -1031,3 +1031,67 @@ verification and reset email and does not document which sender it uses, and the
 beta has no custom SMTP (§ D24). The notice says exactly that, in those words,
 rather than omitting the line — and the question is on #99's list. A gap a
 reader can see is a different thing from a gap only we can see.
+
+---
+
+### D28 — The preset that ships is ours, and the plan it was learned from stays an import
+
+`src/lib/diet/presets.ts` holds one diet preset — four meals with their shares,
+a carbohydrate choice and a protein choice at each, a fruit group of nine and a
+nut group of four — authored by this project and seeded into the six preset
+tables by `npm run db:seed:diet`. It is the same arrangement as § D16 and § D17,
+one domain over: a checked-in TypeScript module a human reviews in a diff, a
+seed script that loads it, and nothing fetched at seed time (§ D14).
+
+**Whose plan it is not.** The predecessor's calculator was built around a real
+plan, written by a named nutritionist for one person. That plan is what taught
+this file what a preset has to be able to say, and its *structure* is
+reproduced deliberately — the four meals, the 4×5 at breakfast and 4×3 at
+lunch, the fruit list and the nuts — because a table that cannot express a plan
+someone actually eats is a table that is wrong. Its content is not. The
+portions are DietKit's, the foods are chosen from TACO by this project, and the
+clinical judgement is nobody's, because there is none in it. Neither the
+nutritionist nor the person agreed to publish an individual prescription, and
+an individual prescription is exactly what the health notice (#10, § D9) says
+this app does not produce. A personal plan reaches the app the way personal
+data always does: as an import, on the device (#22).
+
+**What it is presented as.** A starting shape. The preset's `description` says
+so in the same words the notice uses, and `presets.test.ts` holds the file to
+it: the description must call itself a *ponto de partida*, and every occurrence
+of "prescrição" in it must be a denial. A test can only check the wording, and
+the wording is the part that reaches a user.
+
+**Consequence, on provenance:** a third `dataset_versions` row,
+`dietkit-diet-presets`, pinned to the SHA-256 of `presets.ts`, naming DietKit as
+the author and stating that it reproduces no professional's prescription. It
+sits *beside* TACO's row rather than inside it, and `npm run db:seed:diet`
+prints both citations: the composition behind every row is NEPA's and the
+arrangement is ours, and a preset that printed only one of those names would be
+claiming the other's work. Attributing the arrangement to TACO would be worse
+than a blank field — the table publishes what food is made of and says nothing
+about how to eat it.
+
+**Consequence, on the schema:** `diet_preset_meals` gained a `share` column
+(migration 0006), not-null with no default. The first preset that was actually
+written could not be written without it. The alternative — deriving an even
+split from the meal count — is a number the app invents and then presents as the
+plan's, and a preset whose breakfast and dinner are the same size is true of no
+plan anyone eats.
+
+**Consequence, on what the tables refuse to carry:** the source plan also had
+ômega 3, creatina, canela and a line reading *salada de folhas à vontade*.
+`diet_preset_items.food_id` is a key into a table of food composition, a capsule
+has no composition in TACO, and "à vontade" is not a quantity a solver can be
+given. The salad ships as a real food with generous bounds; the supplements do
+not ship at all. That is the right answer rather than a missing feature — a
+preset that recommended a supplement would be doing the thing § D9 says this app
+does not do.
+
+**Consequence, on the seed's order:** this seed has a prerequisite the training
+one does not. Every preset row points at `foods.id`, so `npm run db:seed` must
+have run on the same branch first. `writePresets` checks the ids up front and
+names the missing ones, before the provenance row is written, rather than
+letting `diet_preset_items_food_id_foods_id_fk` say it one row at a time — the
+thing that has actually gone wrong is that TACO was never seeded, and a
+constraint name cannot say that.

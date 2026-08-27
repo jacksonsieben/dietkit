@@ -1,0 +1,1 @@
+ALTER TABLE "diet_preset_meals" ADD COLUMN "share" numeric(5, 4) NOT NULL;

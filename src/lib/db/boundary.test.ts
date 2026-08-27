@@ -535,8 +535,8 @@ describe("food composition columns", () => {
     await pg.exec(`
       insert into diet_presets (slug, name, description)
       values ('teste', 'Teste', 'Teste');
-      insert into diet_preset_meals (preset_slug, position, name)
-      values ('teste', 1, 'Café da manhã');
+      insert into diet_preset_meals (preset_slug, position, name, share)
+      values ('teste', 1, 'Café da manhã', 1.0);
     `);
     const meal = await pg.query<{ id: number }>(
       `select id from diet_preset_meals where preset_slug = 'teste'`,
@@ -590,8 +590,8 @@ describe("preset groups and option sets", () => {
 
       insert into diet_presets (slug, name, description)
       values ('${SLUG}', 'Opções', 'Um café da manhã com escolhas.');
-      insert into diet_preset_meals (preset_slug, position, name)
-      values ('${SLUG}', 1, 'Café da manhã');
+      insert into diet_preset_meals (preset_slug, position, name, share)
+      values ('${SLUG}', 1, 'Café da manhã', 1.0);
     `);
 
     const meal = await pg.query<{ id: number }>(
@@ -625,6 +625,19 @@ describe("preset groups and option sets", () => {
     );
     groupId = group.rows[0]!.id;
   }, 30_000);
+
+  it("refuses a meal with no share of the day", async () => {
+    // #113: the column is not-null with no default on purpose. A meal that
+    // reaches the table without a share is a meal the app would have to invent
+    // a number for — an even split over the meal count — and then present as
+    // the plan's own.
+    await expect(
+      pg.exec(`
+        insert into diet_preset_meals (preset_slug, position, name)
+        values ('${SLUG}', 9, 'Ceia');
+      `),
+    ).rejects.toThrow(/share/i);
+  });
 
   it("refuses a group naming a food that does not exist", async () => {
     // The argument of § D13, one table further down: a group is members by
