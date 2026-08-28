@@ -2,6 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import {
+  allItems,
+  checkMealOptions,
+  effectiveItems,
+  optionSetsOf,
+  selectedOption,
+} from "@/lib/diet/options";
 import { ageYearsOn } from "@/lib/energy/age";
 import { macroEnergy } from "@/lib/energy/macros";
 import type {
@@ -75,7 +82,13 @@ const COMPOSITIONS: ReadonlyMap<number, FoodComposition> = new Map(
   }),
 );
 
-const NAMES = { diet: "Plano importado", fruits: "Frutas", nuts: "Oleaginosas" };
+const NAMES = {
+  diet: "Plano importado",
+  fruits: "Frutas",
+  nuts: "Oleaginosas",
+  carbSet: "Carboidrato",
+  proteinSet: "Proteína",
+};
 const TODAY = "2026-08-19";
 const NOW = "2026-08-19T12:00:00.000Z";
 
@@ -113,8 +126,15 @@ const codes = (result: ImportResult) => result.notes.map((note) => note.code);
 const noteFor = (result: ImportResult, code: string): ImportNote | undefined =>
   result.notes.find((note) => note.code === code);
 
+/** What is on the plate as the file left it: fixed rows plus the selections. */
 const refsIn = (result: ImportResult): FoodRef[] =>
-  result.diet.meals.flatMap((meal) => meal.items.map((item) => item.food));
+  result.diet.meals.flatMap((meal) =>
+    effectiveItems(meal).map((item) => item.food),
+  );
+
+/** Every row the plan holds, the unselected versions included. */
+const allRefsIn = (result: ImportResult): FoodRef[] =>
+  result.diet.meals.flatMap((meal) => allItems(meal).map((item) => item.food));
 
 const key = (ref: FoodRef) =>
   ref.source === "taco" ? `taco:${ref.tacoId}` : `custom:${ref.customFoodId}`;
@@ -132,7 +152,8 @@ describe("importing the predecessor's plan", () => {
     expect(refsIn(result)).toContainEqual(
       expectedRef(PREDECESSOR_CATALOGUE, first, result),
     );
-    expect(result.diet.meals[3]!.items[0]!.food).toEqual(
+    const carb = selectedOption(optionSetsOf(result.diet.meals[3]!)[0]!)!;
+    expect(carb.items[0]!.food).toEqual(
       expectedRef(PREDECESSOR_CATALOGUE, first, result),
     );
   });
@@ -160,7 +181,9 @@ describe("importing the predecessor's plan", () => {
     };
 
     result.diet.meals.forEach((meal, index) => {
-      const fractions = CATALOGUE_MACROS.map((macro) => fractionsOf(macro)[index]!);
+      const fractions = CATALOGUE_MACROS.map(
+        (macro) => fractionsOf(macro)[index]!,
+      );
 
       expect(meal.share).toBeGreaterThanOrEqual(Math.min(...fractions) - 1e-9);
       expect(meal.share).toBeLessThanOrEqual(Math.max(...fractions) + 1e-9);
@@ -173,7 +196,9 @@ describe("importing the predecessor's plan", () => {
     for (const macro of CATALOGUE_MACROS) {
       expect(shares).not.toEqual(
         fractionsOf(macro).map((fraction, index) =>
-          Math.abs(fraction - shares[index]!) < 1e-9 ? shares[index]! : fraction,
+          Math.abs(fraction - shares[index]!) < 1e-9
+            ? shares[index]!
+            : fraction,
         ),
       );
     }
@@ -262,13 +287,15 @@ describe("importing the predecessor's plan", () => {
       expect(food.per100g.kcal).toBe(Math.round(macroEnergy(food.per100g)));
     }
 
-    const almonds = result.customFoods.find((food) => food.name === "Amêndoas")!;
+    const almonds = result.customFoods.find(
+      (food) => food.name === "Amêndoas",
+    )!;
     expect(almonds.per100g.kcal).toBe(620);
   });
 
   it("pins what the old app would not scale and leaves room where it would", () => {
     const result = run();
-    const items = result.diet.meals.flatMap((meal) => meal.items);
+    const items = result.diet.meals.flatMap(allItems);
 
     const pinned = items.filter((item) => item.mandatory);
     expect(pinned.length).toBeGreaterThan(0);
@@ -299,7 +326,9 @@ describe("importing the predecessor's plan", () => {
   it("carries the numbers of every TACO row the plan points at, and no others", () => {
     const result = run();
     const pointed = new Set(
-      refsIn(result).flatMap((ref) => (ref.source === "taco" ? [ref.tacoId] : [])),
+      allRefsIn(result).flatMap((ref) =>
+        ref.source === "taco" ? [ref.tacoId] : [],
+      ),
     );
 
     expect(new Set(result.diet.tacoFoods?.map((food) => food.tacoId))).toEqual(
@@ -316,7 +345,7 @@ describe("importing the predecessor's plan", () => {
     expect(fruits.tacoFoods?.length).toBeGreaterThan(0);
 
     const slots = result.diet.meals
-      .flatMap((meal) => meal.items)
+      .flatMap(allItems)
       .filter((item) => item.substitutionGroupId !== undefined);
     expect(slots.length).toBeGreaterThan(0);
     for (const slot of slots) expect(slot.substitutionGroupId).toBe(fruits.id);
@@ -340,7 +369,7 @@ describe("importing the predecessor's plan", () => {
     }
 
     for (const meal of run().diet.meals) {
-      const used = meal.items.map((item) => key(item.food));
+      const used = effectiveItems(meal).map((item) => key(item.food));
       expect(new Set(used).size).toBe(used.length);
     }
   });
@@ -366,9 +395,7 @@ describe("importing the predecessor's plan", () => {
 
     expect(codes(result)).toContain("compositionMissing");
     expect(result.diet.tacoFoods).toBeUndefined();
-    expect(
-      refsIn(result).some((ref) => ref.source === "taco"),
-    ).toBe(true);
+    expect(refsIn(result).some((ref) => ref.source === "taco")).toBe(true);
   });
 
   it("keeps a hand-typed activity factor instead of rounding it to a rung", () => {
@@ -399,7 +426,11 @@ describe("importing the predecessor's plan", () => {
     const result = run({ edit: { weight_kg: 900 } });
     const clamped = noteFor(result, "valueClamped");
 
-    expect(clamped).toEqual({ code: "valueClamped", subject: "weight_kg", value: 400 });
+    expect(clamped).toEqual({
+      code: "valueClamped",
+      subject: "weight_kg",
+      value: 400,
+    });
     expect(result.weight.weightKg).toBe(400);
   });
 
@@ -413,9 +444,77 @@ describe("importing the predecessor's plan", () => {
       value: 99,
     });
     // And the meal is still built, from the first option.
+    const set = optionSetsOf(result.diet.meals[0]!)[1]!;
+    expect(set.selectedId).toBe(set.options[0]!.id);
     expect(refsIn(result)).toContainEqual(
       expectedRef(PREDECESSOR_CATALOGUE, first.foodKey!, result),
     );
+  });
+
+  it("brings both decisions across, with every version the old app offered", () => {
+    const result = run();
+    const sets = result.diet.meals.flatMap(optionSetsOf);
+    const offered = PREDECESSOR_CATALOGUE.meals.flatMap((meal) => [
+      meal.carbOptions,
+      meal.proteinOptions,
+    ]);
+
+    expect(sets).toHaveLength(offered.length);
+    expect(sets.flatMap((set) => set.options)).toHaveLength(
+      offered.reduce((total, list) => total + list.length, 0),
+    );
+
+    for (const meal of result.diet.meals) {
+      expect(optionSetsOf(meal).map((set) => set.name)).toEqual([
+        NAMES.carbSet,
+        NAMES.proteinSet,
+      ]);
+    }
+  });
+
+  it("selects the version the stored index points at, in both sets", () => {
+    // Second carbohydrate, third protein, in the first meal. The fixture
+    // stores zero everywhere, so a version that ignored the index would still
+    // look right — this is the assertion that would not.
+    const result = run({
+      edit: { sel_treino_carb_0: 1, sel_treino_prot_0: 2 },
+    });
+    const spec = PREDECESSOR_CATALOGUE.meals[0]!;
+    const [carb, protein] = optionSetsOf(result.diet.meals[0]!);
+
+    expect(selectedOption(carb!)!.name).toBe(spec.carbOptions[1]!.label);
+    expect(selectedOption(protein!)!.name).toBe(spec.proteinOptions[2]!.label);
+  });
+
+  it("names a version after the label the old app printed on the button", () => {
+    const result = run();
+    const names = result.diet.meals
+      .flatMap(optionSetsOf)
+      .flatMap((set) => set.options.map((option) => option.name));
+
+    expect(names).toContain("Aveia + fruta + pasta de amendoim");
+    // Nothing arrives with a name the builder would refuse to save.
+    for (const meal of result.diet.meals) {
+      expect(checkMealOptions(meal)).toBeUndefined();
+    }
+  });
+
+  it("keeps a TACO snapshot for the versions nobody selected", () => {
+    // The point of switching version offline: the food in the version being
+    // switched *to* has to be priceable, and its numbers are nowhere else.
+    const result = run();
+    const onThePlate = new Set(
+      refsIn(result).flatMap((ref) =>
+        ref.source === "taco" ? [ref.tacoId] : [],
+      ),
+    );
+    const waiting = allRefsIn(result).flatMap((ref) =>
+      ref.source === "taco" && !onThePlate.has(ref.tacoId) ? [ref.tacoId] : [],
+    );
+    const snapshot = new Set(result.diet.tacoFoods?.map((food) => food.tacoId));
+
+    expect(waiting.length).toBeGreaterThan(0);
+    for (const tacoId of waiting) expect(snapshot).toContain(tacoId);
   });
 
   it("splits the meals evenly when a macro has no distribution at all", () => {
@@ -436,7 +535,8 @@ function expectedRef(
   result: ImportResult,
 ): FoodRef {
   const mapping = mappingFor(foodKey)!;
-  if (mapping.kind === "taco") return { source: "taco", tacoId: mapping.tacoId };
+  if (mapping.kind === "taco")
+    return { source: "taco", tacoId: mapping.tacoId };
 
   const name = catalogue.foods[foodKey]!.name;
   const custom = result.customFoods.find((food) => food.name === name)!;

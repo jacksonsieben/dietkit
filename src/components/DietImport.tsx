@@ -6,6 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { FileField } from "@/components/nd/FileField";
 import { Action, ActionButton, Legend, TextLink } from "@/components/nd/kit";
 import { todayIsoDate } from "@/lib/date";
+import { allItems, optionSetsOf } from "@/lib/diet/options";
 import { PREDECESSOR_CATALOGUE } from "@/lib/import/catalogue.data";
 import {
   importPlan,
@@ -107,6 +108,8 @@ export function DietImport() {
           diet: t("dietName"),
           fruits: t("fruitsGroup"),
           nuts: t("nutsGroup"),
+          carbSet: t("carbSet"),
+          proteinSet: t("proteinSet"),
         },
         today: todayIsoDate(),
         now: new Date().toISOString(),
@@ -213,10 +216,14 @@ export function DietImport() {
             <section className="flex flex-col gap-2 border-l-2 border-nd-red pl-4">
               <Legend as="h3">{t("conflictsTitle")}</Legend>
               <ul className={LIST}>
-                {review.conflicts.profile ? <li>{t("conflictProfile")}</li> : null}
+                {review.conflicts.profile ? (
+                  <li>{t("conflictProfile")}</li>
+                ) : null}
                 {review.conflicts.goal ? <li>{t("conflictGoal")}</li> : null}
                 {review.conflicts.diets > 0 ? (
-                  <li>{t("conflictDiets", { count: review.conflicts.diets })}</li>
+                  <li>
+                    {t("conflictDiets", { count: review.conflicts.diets })}
+                  </li>
                 ) : null}
               </ul>
             </section>
@@ -257,10 +264,14 @@ export function DietImport() {
 function Summary({ result }: { result: ImportResult }) {
   const t = useTranslations("Import");
   const format = useFormatter();
+  // Every row, not just today's: what is being imported is the plan, and the
+  // versions nobody has selected are as much of it as the ones they have.
   const items = result.diet.meals.reduce(
-    (total, meal) => total + meal.items.length,
+    (total, meal) => total + allItems(meal).length,
     0,
   );
+  const sets = result.diet.meals.flatMap(optionSetsOf);
+  const options = sets.reduce((total, set) => total + set.options.length, 0);
 
   return (
     <ul className={LIST}>
@@ -279,6 +290,7 @@ function Summary({ result }: { result: ImportResult }) {
           fat: Math.round(result.diet.targets.fatG),
         })}
       </li>
+      <li>{t("summaryOptions", { sets: sets.length, options })}</li>
       <li>{t("summaryCustomFoods", { count: result.customFoods.length })}</li>
       <li>{t("summaryGroups", { count: result.groups.length })}</li>
       <li>

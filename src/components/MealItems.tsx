@@ -156,10 +156,15 @@ export function MealItems({
         </div>
       ) : null}
 
-      {sets.map((set) => (
+      {sets.map((set, index) => (
         <Versions
           key={set.id}
           set={set}
+          /* One decision needs no name: the heading above already says what is
+             being chosen. Two do — a plan imported from the old app asks for a
+             carbohydrate and a protein in the same meal, and two unlabelled
+             rows of chips are two questions nobody can tell apart (#122). */
+          named={sets.length > 1 ? index + 1 : undefined}
           meal={meal}
           solvedById={solvedById}
           groups={groups}
@@ -339,6 +344,7 @@ function Container({
  */
 function Versions({
   set,
+  named,
   meal,
   solvedById,
   groups,
@@ -352,6 +358,8 @@ function Versions({
   actions,
 }: {
   set: OptionSet;
+  /** Its position, when the meal holds more than one set. Undefined names nothing. */
+  named?: number;
   meal: Meal;
   solvedById: ReadonlyMap<Id, SolvedItem>;
   groups: readonly SubstitutionGroup[];
@@ -377,7 +385,15 @@ function Versions({
   return (
     <div className="flex flex-col gap-3">
       <fieldset className="flex flex-col gap-2">
-        <legend className="sr-only">{t("options.versionsLegend")}</legend>
+        {named === undefined ? (
+          <legend className="sr-only">{t("options.versionsLegend")}</legend>
+        ) : (
+          <legend className="text-xs text-nd-dim">
+            {set.name === ""
+              ? t("options.setFallback", { position: named })
+              : set.name}
+          </legend>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {set.options.map((option, index) => {
