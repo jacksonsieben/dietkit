@@ -53,13 +53,17 @@ export function GlyphBar({ label, reading, status, line }: GlyphBarProps) {
 }
 
 /**
- * Red is spent only on the one state that means "you have gone past it", and
- * never on the ordinary business of a plan not being finished yet — a screen
- * that is red all morning teaches the user that red means nothing.
+ * The two hues, at their two ends: green for landed, red for gone past.
+ *
+ * The ordinary business of a plan not being finished yet gets neither — it
+ * stays grey. A screen that is red all morning teaches the user that red means
+ * nothing, and a screen that is green before the day is done teaches the same
+ * about green. Both words are printed either way, so this is the second carrier
+ * and never the only one.
  */
 function statusClass(line: MacroLine): string {
   const base = "text-xs";
-  return line.state === "over"
-    ? `${base} text-nd-red-ink`
-    : `${base} text-nd-dim`;
+  if (line.state === "over") return `${base} text-nd-red-ink`;
+  if (line.state === "on") return `${base} text-nd-good`;
+  return `${base} text-nd-dim`;
 }

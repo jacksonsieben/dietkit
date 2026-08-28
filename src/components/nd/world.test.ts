@@ -64,6 +64,7 @@ const MIGRATED = [
   "src/components/CustomFoodManager.tsx",
   "src/components/DietImport.tsx",
   "src/components/DietPresets.tsx",
+  "src/components/DismissedNotices.tsx",
   "src/components/EnergyResult.tsx",
   "src/components/Field.tsx",
   "src/components/FoodPicker.tsx",

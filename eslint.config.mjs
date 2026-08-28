@@ -53,7 +53,22 @@ const eslintConfig = defineConfig([
         {
           noStrings: true,
           ignoreProps: true,
-          allowedStrings: ["·", "—", "–", "/", "%", "+", "−", ":", "×"],
+          // Punctuation and direction glyphs, not copy: none of these is a
+          // word in any language and every one of them is `aria-hidden`
+          // beside text that says the same thing.
+          allowedStrings: [
+            "·",
+            "—",
+            "–",
+            "/",
+            "%",
+            "+",
+            "−",
+            ":",
+            "×",
+            "←",
+            "→",
+          ],
         },
       ],
     },

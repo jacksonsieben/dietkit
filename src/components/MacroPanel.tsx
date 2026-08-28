@@ -38,11 +38,19 @@ import type { MacroLine, Reconciliation } from "@/lib/diet/reconcile";
  * four lines as type. The pulse belongs to the day, because the day is what you
  * are trying to close.
  *
- * Off-target carries red *and* a word — the sign in the reading, the state
- * spelled out for a screen reader — because colour alone says nothing to
- * someone who cannot see it. On-target is deliberately plain: no colour, no
- * icon, nothing that asks for attention. It used to be green, which contradicted
- * that sentence in the paragraph directly above it.
+ * ## The two hues
+ *
+ * Colour answers one question here — is this closed? — and it answers it only
+ * at the two ends. On target is green. Past the target is red. Under it, which
+ * is where a plan sits for most of the time anyone spends building one, is
+ * grey, because a panel that goes red the moment it is opened on an empty day
+ * spends its alarm before there is anything to be alarmed about, and by the
+ * time something is genuinely over it has nothing left to say.
+ *
+ * Neither hue ever travels alone: the sign is in the reading, the state is
+ * spelled out for a screen reader, and the verdict is a sentence. Colour is the
+ * thing that makes the answer readable across a kitchen; the words are the
+ * thing that makes it readable at all.
  */
 export function MacroPanel({
   heading,
@@ -59,9 +67,17 @@ export function MacroPanel({
   const verdict = reconciliation.onTarget
     ? t("reconcile.met")
     : t("reconcile.missed");
+
+  /*
+   * Red is kept for a plan that has actually gone past something. "Ainda não
+   * fecha" over a half-built day is a status, not a fault, and it reads as one.
+   */
+  const over = reconciliation.lines.some((line) => line.state === "over");
   const verdictClass = reconciliation.onTarget
-    ? "text-sm"
-    : "text-sm text-nd-red-ink";
+    ? "text-sm text-nd-good"
+    : over
+      ? "text-sm text-nd-red-ink"
+      : "text-sm text-nd-dim";
 
   if (density === "meal") {
     return (
@@ -160,6 +176,12 @@ function Row({ line }: { line: MacroLine }) {
   const energy = line.macro === "kcal";
   const sign = line.delta > 0 ? "+" : line.delta < 0 ? "−" : "";
   const off = line.state !== "on";
+  const deltaClass =
+    line.state === "over"
+      ? "text-nd-red-ink"
+      : line.state === "on"
+        ? "text-nd-good"
+        : "text-nd-dim";
 
   return (
     <tr>
@@ -170,7 +192,7 @@ function Row({ line }: { line: MacroLine }) {
         {readingFor(t, line)}
       </td>
       <td
-        className={`py-0.5 text-right ${off ? "text-nd-red-ink" : "text-nd-dim"}`}
+        className={`py-0.5 text-right ${deltaClass}`}
         data-numeric=""
       >
         {energy

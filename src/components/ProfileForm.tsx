@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { Field } from "@/components/Field";
@@ -50,7 +50,14 @@ const ERROR_PARAMS: Partial<Record<ProfileErrorCode, Record<string, number>>> = 
   implausibleAge: { max: PROFILE_LIMITS.ageYears.max },
 };
 
-type Status = "loading" | "ready" | "saving" | "saved" | "loadFailed" | "saveFailed";
+type Status =
+  | "loading"
+  | "ready"
+  | "saving"
+  | "saved"
+  | "invalid"
+  | "loadFailed"
+  | "saveFailed";
 
 export function ProfileForm() {
   const t = useTranslations("Profile");
@@ -70,6 +77,43 @@ export function ProfileForm() {
    * between two rungs has to reopen in the mode that can display it.
    */
   const [customActivity, setCustomActivity] = useState(false);
+
+  const formRef = useRef<HTMLFormElement>(null);
+  /**
+   * How many times this form has been submitted and refused.
+   *
+   * A counter rather than a flag because the effect below has to run again
+   * when the same field fails a second time, and `errors` is the wrong thing
+   * to watch: it also changes while the user is typing, which would drag the
+   * page back to a field they had already left.
+   */
+  const [refusals, setRefusals] = useState(0);
+
+  /*
+   * Take the user to the first thing that is wrong.
+   *
+   * Every complaint this form makes was already drawn under its own field, and
+   * it still read as a dead button: on a phone the activity dropdown sits below
+   * the fold, so pressing "Salvar" left the screen exactly as it was, with the
+   * red text on a part of the form nobody was looking at. The fields carry no
+   * ids we own — `Field` mints its own — so the DOM is asked which control is
+   * flagged rather than told.
+   *
+   * `preventScroll` and then a scroll of our own: focus alone would stop the
+   * moment the field cleared the edge of the viewport, which is the position
+   * that makes it hardest to see what is written underneath it.
+   */
+  useEffect(() => {
+    if (refusals === 0) return;
+
+    const invalid = formRef.current?.querySelector<HTMLElement>(
+      '[aria-invalid="true"]',
+    );
+    if (!invalid) return;
+
+    invalid.focus({ preventScroll: true });
+    invalid.scrollIntoView({ block: "center" });
+  }, [refusals]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +148,9 @@ export function ProfileForm() {
       const { [field]: _cleared, ...rest } = current;
       return rest;
     });
-    setStatus((current) => (current === "saved" ? "ready" : current));
+    setStatus((current) =>
+      current === "saved" || current === "invalid" ? "ready" : current,
+    );
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -114,7 +160,8 @@ export function ProfileForm() {
     const result = validateProfileForm(values, today);
     if (!result.ok) {
       setErrors(result.errors);
-      setStatus("ready");
+      setStatus("invalid");
+      setRefusals((count) => count + 1);
       return;
     }
 
@@ -153,7 +200,12 @@ export function ProfileForm() {
   const messageFor = (code: ProfileErrorCode) => t(`errors.${code}`, ERROR_PARAMS[code]);
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      noValidate
+      className="flex flex-col gap-6"
+    >
       <Field
         label={t("weightLabel")}
         hint={
@@ -314,6 +366,11 @@ export function ProfileForm() {
           ) : null}
           {status === "saveFailed" ? (
             <span className="text-nd-red-ink">{t("saveError")}</span>
+          ) : null}
+          {/* Said here as well as at the field, because this is where the eye
+              is when the button does not do what it was pressed to do. */}
+          {status === "invalid" ? (
+            <span className="text-nd-red-ink">{t("invalidForm")}</span>
           ) : null}
         </p>
       </div>

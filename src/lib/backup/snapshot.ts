@@ -14,6 +14,7 @@ import {
   type MacroGoal,
   type MacroSet,
   type Meal,
+  type NoticeId,
   type OptionSet,
   type Profile,
   type Settings,
@@ -600,14 +601,22 @@ function readSettings(value: unknown, drops: Drop[]): Settings {
   if (value.goal !== undefined && goal === undefined)
     drops.push({ kind: "goal" });
 
+  // An unknown id is not a drop worth naming: it is a notice this version does
+  // not have, most likely from a newer one, and the honest reading of "I put
+  // that away" is to keep it so it still means that after an upgrade. What is
+  // filtered out is only what could not have been written by this app at all.
+  const dismissed = Array.isArray(value.dismissedNotices)
+    ? value.dismissedNotices.filter(
+        (notice): notice is NoticeId => typeof notice === "string",
+      )
+    : [];
+
   return {
     locale,
     ...(isInstant(value.lastBackupAt)
       ? { lastBackupAt: value.lastBackupAt }
       : {}),
-    ...(isInstant(value.backupRemindedAt)
-      ? { backupRemindedAt: value.backupRemindedAt }
-      : {}),
+    ...(dismissed.length > 0 ? { dismissedNotices: dismissed } : {}),
     ...(isInstant(value.disclaimerAcceptedAt)
       ? { disclaimerAcceptedAt: value.disclaimerAcceptedAt }
       : {}),

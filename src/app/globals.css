@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * The palette is two values and one warning.
+ * The palette is two values and a signal set.
  *
  * Black and white are the ground and the ink, and they are pure: #000 and #fff,
  * not the softened near-blacks a screenshot of any other app is made of. The
@@ -10,16 +10,28 @@
  * arm's length over a kitchen scale, or in a gym, where the ambient light is
  * whatever it happens to be.
  *
- * Red is the only hue in the system and it is never decorative. It marks one
- * thing: something is off — over target, overdue, off plan. Because it carries
- * meaning it never carries it alone; every red mark in this codebase sits next
- * to a word or a change in dot density, so the 8% of men who do not see it lose
- * nothing (see PRODUCT.md, Accessibility).
+ * The two hues are not decoration and there will never be a third. They answer
+ * one question — is this closed? — and they answer it in opposite directions:
+ * red for past the target, green for on it. Everything between the two, which
+ * is where a plan spends most of its life, stays grey: a day that is not
+ * finished yet is the ordinary case and gets no colour at all. That is the
+ * whole rule. A hue that also appeared on a heading or a link would stop being
+ * an answer to the question.
+ *
+ * Because they carry meaning they never carry it alone; every coloured mark in
+ * this codebase sits next to a word or a change in dot density, so the 8% of
+ * men who do not see it lose nothing (see PRODUCT.md, Accessibility).
  *
  * `--nd-red` is the mark: a fill or a lit segment, held to the 3:1 that
  * non-text UI needs. `--nd-red-ink` is the same signal as type, lightened on
  * the dark ground to clear 4.5:1 — 5.19:1 on white, 6.35:1 on black. They are
  * two tokens because one value cannot do both jobs on both grounds.
+ *
+ * `--nd-good` is one token rather than two because, unlike red, one value does
+ * clear both bars on its ground: 4.74:1 as type on white, 11.4:1 on black, and
+ * comfortably past 3:1 as a fill either way. It is deliberately a dark green in
+ * the light theme — the cheerful mid-greens every other app uses fail 4.5:1 on
+ * white, and a signal you cannot read is not a signal.
  */
 :root {
   color-scheme: light;
@@ -28,6 +40,9 @@
   --nd-ink: #000000;
   --nd-red: #d71921;
   --nd-red-ink: #d71921;
+
+  /* On target. See the note above on why this is one token and red is two. */
+  --nd-good: #00853f;
 
   /*
    * An unlit cell. This is a light system, not an ink one: a dot that is off is
@@ -55,6 +70,7 @@
     --nd-ground: #000000;
     --nd-ink: #ffffff;
     --nd-red-ink: #ff4a52;
+    --nd-good: #34d98b;
     --nd-unlit: #262626;
     --nd-dim: #8a8a8a;
   }
@@ -67,6 +83,7 @@
   --color-nd-ink: var(--nd-ink);
   --color-nd-red: var(--nd-red);
   --color-nd-red-ink: var(--nd-red-ink);
+  --color-nd-good: var(--nd-good);
   --color-nd-unlit: var(--nd-unlit);
   --color-nd-dim: var(--nd-dim);
   --font-sans: var(--font-sans-face);
@@ -227,6 +244,18 @@ table,
 
 .nd-seg[data-lit="over"] {
   background: var(--nd-red);
+}
+
+/*
+ * A strip whose macro has landed goes green as a whole.
+ *
+ * The flag is on the strip and not on the segment because `data-lit="on"` means
+ * "this lamp is filled", not "the target is met" — a strip that is a third full
+ * has lit segments too, and colouring those would call a third of the way there
+ * done. Only a strip carrying `data-met` has earned the hue.
+ */
+.nd-strip[data-met] .nd-seg[data-lit="on"] {
+  background: var(--nd-good);
 }
 
 .nd-seg[data-lit="short"] {

@@ -148,7 +148,11 @@ describe("loadToday", () => {
     expect(state.status === "ready" && state.plan).toBeUndefined();
   });
 
-  it("counts only the meals that have food in them", async () => {
+  it("names the food in each meal, and leaves an empty meal empty", async () => {
+    // What the home screen is for: the answer to "what am I eating today" is
+    // the word *Proteína pura* and the grams beside it, not a count of meals.
+    // The empty meal keeps its place in the list, because it is the one the
+    // person still has to do something about.
     await withProfile();
     const diet = planOf("Plano", 100, 2000);
     diet.meals.push({ id: "meal-2", name: "Vazia", share: 0, items: [] });
@@ -158,12 +162,24 @@ describe("loadToday", () => {
 
     expect(state.status === "ready" && state.plan).toMatchObject({
       name: "Plano",
-      mealCount: 2,
-      filledMealCount: 1,
+      meals: [
+        {
+          id: "meal-1",
+          name: "Única",
+          foods: [
+            {
+              name: "Proteína pura",
+              food: { source: "taco", tacoId: 1 },
+              quantityG: 100,
+            },
+          ],
+        },
+        { id: "meal-2", name: "Vazia", kcal: 0, targetKcal: 0, foods: [] },
+      ],
     });
   });
 
-  it("counts a meal whose only food is inside an option (#111)", async () => {
+  it("names the food of a meal whose only food is inside an option (#111)", async () => {
     await withProfile();
     const diet = planOf("Plano", 100, 2000);
     diet.meals.push({
@@ -200,9 +216,13 @@ describe("loadToday", () => {
 
     const state = await loadToday(repository, TODAY);
 
+    // The selected version only: what is on the plate today is Pão, and Aveia
+    // is a choice made elsewhere.
     expect(state.status === "ready" && state.plan).toMatchObject({
-      mealCount: 2,
-      filledMealCount: 2,
+      meals: [
+        { id: "meal-1", foods: [{ name: "Proteína pura" }] },
+        { id: "meal-2", name: "Café", foods: [{ name: "Proteína pura" }] },
+      ],
     });
   });
 

@@ -64,6 +64,27 @@ describe("newItem", () => {
     expect(newItem(rice, "i1", 9000).quantityG).toBe(ITEM_LIMITS.gramsG.max);
     expect(newItem(rice, "i1", 9000).maxG).toBe(ITEM_LIMITS.gramsG.max);
   });
+
+  it("takes the caller's ceiling over the flat default", () => {
+    // What stops the solver answering a protein gap with six eggs.
+    expect(newItem(rice, "i1", undefined, 200).maxG).toBe(200);
+  });
+
+  it("starts below a ceiling that sits under the default quantity", () => {
+    // 100 g of olive oil is above olive oil's own ceiling, and an item that
+    // arrives at its maximum can only be solved downwards.
+    const oil = newItem(rice, "i1", undefined, 60);
+
+    expect(oil.quantityG).toBe(30);
+    expect(oil.maxG).toBe(60);
+  });
+
+  it("lets a stated serving outweigh the ceiling its group guessed", () => {
+    // The serving is a number about this food; the ceiling is a guess about its
+    // whole category. Between the two, the specific one wins.
+    expect(newItem(rice, "i1", 250, 200).quantityG).toBe(250);
+    expect(newItem(rice, "i1", 250, 200).maxG).toBe(500);
+  });
 });
 
 describe("sameFood", () => {

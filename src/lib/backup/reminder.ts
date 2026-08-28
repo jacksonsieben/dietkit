@@ -1,4 +1,5 @@
-import type { IsoTimestamp, Settings, Snapshot } from "@/lib/storage/types";
+import { isNoticeDismissed } from "@/lib/notices";
+import type { Settings, Snapshot } from "@/lib/storage/types";
 
 import { lastChangeAt } from "./snapshot";
 
@@ -18,17 +19,13 @@ import { lastChangeAt } from "./snapshot";
  * So the rule here is driven by *unsaved change*, not by the calendar: this asks
  * when there is something in the store that is not in any file, and stays quiet
  * otherwise, however long "otherwise" runs.
- */
-
-/**
- * How long to wait after being turned down before asking again.
  *
- * A fortnight, because that is roughly the span over which the answer changes:
- * a couple more weeks of weighings is a couple more weeks that cannot be
- * reconstructed. Short enough that the reminder comes back before the data is
- * old, long enough that "agora não" buys real quiet.
+ * Turning it down used to buy a fortnight, which was the same bet made the
+ * other way round — a strip that comes back for ever is one people learn to
+ * read past, and it was one of two permanently parked at the foot of every
+ * screen. "Não mostrar de novo" now means it, through `lib/notices.ts`, and
+ * `/mais` is where it comes back from.
  */
-export const REMIND_AFTER_DAYS = 14;
 
 /**
  * What counts as enough to be worth losing.
@@ -60,23 +57,14 @@ export function hasEnoughToLose(snapshot: Snapshot): boolean {
   );
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function daysBetween(from: IsoTimestamp, to: Date): number {
-  return (to.getTime() - Date.parse(from)) / DAY_MS;
-}
-
 /**
  * Whether to show the backup prompt right now.
  *
- * Pure, and takes the clock as an argument, so the policy can be read and
- * tested without a device or a fake timer.
+ * Pure, and takes no clock: what it compares are two timestamps the store
+ * already carries, and since the fortnight went the current time stopped being
+ * part of the answer. Nothing here needs a device or a fake timer to test.
  */
-export function isBackupDue(
-  snapshot: Snapshot,
-  settings: Settings,
-  now: Date,
-): boolean {
+export function isBackupDue(snapshot: Snapshot, settings: Settings): boolean {
   if (!hasEnoughToLose(snapshot)) return false;
 
   const changed = lastChangeAt(snapshot);
@@ -87,12 +75,7 @@ export function isBackupDue(
     return false;
   }
 
-  const reminded = settings.backupRemindedAt;
-  if (reminded !== undefined && daysBetween(reminded, now) < REMIND_AFTER_DAYS) {
-    return false;
-  }
-
-  return true;
+  return !isNoticeDismissed(settings, "backup");
 }
 
 /**

@@ -1,11 +1,12 @@
 ---
 name: Dot Instrument
-description: An instrument, not a document — two values, one red, and every quantity rendered as light on a dot grid.
+description: An instrument, not a document — two values, two signals, and every quantity rendered as light on a dot grid.
 colors:
   ground: "#ffffff"
   ink: "#000000"
   red: "#d71921"
   redInk: "#d71921"
+  good: "#00853f"
   unlit: "#d4d4d4"
   dim: "#6b6b6b"
   dark:
@@ -13,6 +14,7 @@ colors:
     ink: "#ffffff"
     red: "#d71921"
     redInk: "#ff4a52"
+    good: "#34d98b"
     unlit: "#262626"
     dim: "#8a8a8a"
 typography:
@@ -87,7 +89,7 @@ or off, digits built from dots, a rule where a card would be. Nothing on the
 screen is a container for content — everything on the screen is a readout.
 
 The visual world is Nothing OS, pinned by the user and followed literally: two
-values and one red, dot-matrix type, exposed mechanism, hard edges. It is not a
+values and two signals, dot-matrix type, exposed mechanism, hard edges. It is not a
 mood reference. The dot face is really built (`src/components/dot/`), on a real
 5x7 cell, because Ndot and NType82 are proprietary and cannot ship; the tab-bar
 pictograms are drawn on the same grid so the navigation and the headline are
@@ -104,9 +106,9 @@ outside that loop is one tab away, in `/mais`.
 
 ## Colors
 
-Two values and one warning. Black and white are pure — `#000000` and `#ffffff`,
-not the softened near-blacks most apps are made of — because the legibility
-argument rests on absolute contrast.
+Two values and a signal set. Black and white are pure — `#000000` and
+`#ffffff`, not the softened near-blacks most apps are made of — because the
+legibility argument rests on absolute contrast.
 
 | Token | Light | Dark | What it is |
 |---|---|---|---|
@@ -114,26 +116,38 @@ argument rests on absolute contrast.
 | `--nd-ink` | `#000000` | `#ffffff` | Type, rules, lit segments, inverted fills. |
 | `--nd-red` | `#d71921` | `#d71921` | The mark: a fill or a lit segment. Held to 3:1, which is what non-text UI needs. |
 | `--nd-red-ink` | `#d71921` | `#ff4a52` | The same signal as *type*. 5.19:1 on white, 6.35:1 on black. |
+| `--nd-good` | `#00853f` | `#34d98b` | On target. Type and fill from one token: 4.74:1 on white, 11.4:1 on black. |
 | `--nd-unlit` | `#d4d4d4` | `#262626` | A cell that is off. Never text. |
 | `--nd-dim` | `#6b6b6b` | `#8a8a8a` | The only secondary ink, and the only grey any text may take. 5.33:1 / 6.08:1. |
 
-Three rules govern the palette:
+Four rules govern the palette:
 
-- **Red means something is off** — over target, overdue, off plan. It is never
-  decorative and never a brand flourish. Because it carries meaning it never
-  carries it alone: every red mark in this codebase sits next to a word or a
-  change in dot density, so the ~8% of men who do not see it lose nothing.
-- **Red as a mark and red as type are two tokens.** One value cannot clear 3:1
-  as a fill and 4.5:1 as text on both grounds. `--nd-red` fills, `--nd-red-ink`
-  is set.
+- **The two hues answer one question, at its two ends.** *Is this closed?* Red
+  is past the target — over, overdue, off plan. Green is on it. There is no
+  third hue and there will not be one. Both are never decorative and never a
+  brand flourish, and because they carry meaning they never carry it alone:
+  every coloured mark in this codebase sits next to a word or a change in dot
+  density, so the ~8% of men who do not see it lose nothing.
+- **Everything between the two ends is grey.** A plan that is not finished yet
+  is the ordinary case and gets no colour at all. This is what keeps the two
+  hues worth reading: a screen that goes red the moment it is opened on an
+  empty day has spent its alarm before there was anything to be alarmed about,
+  and one that is green before the day is done has spent the other end too.
+- **Red as a mark and red as type are two tokens; green is one.** One red value
+  cannot clear 3:1 as a fill and 4.5:1 as text on both grounds — `--nd-red`
+  fills, `--nd-red-ink` is set. `--nd-good` does clear both on its ground,
+  which is why it is deliberately a dark green in the light theme: the
+  cheerful mid-greens fail 4.5:1 on white, and a signal you cannot read is not
+  a signal.
 - **Intermediate tone is dot density, never grey fill and never opacity.** A
   shaded surface is `.nd-screen`: full-value dots at a 4px pitch, averaged by
   the eye. It is made of the same material as the type, so a shaded panel and a
   lit numeral belong to one system. Opacity would produce a value that is in no
   palette and means nothing.
 
-Both themes are first-class. Dark is not an inversion of light — `--nd-red-ink`
-and `--nd-unlit` are re-picked so the accent and the unlit grid hold on black.
+Both themes are first-class. Dark is not an inversion of light — `--nd-red-ink`,
+`--nd-good` and `--nd-unlit` are re-picked so the signals and the unlit grid
+hold on black.
 
 ## Typography
 
@@ -378,9 +392,13 @@ it has three lit states and a fourth resting one:
 | `data-lit` | Appearance |
 |---|---|
 | absent / `off` | `--nd-unlit` |
-| `on` | `--nd-ink` |
+| `on` | `--nd-ink`, or `--nd-good` when the strip carries `data-met` |
 | `over` | `--nd-red` |
 | `short` | The `nd-seek` pulse |
+
+`data-met` sits on the strip, not the segment, and only when the macro has
+landed. `data-lit="on"` means *this lamp is filled*, which a strip a third of
+the way there also has; colouring those would call a third of the way done.
 
 **GlyphBar** — label and mono reading on one baseline, a full-width strip of
 `flex-1` segments under it, a status line under that. The strip is
@@ -471,9 +489,13 @@ something it says, readable from across a kitchen. Under
   the other in running text says they came from two different instruments.
 - Don't stretch a small-count indicator to full width. Full width means "a
   proportion of a target"; that is what `GlyphBar` is for.
-- Don't paint success. A completed export or a saved entry is plain ink; the
-  only colour is red and it means "off target". Give "fine" a green and the
-  absence of green starts reading as a warning on every screen that has none.
+- Don't paint success anywhere except the reconciliation. Green answers exactly
+  one question — *does this meal or this day close?* — and it is spent nowhere
+  else. A completed export, a saved entry, a valid field: plain ink. The reason
+  the rule is this narrow is the reason it used to be a ban: if green followed
+  every success, its absence would start reading as a warning on every screen
+  that has none. Confined to the one question the app exists to answer, the
+  absence of green means only that the plan is not closed yet, which is true.
 - Don't draw a destructive control in red. Red means a number is off; a
   deletion someone asked for by pressing *Excluir* is not a fault. A row's
   remove button is the same outlined `SmallButton` as its edit button, and what

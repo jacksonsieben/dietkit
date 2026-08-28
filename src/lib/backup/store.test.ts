@@ -67,7 +67,7 @@ describe("exportBackup", () => {
 
   it("records that the export happened, so the reminder stops", async () => {
     await repository.importAll(fullSnapshot());
-    expect(isBackupDue(await repository.exportAll(), await repository.settings.get(), new Date(NOW))).toBe(
+    expect(isBackupDue(await repository.exportAll(), await repository.settings.get())).toBe(
       true,
     );
 
@@ -77,7 +77,6 @@ describe("exportBackup", () => {
       isBackupDue(
         await repository.exportAll(),
         await repository.settings.get(),
-        new Date(NOW),
       ),
     ).toBe(false);
   });
@@ -116,21 +115,22 @@ describe("restoreBackup", () => {
       isBackupDue(
         await repository.exportAll(),
         await repository.settings.get(),
-        new Date(NOW),
       ),
     ).toBe(false);
   });
 
-  it("does not inherit a dismissal from inside the file", async () => {
-    // Exported on a day the user had just said "agora não". Carrying that
-    // across would silence the prompt for a fortnight measured from a moment
-    // that has nothing to do with this device — and the first thing someone
-    // does after restoring is start changing things again.
+  it("keeps the dismissals the file carries, like any other preference", async () => {
+    // This used to clear the reminder's timestamp, because a fortnight counted
+    // from another device's clock said nothing about this one. A dismissal is
+    // not a clock: it is the user having answered, and it travels with their
+    // locale and their goal rather than being quietly reset under them.
     const file = fullSnapshot();
-    file.settings.backupRemindedAt = "2026-08-19T00:00:00.000Z";
+    file.settings.dismissedNotices = ["legal"];
 
     await restoreBackup(repository, file, NOW);
 
-    expect((await repository.settings.get()).backupRemindedAt).toBeUndefined();
+    expect((await repository.settings.get()).dismissedNotices).toEqual([
+      "legal",
+    ]);
   });
 });

@@ -55,14 +55,48 @@ type Checked<T> = { value: T } | { error: ItemErrorCode };
  * range is wide rather than tight: a new item that arrives already pinned
  * between 90 g and 110 g would make the first solve look broken, and widening
  * a range is a more obvious action than discovering why nothing moved.
+ *
+ * `maxG` here is the fallback rather than the rule: a food whose TACO group has
+ * an opinion about how much of it belongs in a meal arrives under that instead,
+ * and 500 g is what is left for the foods no group covers.
  */
 export const DEFAULT_ITEM = { quantityG: 100, minG: 0, maxG: 500 } as const;
 
-export function newItem(food: FoodRef, id: Id, servingG?: number): DietItem {
-  const quantityG =
+/**
+ * A food, the moment it is added.
+ *
+ * `servingG` is a serving someone stated — the user's own figure on a custom
+ * food, or the amount an imported plan already used. `ceilingG` is the opposite
+ * kind of number: nobody stated it, it is the caller's guess at how much of
+ * this *kind* of food belongs in a meal, and it only replaces the flat 500 g
+ * default (see `ceilingFor`). Both are optional and the two rarely meet — a
+ * stated serving wins, because a guess about the category should not overrule a
+ * number about the food.
+ */
+export function newItem(
+  food: FoodRef,
+  id: Id,
+  servingG?: number,
+  ceilingG?: number,
+): DietItem {
+  const ceiling = ceilingG ?? DEFAULT_ITEM.maxG;
+
+  const stated =
     servingG !== undefined && servingG > 0
       ? Math.min(Math.round(servingG), ITEM_LIMITS.gramsG.max)
-      : DEFAULT_ITEM.quantityG;
+      : undefined;
+
+  /*
+   * Under a low ceiling, start halfway rather than at the hundred grams TACO
+   * publishes in: 100 g of olive oil is above its own ceiling, and an item that
+   * arrives at its maximum can only be solved downwards. Halfway leaves the
+   * solver room in both directions, which is what `DEFAULT_ITEM` is for.
+   */
+  const quantityG =
+    stated ??
+    (ceiling < DEFAULT_ITEM.quantityG
+      ? Math.round(ceiling / 2)
+      : DEFAULT_ITEM.quantityG);
 
   return {
     id,
@@ -70,9 +104,15 @@ export function newItem(food: FoodRef, id: Id, servingG?: number): DietItem {
     quantityG,
     mandatory: false,
     minG: DEFAULT_ITEM.minG,
+    /*
+     * A stated serving raises the roof — a 400 g serving under a 500 g ceiling
+     * is a food that can barely move. Nothing raises it when the quantity is
+     * the app's own default, or the ceiling would be undone by the number it
+     * was chosen to bound.
+     */
     maxG: Math.min(
       ITEM_LIMITS.gramsG.max,
-      Math.max(DEFAULT_ITEM.maxG, quantityG * 2),
+      stated === undefined ? ceiling : Math.max(ceiling, stated * 2),
     ),
   };
 }

@@ -97,6 +97,10 @@ export default async function Sources({ params }: PageProps<"/[locale]/fontes">)
 
         <LegalSection heading={t("calculationsHeading")}>
           <p>{t("calculationsBody")}</p>
+          {/* The portions belong in this section and not in the one above it:
+              "~2 fatias" is not a TACO value reformatted, it is a figure the
+              app made up, and a page that separates the two owes it a line. */}
+          <p>{t("calculationsPortions")}</p>
         </LegalSection>
 
         <LegalSection heading={t("affiliationHeading")}>

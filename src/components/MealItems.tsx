@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { CONTROL_BOX, CONTROL_CLASS } from "@/components/Field";
@@ -11,7 +11,7 @@ import {
   type FoodChoice,
 } from "@/components/FoodPicker";
 import { Legend } from "@/components/nd/kit";
-import type { FoodBook } from "@/lib/diet/composition";
+import { foodKey, type FoodBook } from "@/lib/diet/composition";
 import { alternativesFor, findGroup, groupsForFood } from "@/lib/diet/groups";
 import {
   ITEM_LIMITS,
@@ -22,15 +22,18 @@ import {
 import {
   OPTION_LIMITS,
   canAddOption,
-  canRemoveOption,
+  endsTheChoice,
   optionSetsOf,
+  optionSignature,
   selectedOption,
   type OptionErrorCode,
 } from "@/lib/diet/options";
 import { reconcileMeal } from "@/lib/diet/reconcile";
 import type { SolvedItem, SolvedMeal } from "@/lib/diet/solve";
+import { portionCount, portionOf } from "@/lib/foods/portions";
 import type {
   DietItem,
+  DietOption,
   FoodRef,
   Id,
   Meal,
@@ -56,21 +59,27 @@ import type {
  * are holding it there. An app that quietly hands back a plan missing 18 g of
  * fat is the failure this issue exists to end.
  *
- * A meal has more than one list of rows (#111): its own fixed rows, and one
- * list per option inside each set of options — *pão com queijo* or *aveia com
- * pasta de amendoim*, not "swap this bread for that oat". Each list is a
- * `Container` here, adds its own food and answers to its own row limit, and
- * only the selected option of each set is on the plate and therefore solved.
+ * A meal can also hold more than one list of rows (#111): *pão com queijo* or
+ * *aveia com pasta de amendoim*, not "swap this bread for that oat". Each list
+ * is a `Container` here, adds its own food and answers to its own row limit,
+ * and only the selected version is on the plate and therefore solved.
+ *
+ * Those versions used to be drawn as what they are in the data — a named set,
+ * a radio list, a name box and a row count per line, inside a border, above a
+ * second list of rows. Six controls to answer "what am I having". Now the meal
+ * shows a row of chips reading *Pão + ovo* / *Aveia + banana*, and the list
+ * underneath is the meal's list (#H). The set survives in storage; on screen
+ * there is no set, only this meal's versions.
  */
 
-/** The writes a set of options accepts, all of them the planner's (#111). */
+/** The writes a meal's versions accept, all of them the planner's (#111). */
 export interface OptionActions {
+  /** False once this meal already has versions — one question per meal (#H). */
   canAddSet: boolean;
-  /** What is wrong with a name in this meal's sets, found on save. */
+  /** What is wrong with a version name in this meal, found on save. */
   error?: OptionErrorCode;
-  onAddSet: () => void;
-  onRemoveSet: (setId: Id) => void;
-  onRenameSet: (setId: Id, name: string) => void;
+  /** Turns what the meal already holds into its first version (#H). */
+  onStartOptions: () => void;
   onAddOption: (setId: Id) => void;
   onRemoveOption: (setId: Id, optionId: Id) => void;
   onRenameOption: (setId: Id, optionId: Id, name: string) => void;
@@ -121,25 +130,36 @@ export function MealItems({
     <div className="flex flex-col gap-4 border-t border-nd-unlit pt-4">
       <Legend as="h3">{t("itemsHeading")}</Legend>
 
-      <Container
-        meal={meal}
-        items={meal.items}
-        solvedById={solvedById}
-        groups={groups}
-        book={book}
-        canAdd={canAddTo(undefined)}
-        onAdd={(choice) => onAdd(choice, undefined)}
-        onChange={onChange}
-        onSetGroup={onSetGroup}
-        onSwap={onSwap}
-        onRemove={onRemove}
-      />
+      {/* Once versions exist this list is empty and stays empty — `startOptions`
+          moved it wholesale — so drawing it would put an "adicionar alimento"
+          under a heading for food nobody has. It comes back for a meal written
+          before #H, or imported, where those rows are real and every-day. */}
+      {sets.length === 0 || meal.items.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {sets.length === 0 ? null : (
+            <p className="text-xs text-nd-dim">{t("options.everyDay")}</p>
+          )}
 
-      {sets.map((set, index) => (
-        <OptionSetBlock
+          <Container
+            meal={meal}
+            items={meal.items}
+            solvedById={solvedById}
+            groups={groups}
+            book={book}
+            canAdd={canAddTo(undefined)}
+            onAdd={(choice) => onAdd(choice, undefined)}
+            onChange={onChange}
+            onSetGroup={onSetGroup}
+            onSwap={onSwap}
+            onRemove={onRemove}
+          />
+        </div>
+      ) : null}
+
+      {sets.map((set) => (
+        <Versions
           key={set.id}
           set={set}
-          position={index + 1}
           meal={meal}
           solvedById={solvedById}
           groups={groups}
@@ -154,22 +174,21 @@ export function MealItems({
         />
       ))}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <SmallButton
-          label={t("options.addSet")}
-          disabled={!options.canAddSet}
-          onClick={options.onAddSet}
-        />
-        {options.canAddSet ? (
+      {/* Offered on a meal that already has food, and nowhere else (#H): the
+          button copies what is there into the first version, so on an empty
+          meal it would be a button that explains an idea instead of doing
+          something. Build the breakfast first, then say it has another form. */}
+      {options.canAddSet && meal.items.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <SmallButton
+            label={t("options.start")}
+            onClick={options.onStartOptions}
+          />
           <p className="max-w-prose text-xs leading-relaxed text-nd-dim">
-            {t("options.addSetHint")}
+            {t("options.startHint")}
           </p>
-        ) : (
-          <p className="text-xs text-nd-dim">
-            {t("options.setLimit", { max: OPTION_LIMITS.sets.max })}
-          </p>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {options.error ? (
         <p className="text-xs text-nd-red-ink">
@@ -297,23 +316,29 @@ function Container({
 }
 
 /**
- * One decision inside a meal: a named set of options, one of which is on the
- * plate today (#111).
+ * The versions of one meal, as a row of chips (#111, #H).
  *
- * The picker is a radio group because that is what it is — the options are
- * mutually exclusive and exactly one is selected, and the selection is stored
- * on the plan rather than held here, so reopening the app shows the breakfast
- * that was chosen rather than the first one in the list.
+ * It is a radio group, because that is what it is: the versions are mutually
+ * exclusive, exactly one is on the plate, and the selection is stored on the
+ * plan rather than held here, so reopening the app shows the breakfast that was
+ * chosen and not the first one in the list. What changed is that it no longer
+ * *looks* like a form: the input is `sr-only` and the label is the chip, lit
+ * for the selected one the way every other chosen thing in this app is lit.
  *
- * Only the selected option's rows are drawn. An unselected option is not solved
- * — it is not part of today's meal at all — so there are no grams to print, and
- * inventing a portion for it would be exactly the "four breakfasts, one target"
- * arithmetic `solve.ts` refuses to do. Editing an alternative means selecting
- * it, which is one click and is also how the person sees what it comes to.
+ * Only the selected version's rows are drawn, and they are drawn as the meal's
+ * rows — no border, no box inside a box, nothing announcing that this list is a
+ * special kind of list. An unselected version is not solved (it is not part of
+ * today's meal at all), so there are no grams to print for it, and inventing
+ * some would be the "four breakfasts, one target" arithmetic `solve.ts`
+ * refuses to do. Editing one means selecting it, which is one tap and is also
+ * how a person sees what it comes to.
+ *
+ * Renaming and deleting sit behind a disclosure, because they are things you do
+ * to a version and not things you do with one. Naming is optional now — the
+ * chip reads the food.
  */
-function OptionSetBlock({
+function Versions({
   set,
-  position,
   meal,
   solvedById,
   groups,
@@ -327,7 +352,6 @@ function OptionSetBlock({
   actions,
 }: {
   set: OptionSet;
-  position: number;
   meal: Meal;
   solvedById: ReadonlyMap<Id, SolvedItem>;
   groups: readonly SubstitutionGroup[];
@@ -341,132 +365,63 @@ function OptionSetBlock({
   actions: OptionActions;
 }) {
   const t = useTranslations("Plan");
+  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   const selected = selectedOption(set);
-  const nameId = `${set.id}-name`;
+  const label = (option: DietOption, index: number) =>
+    versionLabel(option, index + 1, book, (position) =>
+      t("options.versionFallback", { position }),
+    );
 
   return (
-    <section className="flex flex-col gap-3 border border-nd-unlit p-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-40 flex-1 flex-col gap-1">
-          <label htmlFor={nameId} className="text-xs text-nd-dim">
-            {t("options.setNameLabel", { position })}
-          </label>
-          <input
-            id={nameId}
-            type="text"
-            autoComplete="off"
-            value={set.name}
-            onChange={(event) =>
-              actions.onRenameSet(set.id, event.target.value)
-            }
-            className={`${CONTROL_CLASS} py-1 text-sm`}
-          />
-        </div>
-
-        <SmallButton
-          label={t("options.removeSet")}
-          onClick={() => setConfirming(true)}
-        />
-      </div>
-
-      {/* Asked rather than done: a set is the only place its rows live, so
-          deleting it deletes food the user typed — and promoting the selected
-          option into the meal instead would silently make a choice permanent. */}
-      {confirming ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="max-w-prose text-xs leading-relaxed text-nd-red-ink">
-            {t("options.removeSetWarning", { count: set.options.length })}
-          </p>
-          <SmallButton
-            label={t("options.removeSetConfirm")}
-            onClick={() => actions.onRemoveSet(set.id)}
-          />
-          <SmallButton
-            label={t("options.cancel")}
-            onClick={() => setConfirming(false)}
-          />
-        </div>
-      ) : null}
-
+    <div className="flex flex-col gap-3">
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-xs text-nd-dim">
-          {t("options.pickLegend")}
-        </legend>
+        <legend className="sr-only">{t("options.versionsLegend")}</legend>
 
-        <ul className="flex flex-col">
-          {set.options.map((option, index) => (
-            <li
-              key={option.id}
-              className="flex flex-wrap items-center gap-2 border-t border-nd-unlit py-2 first:border-t-0"
-            >
-              <label className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-2">
+          {set.options.map((option, index) => {
+            const on = option.id === selected?.id;
+
+            return (
+              <label
+                key={option.id}
+                className={`flex cursor-pointer items-center border px-3 py-2 text-xs has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-nd-ink ${
+                  on
+                    ? "nd-invert border-nd-ink bg-nd-ink text-nd-ground"
+                    : "border-nd-unlit text-nd-dim"
+                }`}
+              >
                 <input
                   type="radio"
                   name={`${set.id}-selected`}
-                  className="accent-nd-ink"
-                  checked={option.id === selected?.id}
-                  onChange={() => actions.onSelectOption(set.id, option.id)}
+                  className="sr-only"
+                  checked={on}
+                  onChange={() => {
+                    setConfirming(false);
+                    actions.onSelectOption(set.id, option.id);
+                  }}
                 />
-                <span className="sr-only">
-                  {t("options.pickLabel", { name: option.name })}
-                </span>
+                {label(option, index)}
               </label>
+            );
+          })}
 
-              <input
-                type="text"
-                autoComplete="off"
-                aria-label={t("options.optionNameLabel", {
-                  position: index + 1,
-                })}
-                value={option.name}
-                onChange={(event) =>
-                  actions.onRenameOption(set.id, option.id, event.target.value)
-                }
-                className={`${CONTROL_CLASS} w-40 flex-1 py-1 text-sm`}
-              />
-
-              <span className="font-mono text-xs text-nd-dim" data-numeric="">
-                {t("options.rowCount", { count: option.items.length })}
-              </span>
-
-              <SmallButton
-                label={t("options.removeOption")}
-                disabled={!canRemoveOption(set)}
-                onClick={() => actions.onRemoveOption(set.id, option.id)}
-              />
-            </li>
-          ))}
-        </ul>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <SmallButton
-            label={t("options.addOption")}
-            disabled={!canAddOption(set)}
-            onClick={() => actions.onAddOption(set.id)}
-          />
-          {canAddOption(set) ? null : (
-            <p className="text-xs text-nd-dim">
-              {t("options.optionLimit", { max: OPTION_LIMITS.options.max })}
-            </p>
-          )}
-          {canRemoveOption(set) ? null : (
-            <p className="text-xs text-nd-dim">
-              {t("options.removeOptionLimit", {
-                min: OPTION_LIMITS.options.min,
-              })}
+          {canAddOption(set) ? (
+            <SmallButton
+              label={t("options.add")}
+              onClick={() => actions.onAddOption(set.id)}
+            />
+          ) : (
+            <p className="self-center text-xs text-nd-dim">
+              {t("options.limit", { max: OPTION_LIMITS.options.max })}
             </p>
           )}
         </div>
       </fieldset>
 
       {selected === undefined ? null : (
-        <div className="flex flex-col gap-3 border-t border-nd-unlit pt-3">
-          <p className="text-xs text-nd-dim">
-            {t("options.selectedRows", { name: selected.name })}
-          </p>
-
+        <>
           <Container
             meal={meal}
             items={selected.items}
@@ -481,10 +436,117 @@ function OptionSetBlock({
             onSwap={onSwap}
             onRemove={onRemove}
           />
-        </div>
+
+          <Disclosure
+            summary={t("options.settings")}
+            open={editing}
+            onToggle={() => {
+              setEditing(!editing);
+              setConfirming(false);
+            }}
+          >
+            <label className="flex min-w-40 flex-1 flex-col gap-1">
+              <span className="text-xs text-nd-dim">
+                {t("options.nameLabel")}
+              </span>
+              <input
+                type="text"
+                autoComplete="off"
+                placeholder={label(selected, set.options.indexOf(selected))}
+                value={selected.name}
+                onChange={(event) =>
+                  actions.onRenameOption(
+                    set.id,
+                    selected.id,
+                    event.target.value,
+                  )
+                }
+                className={`${CONTROL_CLASS} py-1 text-sm`}
+              />
+            </label>
+
+            <SmallButton
+              label={t("options.remove")}
+              onClick={() => setConfirming(true)}
+            />
+          </Disclosure>
+
+          {/* Asked rather than done: a version is the only place its rows live.
+              Deleting the second-to-last one is not refused any more — the
+              other version becomes the meal — but that is a different sentence
+              from "this deletes three foods", so it is a different warning. */}
+          {confirming ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="max-w-prose text-xs leading-relaxed text-nd-red-ink">
+                {endsTheChoice(set)
+                  ? t("options.removeLast", {
+                      name: survivorLabel(set, selected, book, (position) =>
+                        t("options.versionFallback", { position }),
+                      ),
+                    })
+                  : t("options.removeWarning", {
+                      count: selected.items.length,
+                    })}
+              </p>
+              <SmallButton
+                label={t("options.removeConfirm")}
+                onClick={() => {
+                  setConfirming(false);
+                  setEditing(false);
+                  actions.onRemoveOption(set.id, selected.id);
+                }}
+              />
+              <SmallButton
+                label={t("options.cancel")}
+                onClick={() => setConfirming(false)}
+              />
+            </div>
+          ) : null}
+        </>
       )}
-    </section>
+    </div>
   );
+}
+
+/**
+ * What a version is called on its chip (#H).
+ *
+ * The typed name if there is one, and otherwise the first two foods in it —
+ * *Pão + ovo*. TACO describes a food down to how it was cooked ("Arroz,
+ * integral, cozido"), which is right in a row and far too long on a chip, so
+ * only the part before the first comma survives. An empty version has nothing
+ * to be named after and falls back to its position, which is the one case where
+ * the old "Opção 2" was the honest answer.
+ */
+function versionLabel(
+  option: DietOption,
+  position: number,
+  book: FoodBook,
+  fallback: (position: number) => string,
+): string {
+  const typed = option.name.trim();
+  if (typed !== "") return typed;
+
+  const foods = optionSignature(option)
+    .map((ref) => book.get(foodKey(ref))?.name.split(",")[0]?.trim())
+    .filter((name) => name !== undefined && name !== "");
+
+  return foods.length === 0 ? fallback(position) : foods.join(" + ");
+}
+
+/** The version that becomes the meal, named, for the warning that says so. */
+function survivorLabel(
+  set: OptionSet,
+  going: DietOption,
+  book: FoodBook,
+  fallback: (position: number) => string,
+): string {
+  const index = set.options.findIndex((option) => option.id !== going.id);
+  const survivor = set.options[index];
+
+  return survivor === undefined
+    ? fallback(1)
+    : versionLabel(survivor, index + 1, book, fallback);
 }
 
 /**
@@ -525,6 +587,25 @@ function Outcome({ solved }: { solved: SolvedMeal }) {
   );
 }
 
+/**
+ * One food, and one control (#E).
+ *
+ * The row used to carry six: remove, a pin checkbox, a minimum, a maximum, a
+ * group and a swap. Six is what a row *can* say; it is not what a row is
+ * usually asked. The common answer is "I do not care, work it out" — so that
+ * is the default, it is a single two-way choice, and everything else moved
+ * behind a summary that still reads its own value while closed.
+ *
+ * The choice is `mandatory` under another name. "O app decide" is a range for
+ * the solver to search; "Eu escolho" is a number it may not touch. Naming them
+ * after who decides rather than after the flag is the whole readability win:
+ * "Quantidade fixa" describes the data, and these describe the question.
+ *
+ * `item.mandatory` rather than `entry.pinned` drives all of it. The solver
+ * calls a row pinned whenever its bounds meet, which a free row with a minimum
+ * equal to its maximum also does — and keying the controls off that put a
+ * typed-quantity box under a row whose own switch said the app was deciding.
+ */
 function ItemRow({
   entry,
   meal,
@@ -545,12 +626,31 @@ function ItemRow({
   onRemove: () => void;
 }) {
   const t = useTranslations("Plan");
+  const tPortion = useTranslations("Portions");
   const format = useFormatter();
 
   const [error, setError] = useState<ItemErrorCode | undefined>(undefined);
+  const [range, setRange] = useState(false);
 
   const grams = (value: number) => format.number(Math.round(value));
   const errorId = `${entry.item.id}-item-error`;
+  const mine = entry.item.mandatory;
+
+  /*
+   * What the grams look like on a plate (#D).
+   *
+   * `307 g` of egg is arithmetic nobody can picture, and picturing it is the
+   * whole job of this line. Only some foods have a unit worth counting and only
+   * some amounts are worth counting in it, so this is usually nothing — which
+   * is the point: an occasional gloss, not another column.
+   *
+   * Read from the grams every time it is drawn rather than stored beside them.
+   * The portion weights are the app's own estimates, not TACO's, and keeping
+   * them out of the plan is what lets a better estimate replace them later.
+   */
+  const portion = portionOf(entry.item.food);
+  const portionUnits =
+    portion === undefined ? undefined : portionCount(entry.quantityG, portion);
 
   /**
    * A grams box that only reaches the plan once it holds a number.
@@ -578,11 +678,20 @@ function ItemRow({
       </div>
 
       <p className="font-mono text-xs text-nd-dim" data-numeric="">
-        {entry.pinned ? null : (
+        {mine ? null : (
           <span className="font-bold text-nd-ink">
             {t("itemGrams", { grams: grams(entry.quantityG) })}
             {" · "}
           </span>
+        )}
+        {/* The grams are suppressed above because the box below repeats them;
+            the portion is not, because the box counts grams and never
+            colheres — which is the half of the line worth reading. */}
+        {portion === undefined || portionUnits === undefined ? null : (
+          <>
+            {tPortion(portion.unit, { count: portionUnits })}
+            {" · "}
+          </>
         )}
         {t("macros", {
           protein: grams(entry.macros.proteinG),
@@ -591,25 +700,36 @@ function ItemRow({
         })}
       </p>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            className="accent-nd-ink"
-            checked={entry.item.mandatory}
-            // Pinning at what it is already worth, so nothing jumps at the
-            // moment the user says "this much and no less".
-            onChange={(event) =>
-              onChange({
-                mandatory: event.target.checked,
-                quantityG: entry.quantityG,
-              })
-            }
-          />
-          {t("pin")}
-        </label>
+      {/* The one control. A radio group and not a checkbox, because the two
+          answers are both real answers and a checkbox only ever names one. */}
+      <fieldset className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <legend className="sr-only">
+          {t("decideLegend", { food: entry.food.name })}
+        </legend>
 
-        {entry.pinned ? (
+        {([false, true] as const).map((typed) => (
+          <label
+            key={String(typed)}
+            className="flex items-center gap-2 text-xs"
+          >
+            <input
+              type="radio"
+              name={`${entry.item.id}-decide`}
+              className="accent-nd-ink"
+              checked={mine === typed}
+              // Pinning at what it is already worth, so nothing jumps at the
+              // moment the user says "this much and no less".
+              onChange={() =>
+                onChange({ mandatory: typed, quantityG: entry.quantityG })
+              }
+            />
+            {t(typed ? "decideMe" : "decideApp")}
+          </label>
+        ))}
+      </fieldset>
+
+      {mine ? (
+        <div className="flex flex-wrap items-end gap-3">
           <GramsBox
             label={t("quantityLabel")}
             id={`${entry.item.id}-quantity`}
@@ -618,27 +738,34 @@ function ItemRow({
             describedBy={error ? errorId : undefined}
             onChange={(raw) => onGrams("quantityG", raw)}
           />
-        ) : (
-          <>
-            <GramsBox
-              label={t("minLabel")}
-              id={`${entry.item.id}-min`}
-              value={entry.item.minG}
-              invalid={error !== undefined}
-              describedBy={error ? errorId : undefined}
-              onChange={(raw) => onGrams("minG", raw)}
-            />
-            <GramsBox
-              label={t("maxLabel")}
-              id={`${entry.item.id}-max`}
-              value={entry.item.maxG}
-              invalid={error !== undefined}
-              describedBy={error ? errorId : undefined}
-              onChange={(raw) => onGrams("maxG", raw)}
-            />
-          </>
-        )}
-      </div>
+        </div>
+      ) : (
+        <Disclosure
+          summary={t("rangeSummary", {
+            min: entry.item.minG,
+            max: entry.item.maxG,
+          })}
+          open={range}
+          onToggle={() => setRange(!range)}
+        >
+          <GramsBox
+            label={t("minLabel")}
+            id={`${entry.item.id}-min`}
+            value={entry.item.minG}
+            invalid={error !== undefined}
+            describedBy={error ? errorId : undefined}
+            onChange={(raw) => onGrams("minG", raw)}
+          />
+          <GramsBox
+            label={t("maxLabel")}
+            id={`${entry.item.id}-max`}
+            value={entry.item.maxG}
+            invalid={error !== undefined}
+            describedBy={error ? errorId : undefined}
+            onChange={(raw) => onGrams("maxG", raw)}
+          />
+        </Disclosure>
+      )}
 
       <SlotGroup
         entry={entry}
@@ -659,6 +786,52 @@ function ItemRow({
 }
 
 /**
+ * A setting that reads itself while closed.
+ *
+ * The summary is the whole design: "Entre 0 e 500 g" and "Grupo: Frutas" say
+ * what the setting *is*, so folding them away hides the means of changing a
+ * number and never the number. A disclosure labelled "Limites" would make
+ * someone open it to find out whether they cared, which is the same six
+ * controls with an extra tap in front.
+ *
+ * Drawn as an unlit cell rather than a `SmallButton`: it is a setting at rest,
+ * not an action, and a row of uppercase ghost buttons is what this pass exists
+ * to remove. No `aria-controls` — the panel is the button's next sibling, which
+ * is the disclosure pattern's own answer to where it went.
+ */
+function Disclosure({
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex w-fit items-center gap-2 border border-nd-unlit px-2 py-1 text-xs text-nd-dim"
+      >
+        {summary}
+        <span aria-hidden="true" className="font-mono font-bold">
+          {open ? "−" : "+"}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="flex flex-wrap items-end gap-3">{children}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Which class this slot draws from, and what else could fill it (#20).
  *
  * Two controls rather than one: the group says what would be acceptable here,
@@ -671,6 +844,13 @@ function ItemRow({
  * position in the meal has rather than the food currently in it; the plan is
  * re-solved on the next render and the new food comes back sized to the same
  * targets. That is the whole of "swapping re-solves quantities".
+ *
+ * Folded away (#E). Two `<select>`s on every row is the shape a screen takes
+ * when a feature nobody has set up yet is drawn at the same weight as the
+ * quantity — and until someone builds a group there is nothing here at all, so
+ * the row that is already open is the wrong place to advertise it. Closed, the
+ * summary names the attached group, which is the only part a reader scanning
+ * the meal needs.
  */
 function SlotGroup({
   entry,
@@ -688,6 +868,7 @@ function SlotGroup({
   onSwap: (food: FoodRef) => void;
 }) {
   const t = useTranslations("Plan");
+  const [open, setOpen] = useState(false);
 
   const attached = findGroup(groups, entry.item.substitutionGroupId);
   const eligible = groupsForFood(groups, entry.item.food);
@@ -710,7 +891,15 @@ function SlotGroup({
   const swapFieldId = `${entry.item.id}-swap`;
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <Disclosure
+      summary={
+        attached
+          ? t("slotSummaryGroup", { group: attached.name })
+          : t("slotSummary")
+      }
+      open={open}
+      onToggle={() => setOpen(!open)}
+    >
       <div className="flex flex-col gap-1">
         <label htmlFor={groupFieldId} className="text-xs text-nd-dim">
           {t("groupLabel")}
@@ -770,7 +959,7 @@ function SlotGroup({
           </select>
         </div>
       ) : null}
-    </div>
+    </Disclosure>
   );
 }
 

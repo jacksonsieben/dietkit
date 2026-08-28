@@ -109,6 +109,19 @@ describe("meal planner wiring", () => {
     expect(source.match(/rebasePlan\(/g)).toHaveLength(1);
   });
 
+  it("offers the per-type ceilings rather than applying them (#D)", () => {
+    // Same rule as the weight above, for the same reason: a maximum is the one
+    // number that decides what the solver may do, so no effect and no
+    // render-time call may reach `tightenCeilings`.
+    const source = component();
+
+    expect(source).toContain("looseCeilings(meals)");
+    expect(source).toContain("onClick={tighten}");
+    expect(source.match(/tightenCeilings\(/g)).toHaveLength(1);
+    // And the sentence has to say the number the rows are actually sitting at.
+    expect(ptBR.Plan.looseCeilings).toContain("{max, number}");
+  });
+
   it("rebuilds without asking for the profile again", () => {
     // The issue's second bullet: one action. The handler recomputes from what
     // is already loaded and never sends the user to /perfil to change a number.
@@ -442,12 +455,12 @@ describe("reconciliation panel wiring", () => {
 });
 
 /**
- * The parts of #111 that live in the screen rather than in `options.ts`: that
- * the planner writes through the option functions instead of reaching into
- * `optionSets` itself, that only the selected option is drawn, and that the
+ * The parts of #111 and #H that live in the screen rather than in `options.ts`:
+ * that the planner writes through the option functions instead of reaching into
+ * `optionSets` itself, that only the selected version is drawn, and that the
  * limits and errors on screen are the ones the module publishes.
  */
-describe("option set wiring", () => {
+describe("meal version wiring", () => {
   const planner = () => read("src/components/MealPlanner.tsx");
   const items = () => read("src/components/MealItems.tsx");
 
@@ -494,9 +507,7 @@ describe("option set wiring", () => {
     const source = planner();
 
     for (const verb of [
-      "addSet(",
-      "removeSet(",
-      "renameSet(",
+      "startOptions(",
       "addOption(",
       "removeOption(",
       "renameOption(",
@@ -506,25 +517,38 @@ describe("option set wiring", () => {
     }
   });
 
-  it("asks before deleting a set, in the page rather than in a dialog", () => {
-    // Deleting a set deletes rows the user typed. `window.confirm` would also
+  it("starts versions from the meal that is already there (#H)", () => {
+    // Not from an empty set with two empty options: the button says "this
+    // breakfast has another form", and it has to have a breakfast to say it
+    // about. The screen gates on the rows, the module moves them.
+    expect(items()).toContain("meal.items.length > 0");
+    expect(planner()).not.toContain("newOptionSet");
+  });
+
+  it("asks before deleting a version, in the page rather than in a dialog", () => {
+    // Deleting a version deletes rows the user typed, and deleting the
+    // second-to-last one ends the choice as well. `window.confirm` would also
     // freeze the page for anything driving the browser, so the confirmation is
-    // two buttons in the block being deleted.
+    // two buttons where the delete was.
     const source = items();
 
-    expect(source).toContain("options.removeSetWarning");
+    expect(source).toContain("options.removeWarning");
+    expect(source).toContain("options.removeLast");
     expect(source).not.toMatch(/window\.confirm|\bconfirm\(/);
   });
 
-  it("quotes the real option limits rather than numbers typed into a sentence", () => {
+  it("names a version after its food when nobody named it (#H)", () => {
+    // The chips are the whole redesign: "Pão + ovo" is a choice somebody can
+    // make, "Opção 1" is a question about what the app wants.
     const source = items();
 
-    expect(source).toContain("OPTION_LIMITS.sets.max");
-    expect(source).toContain("OPTION_LIMITS.options.max");
-    expect(source).toContain("OPTION_LIMITS.options.min");
-    expect(ptBR.Plan.options.setLimit).toContain("{max, number}");
-    expect(ptBR.Plan.options.optionLimit).toContain("{max, number}");
-    expect(ptBR.Plan.options.removeOptionLimit).toContain("{min, number}");
+    expect(source).toContain("optionSignature(");
+    expect(planner()).not.toContain("options.newOptionName");
+  });
+
+  it("quotes the real option limits rather than numbers typed into a sentence", () => {
+    expect(items()).toContain("OPTION_LIMITS.options.max");
+    expect(ptBR.Plan.options.limit).toContain("{max, number}");
   });
 
   it("has a message for every error the option rules can produce", () => {
@@ -533,9 +557,9 @@ describe("option set wiring", () => {
     );
   });
 
-  it("will not save a set or an option that has no name", () => {
-    // And stores the names trimmed, like every other name here: a plan whose
-    // choice is called " " is a question with a blank answer.
+  it("will not save a version name longer than its chip", () => {
+    // And stores the names trimmed, like every other name here. An empty one
+    // is not an error any more (#H) — it is a version named after its food.
     const source = planner();
 
     expect(source).toContain("checkMealOptions(");

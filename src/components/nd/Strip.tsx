@@ -30,7 +30,14 @@ export function Strip({
   const segments = segmentsFor(line, { quiet });
 
   return (
-    <div aria-hidden="true" className="flex gap-[3px]">
+    <div
+      aria-hidden="true"
+      className="nd-strip flex gap-[3px]"
+      /* Set only when the macro has landed, and read by one CSS rule that
+         turns the lit segments green. Kept as an attribute rather than a
+         class so the strip's own markup stays one shape at every state. */
+      data-met={line.state === "on" ? "" : undefined}
+    >
       {segments.map((segment, index) => (
         <span
           key={index}

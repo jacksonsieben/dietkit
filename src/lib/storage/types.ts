@@ -302,11 +302,32 @@ export interface MacroGoal {
   fat: { unit: EnergyUnit; value: number };
 }
 
+/**
+ * A standing notice the user is allowed to put away.
+ *
+ * Persisted, so the ids are data rather than a detail of the component that
+ * happens to render one: a notice renamed here silently un-dismisses itself on
+ * every device that had already answered it. The list of them, and what each
+ * one costs to hide, is `lib/notices.ts`.
+ */
+export type NoticeId = "backup" | "legal";
+
 export interface Settings {
   locale: AppLocale;
   /** Drives the backup nagging the local-first tradeoff demands (#26). */
   lastBackupAt?: IsoTimestamp;
-  backupRemindedAt?: IsoTimestamp;
+  /**
+   * The notices this user has answered for good.
+   *
+   * A preference, not a throttle. It used to be one timestamp per prompt and a
+   * fortnight's silence, on the theory that a reminder you can turn off is a
+   * reminder nobody sees on the day it mattered. What that actually produced
+   * was a strip that came back for ever, which is the same as no reminder and
+   * costs the user the bottom of every screen. The trade this makes instead:
+   * dismissal is permanent, and reversible in one place (`/mais`), so the app
+   * is honest about "não mostrar de novo" and still knows how to say it again.
+   */
+  dismissedNotices?: NoticeId[];
   /** When the health disclaimer was acknowledged (#10). */
   disclaimerAcceptedAt?: IsoTimestamp;
   /**

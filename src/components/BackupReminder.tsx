@@ -9,6 +9,7 @@ import {
   isBackupDue,
   type BackupUrgency,
 } from "@/lib/backup/reminder";
+import { withNoticeDismissed } from "@/lib/notices";
 import { getRepository } from "@/lib/storage";
 
 /**
@@ -28,6 +29,12 @@ import { getRepository } from "@/lib/storage";
  * rather than as a modal: it is important and it is not urgent, and a dialog
  * across whatever the user came here to do would be read as an obstacle rather
  * than as advice.
+ *
+ * And turning it down is final. It used to buy a fortnight's quiet, which meant
+ * the strip came back to a user who had already answered it — twice a month,
+ * for ever, under every screen. `lib/notices.ts` holds the answer instead, and
+ * `/mais` is where the user gets the strip back if the warning stops being one
+ * they want to ignore.
  */
 
 /** The route this is asking the user to visit — no point asking while there. */
@@ -54,9 +61,7 @@ export function BackupReminder() {
         ]);
         if (!live) return;
         setUrgency(
-          isBackupDue(snapshot, settings, new Date())
-            ? backupUrgency(settings)
-            : undefined,
+          isBackupDue(snapshot, settings) ? backupUrgency(settings) : undefined,
         );
       } catch {
         // No store, no advice worth giving. A browser without IndexedDB has
@@ -80,11 +85,13 @@ export function BackupReminder() {
     // fail in.
     setUrgency(undefined);
     try {
-      await getRepository().settings.patch({
-        backupRemindedAt: new Date().toISOString(),
+      const repository = getRepository();
+      const settings = await repository.settings.get();
+      await repository.settings.patch({
+        dismissedNotices: withNoticeDismissed(settings, "backup"),
       });
     } catch {
-      // Then it asks again sooner. That is the safe half of the trade.
+      // Then it asks again on the next load. That is the safe half of the trade.
     }
   };
 
