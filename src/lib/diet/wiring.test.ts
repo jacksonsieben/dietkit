@@ -436,6 +436,26 @@ describe("reconciliation panel wiring", () => {
     ]);
   });
 
+  it("spells the macro on the day-list chip rather than lettering it", () => {
+    // The chip is uppercased and carries one macro on its own, so lettering
+    // gordura as "G" rendered "FALTAM 16 G G": the unit and the macro are the
+    // same token, and neither the eye nor a screen reader can separate them.
+    // The letters stay legible where they arrive as a series in normal case; a
+    // lone one is the bug, and any one-character abbreviation brings it back.
+    expect(planner()).toContain("t(`chip.macro.${worst.macro}`)");
+    expect(ptBR.Plan.chip).not.toHaveProperty("letter");
+
+    // The three the chip can headline: energy is left out on purpose, being a
+    // consequence of the other three rather than something to go and change.
+    const abbreviations = Object.entries(ptBR.Plan.chip.macro);
+    expect(abbreviations.map(([macro]) => macro)).toEqual(
+      RECONCILE_MACROS.filter((macro) => macro !== "kcal"),
+    );
+    for (const [, word] of abbreviations) {
+      expect(word.length).toBeGreaterThan(1);
+    }
+  });
+
   it("subtracts the numbers it printed", () => {
     // The carried-over lesson in docs/MACRO-RECONCILIATION.md § 5: a computed
     // quantity has one source of truth and the view reads it. Rounding lives in
