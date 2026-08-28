@@ -1,6 +1,7 @@
 import { ITEM_LIMITS, newItem } from "@/lib/diet/items";
 import { newPlan } from "@/lib/diet/plan";
 import { GROUP_LIMITS } from "@/lib/diet/groups";
+import { OPTION_LIMITS, allItems, checkOptionName } from "@/lib/diet/options";
 import { basalMetabolicRate } from "@/lib/energy/bmr";
 import { MACRO_GOAL_LIMITS, macroEnergy } from "@/lib/energy/macros";
 import {
@@ -14,6 +15,7 @@ import type {
   CustomFood,
   Diet,
   DietItem,
+  DietOption,
   FoodComposition,
   FoodRef,
   Id,
@@ -22,6 +24,7 @@ import type {
   MacroGoal,
   MacroSet,
   Meal,
+  OptionSet,
   Profile,
   Sex,
   SubstitutionGroup,
@@ -72,6 +75,10 @@ import type { PredecessorProfile } from "./profile";
  *   app's own equation (#14, #15) is reported.
  * - **A food TACO does not publish becomes a custom food** with the old app's
  *   own numbers, which is what `CUSTOM_REASONS` in `foodMap.ts` enumerates.
+ * - **Both decisions in a meal come across, as decisions** (#122). The old app
+ *   asks which carbohydrate and which protein; both lists arrive as option
+ *   sets, with the stored index selecting one. Importing only the two selected
+ *   options was a plan that could not be re-decided.
  *
  * Pure: ids and timestamps arrive as arguments, and the TACO compositions are
  * handed in by the caller — this module never fetches. `neededTacoIds` says
@@ -133,6 +140,9 @@ export interface ImportNames {
   readonly diet: string;
   readonly fruits: string;
   readonly nuts: string;
+  /** What the two decisions in a meal are called: the carbohydrate, and the protein. */
+  readonly carbSet: string;
+  readonly proteinSet: string;
 }
 
 export interface ImportOptions {
@@ -344,29 +354,72 @@ export function importPlan({
 
   const shares = readShares(profile, catalogue.meals.length, note);
 
-  const meals: Meal[] = catalogue.meals.map((mealSpec, index) => {
-    const chosen = [
-      pick(
-        mealSpec.carbOptions,
-        profile.selection[IMPORTED_DAY].carb[index],
-        `sel_${IMPORTED_DAY}_carb_${index}`,
-        note,
-      ),
-      pick(
-        mealSpec.proteinOptions,
-        profile.selection[IMPORTED_DAY].prot[index],
-        `sel_${IMPORTED_DAY}_prot_${index}`,
-        note,
-      ),
-    ];
-
-    const items: DietItem[] = [];
-    for (const source of [
-      ...chosen.flatMap((option) => option?.items ?? []),
-      ...mealSpec.fixed,
-    ]) {
+  const rows = (sources: readonly CatalogueItem[]): DietItem[] => {
+    const built: DietItem[] = [];
+    for (const source of sources) {
       const item = toDietItem(source, refFor, groupFor, newId, note);
-      if (item !== undefined) items.push(item);
+      if (item !== undefined) built.push(item);
+    }
+    return built.slice(0, ITEM_LIMITS.count.max);
+  };
+
+  /**
+   * Two decisions per meal, kept as decisions (#122).
+   *
+   * The old app asks which carbohydrate and which protein, and stores the two
+   * answers as indices. Reading only the answers was a plan with the choices
+   * boiled off: the catalogue's 32 options arrived as 8 rows, and nothing said
+   * the other 24 had ever been offered. They come across as `OptionSet`s
+   * instead, with the stored index selecting one, so the plate opens as it was
+   * saved and the question is still there to be answered differently tomorrow.
+   *
+   * `OPTION_LIMITS.sets.max` is 1 and stays 1. It governs what the builder lets
+   * a person *create*; `options.ts` already says a meal that arrived from
+   * somewhere else may hold more, and every function there walks all of them.
+   */
+  const meals: Meal[] = catalogue.meals.map((mealSpec, index) => {
+    const selection = profile.selection[IMPORTED_DAY];
+    const items = rows(mealSpec.fixed);
+    const optionSets: OptionSet[] = [];
+
+    for (const list of [
+      {
+        options: mealSpec.carbOptions,
+        name: names.carbSet,
+        stored: selection.carb[index],
+        key: `sel_${IMPORTED_DAY}_carb_${index}`,
+      },
+      {
+        options: mealSpec.proteinOptions,
+        name: names.proteinSet,
+        stored: selection.prot[index],
+        key: `sel_${IMPORTED_DAY}_prot_${index}`,
+      },
+    ]) {
+      const chosen = pickIndex(list.options, list.stored, list.key, note);
+
+      // A list of one is not a decision, so it is not a set: its rows are part
+      // of the meal, the way `removeOption` unwraps the survivor when a choice
+      // ends. Asking a question with one answer is worse than not asking.
+      if (list.options.length < OPTION_LIMITS.options.min) {
+        items.push(...rows(list.options[chosen]?.items ?? []));
+        continue;
+      }
+
+      const options: DietOption[] = list.options
+        .slice(0, OPTION_LIMITS.options.max)
+        .map((option) => ({
+          id: newId(),
+          name: optionName(option.label),
+          items: rows(option.items),
+        }));
+
+      optionSets.push({
+        id: newId(),
+        name: list.name,
+        selectedId: (options[chosen] ?? options[0]).id,
+        options,
+      });
     }
 
     return {
@@ -374,15 +427,17 @@ export function importPlan({
       name: mealSpec.note,
       share: shares[index] ?? 0,
       items: items.slice(0, ITEM_LIMITS.count.max),
+      ...(optionSets.length === 0 ? {} : { optionSets }),
     };
   });
 
   note("restDayNotImported");
 
-  // The rows the plan actually points at, and only those: a composition is a
-  // quotation carried for the meal that uses it, and the groups keep their own.
+  // Every row the plan holds, selected or not: switching version on a phone
+  // with no signal has to price the version being switched to, so its foods
+  // need a snapshot as much as today's do. The groups keep their own.
   const tacoFoods = quote(
-    meals.flatMap((meal) => meal.items.map((item) => item.food)),
+    meals.flatMap((meal) => allItems(meal).map((item) => item.food)),
     compositions,
   );
 
@@ -594,17 +649,30 @@ function readShares(
 }
 
 /** The stored option index, or the first option when it points at nothing. */
-function pick(
+function pickIndex(
   options: readonly CatalogueOption[],
   index: number | undefined,
   key: string,
   note: Note,
-): CatalogueOption | undefined {
+): number {
   if (index !== undefined && index >= 0 && index < options.length) {
-    return options[index];
+    return index;
   }
   note("selectionOutOfRange", key, index);
-  return options[0];
+  return 0;
+}
+
+/**
+ * The catalogue's own label for a version, when it fits in a name.
+ *
+ * "Aveia + fruta + pasta de amendoim" is what the old app printed on the button
+ * and what the person choosing recognises. A label too long for
+ * `OPTION_LIMITS.nameLength` arrives unnamed instead, which loses nothing:
+ * `optionSignature` reads a version off its first two foods.
+ */
+function optionName(label: string): string {
+  const checked = checkOptionName(label);
+  return "error" in checked ? "" : checked.value;
 }
 
 function toDietItem(
