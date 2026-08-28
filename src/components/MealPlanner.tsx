@@ -1316,7 +1316,17 @@ function MealChip({
     .reduce((a, b) => (Math.abs(b.delta) > Math.abs(a.delta) ? b : a));
 
   const value = Math.abs(worst.delta);
-  const macro = t(`chip.letter.${worst.macro}`);
+  // A word, not a letter. The chip is uppercased, so lettering gordura as "G"
+  // came out as "FALTAM 16 G G": the unit and the macro are the same token, and
+  // neither the eye nor a screen reader can separate them. The letters stay
+  // legible where they arrive as a series in normal case ("12 g P · 30 g C ·
+  // 5 g G"); a lone one is the bug.
+  //
+  // Label abbreviations rather than `macroName`'s full words, which is the
+  // other way to fix it: "FALTAM 16 G DE CARBOIDRATO" is the widest thing in
+  // the row, and on a phone it pushes the meal's own name onto a second line.
+  // The name is what the row is for.
+  const macro = t(`chip.macro.${worst.macro}`);
 
   return worst.state === "over" ? (
     <span className={`${box} border-nd-red text-nd-red-ink`}>

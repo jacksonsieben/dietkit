@@ -793,10 +793,10 @@
       "short": "Faltam {value, number} g {macro}",
       "over": "{value, number} g {macro} a mais",
       "invalid": "Revisar",
-      "letter": {
-        "proteinG": "P",
-        "carbG": "C",
-        "fatG": "G"
+      "macro": {
+        "proteinG": "prot",
+        "carbG": "carb",
+        "fatG": "gord"
       }
     },
     "startTitle": "Outros jeitos de começar",
