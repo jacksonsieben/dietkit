@@ -68,7 +68,7 @@ import {
   type OptionErrorCode,
 } from "@/lib/diet/options";
 import { loadPlan, newPlan, savePlan } from "@/lib/diet/plan";
-import { planKnowsItsWeight, rebasePlan, weightDrift } from "@/lib/diet/rebase";
+import { planDrift, planKnowsItsWeight, rebasePlan } from "@/lib/diet/rebase";
 import {
   reconcileDay,
   reconcileMeal,
@@ -359,15 +359,21 @@ export function MealPlanner({
   const percents = sharePercents(meals);
 
   /**
-   * How far the body has moved since this plan was written (#25).
+   * How far this plan has fallen behind the numbers it was written for (#25,
+   * #126).
+   *
+   * The weight and the goal both move, and only one of them used to be asked
+   * about here — which is how a plan built at 25% fat and a home screen reading
+   * a 15% goal ended up disagreeing about the same plate with nothing on either
+   * screen to explain it.
    *
    * Derived rather than held in state, like `solved` below and for the same
-   * reason: it is a function of the plan and the latest weight, both of which
-   * are already here, and a copy could only ever disagree with them. Pressing
-   * *Recalcular* changes the plan, which is what makes this go away — nothing
-   * has to remember that it was dismissed.
+   * reason: it is a function of the plan and what the profile says now, both of
+   * which are already here, and a copy could only ever disagree with them.
+   * Pressing *Recalcular* changes the plan, which is what makes this go away —
+   * nothing has to remember that it was dismissed.
    */
-  const drift = weightDrift(loaded.plan, loaded.current.weightKg);
+  const drift = planDrift(loaded.plan, loaded.current);
 
   /**
    * How many rows predate the per-type ceilings (#D).
@@ -933,7 +939,7 @@ export function MealPlanner({
           })}
         </p>
         {/* Absent on a plan written before the weight was recorded, or one
-            imported from the predecessor — see `weightDrift`. */}
+            imported from the predecessor — see `planKnowsItsWeight`. */}
         {planKnowsItsWeight(loaded.plan) ? (
           <p className="text-xs text-nd-dim">
             {t("basedOn", { weight: loaded.plan.basedOnWeightKg })}
@@ -943,11 +949,13 @@ export function MealPlanner({
         <TextLink href="/energia">{t("energyLink")}</TextLink>
 
         {/*
-         * The loop closing: the plan says what body it was written for, and
-         * when that stops being the body on the scale it offers to catch up
-         * (#25). Not applied on its own — see `rebasePlan` and `savePlan` for
-         * why a plan that silently followed the weight would be worse than one
-         * that goes stale visibly.
+         * The loop closing: the plan says what numbers it was written for, and
+         * when those stop being today's — a weigh-in, a changed goal, either —
+         * it offers to catch up (#25, #126). Not applied on its own: see
+         * `rebasePlan` and `savePlan` for why a plan that silently followed the
+         * profile would be worse than one that goes stale visibly. What #126
+         * added is that going stale visibly has to cover the half of the
+         * profile that is not the scale.
          */}
         {/* The one panel on this screen that is a surface rather than a rule,
             because it is the one thing here that arrived on its own and has to
@@ -957,14 +965,24 @@ export function MealPlanner({
         {drift === undefined ? null : (
           <div className="nd-screen mt-2 flex flex-col items-start gap-3 border border-nd-ink p-4">
             <p className="max-w-prose text-sm leading-relaxed">
-              {t(drift.deltaKg < 0 ? "driftDown" : "driftUp", {
-                from: drift.fromKg,
-                to: drift.toKg,
-                delta: Math.abs(drift.deltaKg),
-              })}
+              {/* The weight leads when the weight is what moved: it is the
+                  cause, and a sentence about grams would bury it. Only when the
+                  scale has not moved is the change in the targets itself the
+                  news (#126). */}
+              {drift.weight
+                ? t(drift.weight.deltaKg < 0 ? "driftDown" : "driftUp", {
+                    from: drift.weight.fromKg,
+                    to: drift.weight.toKg,
+                    delta: Math.abs(drift.weight.deltaKg),
+                  })
+                : t("driftTargets", {
+                    protein: loaded.current.targets.proteinG,
+                    carb: loaded.current.targets.carbG,
+                    fat: loaded.current.targets.fatG,
+                  })}
             </p>
             <ActionButton type="button" onClick={rebase}>
-              {t("rebase", { weight: drift.toKg })}
+              {t("rebase", { weight: loaded.current.weightKg })}
             </ActionButton>
           </div>
         )}

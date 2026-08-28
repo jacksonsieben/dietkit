@@ -1,7 +1,8 @@
 import type { Diet, MacroSet } from "@/lib/storage/types";
 
 /**
- * Bringing a saved plan up to date with the body it was written for (#25).
+ * Bringing a saved plan up to date with the numbers it was written for (#25,
+ * #126).
  *
  * The loop the app is for is calculate → build → track → rebuild, and this is
  * the last arrow. Someone who logs a weight every week is, six weeks later,
@@ -88,6 +89,67 @@ export function rebasePlan(
   weightKg: number,
 ): Diet {
   return { ...plan, targets, basedOnWeightKg: weightKg };
+}
+
+/** The plan's targets against the ones today's profile and goal produce. */
+export interface TargetDrift {
+  /** What the meals were apportioned from. */
+  from: MacroSet;
+  /** What the same profile, weight and goal come to now. */
+  to: MacroSet;
+}
+
+/**
+ * Everything about a plan that has gone stale, or `undefined` when none of it
+ * has.
+ *
+ * `weightDrift` was the whole of this for as long as the weight was the only
+ * thing a plan could fall behind. It is not: the goal is four numbers a user
+ * can change on `/energia` at any time, and changing one of them re-aims every
+ * target without touching the scale. #126 is what that looked like in
+ * production — the plan screen reporting 26 g of fat missing and the home
+ * screen reporting 4 g too many, about the same food on the same day, with no
+ * banner on either because the weight had not moved.
+ *
+ * So the question this asks is the general one: are the targets this plan was
+ * apportioned from still the targets this body and this goal produce. The
+ * weight gap comes along when there is one, because it is the *reason* in the
+ * ordinary case and a sentence about grams would bury it.
+ *
+ * Both fields are optional and at least one is always present — a plan that has
+ * not drifted returns `undefined` rather than an object of absences, so the
+ * caller's test is the presence of a banner rather than the truth of a flag.
+ */
+export interface PlanDrift {
+  /** Present when the scale moved far enough to say so. */
+  weight?: WeightDrift;
+  /** Present when the targets no longer match. */
+  targets?: TargetDrift;
+}
+
+export function planDrift(
+  plan: Diet,
+  current: { targets: MacroSet; weightKg: number },
+): PlanDrift | undefined {
+  const weight = weightDrift(plan, current.weightKg);
+  // Whole grams on both sides — `planMacros` rounds before it returns, and
+  // these targets came from it — so an exact comparison is the comparison a
+  // reader would make off the screen, with no tolerance to explain.
+  const targets = sameTargets(plan.targets, current.targets)
+    ? undefined
+    : { from: plan.targets, to: current.targets };
+
+  if (weight === undefined && targets === undefined) return undefined;
+  return { ...(weight && { weight }), ...(targets && { targets }) };
+}
+
+function sameTargets(a: MacroSet, b: MacroSet): boolean {
+  return (
+    a.proteinG === b.proteinG &&
+    a.carbG === b.carbG &&
+    a.fatG === b.fatG &&
+    a.kcal === b.kcal
+  );
 }
 
 /**

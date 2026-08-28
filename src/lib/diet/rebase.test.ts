@@ -4,7 +4,12 @@ import type { Diet, MacroSet } from "@/lib/storage/types";
 
 import { mealsFromNames } from "./meals";
 import { newPlan } from "./plan";
-import { REBASE_THRESHOLD_KG, rebasePlan, weightDrift } from "./rebase";
+import {
+  planDrift,
+  REBASE_THRESHOLD_KG,
+  rebasePlan,
+  weightDrift,
+} from "./rebase";
 
 const TARGETS: MacroSet = { proteinG: 160, carbG: 220, fatG: 62, kcal: 2078 };
 const FRESH: MacroSet = { proteinG: 150, carbG: 205, fatG: 58, kcal: 1942 };
@@ -66,6 +71,54 @@ describe("weightDrift", () => {
   it("stays quiet about a plan that never recorded a weight", () => {
     // Assuming today's would claim the plan is current when nobody knows it is.
     expect(weightDrift(planWithoutWeight(), 95)).toBeUndefined();
+  });
+});
+
+describe("planDrift", () => {
+  const current = (targets = TARGETS, weightKg = 80) => ({ targets, weightKg });
+
+  it("says nothing about a plan that is still aimed where it was built", () => {
+    expect(planDrift(plan(80), current())).toBeUndefined();
+  });
+
+  it("reports the weight when the scale is what moved", () => {
+    const drift = planDrift(plan(80), current(FRESH, 77));
+
+    expect(drift?.weight).toEqual({ fromKg: 80, toKg: 77, deltaKg: -3 });
+    expect(drift?.targets).toEqual({ from: TARGETS, to: FRESH });
+  });
+
+  it("reports the targets when the goal moved and the scale did not", () => {
+    // #126: changing the fat share on /energia re-aims every target without
+    // touching the weight. Before this, the plan screen said nothing at all --
+    // and the home screen, which recomputes, quietly disagreed with it.
+    const drift = planDrift(plan(80), current(FRESH));
+
+    expect(drift?.targets).toEqual({ from: TARGETS, to: FRESH });
+    expect(drift?.weight).toBeUndefined();
+  });
+
+  it("speaks up for a plan that never recorded a weight", () => {
+    // The case #126 was found on: a plan imported from the predecessor has no
+    // weight to compare, which used to mean it could never report drift at all.
+    const drift = planDrift(planWithoutWeight(), current(FRESH, 95));
+
+    expect(drift?.targets).toEqual({ from: TARGETS, to: FRESH });
+    expect(drift?.weight).toBeUndefined();
+  });
+
+  it("stays quiet when the scale moved but the grams landed in the same place", () => {
+    // Nothing is stale: the meals are apportioned from numbers that are still
+    // today's. A banner here would be one about arithmetic nobody can see.
+    expect(planDrift(plan(80), current(TARGETS, 80.2))).toBeUndefined();
+  });
+
+  it("settles when the plan is rebuilt, both halves at once", () => {
+    // The banner has to go away when the button is pressed -- and the button
+    // presses `rebasePlan`, which writes the targets and the weight together.
+    const rebased = rebasePlan(plan(80), FRESH, 77);
+
+    expect(planDrift(rebased, current(FRESH, 77))).toBeUndefined();
   });
 });
 
