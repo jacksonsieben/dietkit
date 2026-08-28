@@ -74,4 +74,19 @@ describe("TACO attribution", () => {
     expect(read("src/components/SourceFooter.tsx")).toContain('href="/fontes"');
     expect(() => read("src/app/[locale]/fontes/page.tsx")).not.toThrow();
   });
+
+  it("puts the credit outside the part of the footer the user can dismiss", () => {
+    // The footer folds now (`lib/notices.ts`), and rule 5 of
+    // docs/TACO-LICENSING.md is the line it must not fold past: attribution is
+    // not a settings toggle. Structural rather than textual — the credit and
+    // the route to it are rendered before the conditional, so no answer the
+    // user gives can take them off the screen.
+    const footer = read("src/components/SourceFooter.tsx");
+    const conditional = footer.indexOf("dismissed !== false");
+
+    expect(conditional, "the footer no longer folds").toBeGreaterThan(-1);
+    expect(footer.indexOf('t("credit"')).toBeGreaterThan(-1);
+    expect(footer.indexOf('t("credit"')).toBeLessThan(conditional);
+    expect(footer.indexOf('href="/fontes"')).toBeLessThan(conditional);
+  });
 });

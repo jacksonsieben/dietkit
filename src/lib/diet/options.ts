@@ -1,6 +1,7 @@
 import type {
   DietItem,
   DietOption,
+  FoodRef,
   Id,
   Meal,
   OptionSet,
@@ -33,27 +34,56 @@ import type {
 
 export const OPTION_LIMITS = {
   /**
-   * How many decisions one meal may carry. Two is the predecessor's breakfast
-   * (carbohydrate, protein); the ceiling is a limit of the screen, which draws
-   * a picker and a row list per set.
+   * One decision per meal (#H).
+   *
+   * It was six, and two of them at once is a real thing the predecessor did:
+   * a carbohydrate choice and a protein choice inside the same breakfast. What
+   * that costs on screen is the word *conjunto* — a meal with two decisions has
+   * to name them, and naming the question is the step where a person stops and
+   * asks what the app wants from them. At one, the screen can say "versões
+   * desta refeição" and nothing needs a name at all.
+   *
+   * Meals written before this, or imported from a plan someone edited by hand,
+   * may hold more; every function here still walks all of them. The ceiling
+   * only stops a second one being made.
    */
-  sets: { max: 6 },
+  sets: { max: 1 },
   /**
-   * A set with one option is not a choice, so removing the second-to-last one
-   * is refused and the whole set is removed instead. The ceiling is the length
-   * of a `<select>` somebody has to read on a phone.
+   * A set with one option is not a choice, so deleting the second-to-last
+   * version folds the survivor back into the meal and the set goes away. The
+   * ceiling is how many chips a phone can show before the row stops being
+   * readable.
    */
   options: { min: 2, max: 12 },
-  nameLength: { min: 1, max: 40 },
+  /** No minimum: an unnamed version is named after what is in it. */
+  nameLength: { max: 40 },
 } as const;
 
-export const OPTION_ERROR_CODES = ["required", "nameLength"] as const;
+export const OPTION_ERROR_CODES = ["nameLength"] as const;
 
 export type OptionErrorCode = (typeof OPTION_ERROR_CODES)[number];
 
 /** Never undefined, so callers can iterate a meal written before #111. */
 export function optionSetsOf(meal: Meal): readonly OptionSet[] {
   return meal.optionSets ?? [];
+}
+
+/**
+ * The foods a version is named after when nobody has named it (#H).
+ *
+ * Two, in plan order: *Pão + ovo* is a version somebody recognises across a
+ * row of chips, and a third food would not make it more recognisable — only
+ * longer than the chip. Refs come back rather than names because this module
+ * speaks no Portuguese and cannot tell a custom food from a TACO one; the
+ * screen holds the book and resolves them.
+ *
+ * Derived on every render rather than written into `name` when the second food
+ * is added: a stored name is a promise to keep it up to date, and a version
+ * called "Pão + ovo" whose bread was swapped for tapioca an hour later is worse
+ * than no name. The typed name still wins wherever there is one.
+ */
+export function optionSignature(option: DietOption): readonly FoodRef[] {
+  return option.items.slice(0, 2).map((item) => item.food);
 }
 
 /**
@@ -100,6 +130,24 @@ export function allItems(meal: Meal): DietItem[] {
   );
 
   return [...meal.items, ...everything];
+}
+
+/**
+ * Whether a plan holds no food at all.
+ *
+ * The question the screen asks before offering somewhere to start from, and it
+ * is asked here rather than there because the answer needs `allItems`, which
+ * the planner is forbidden to touch: everything on that screen is priced, and a
+ * row priced from the unselected options would print a portion the solver never
+ * chose. Counting is the one job `allItems` exists for, so the count happens on
+ * this side of the line and the screen receives a yes or a no.
+ *
+ * `allItems` rather than `effectiveItems` for the same reason the limit uses
+ * it: a food parked in an option nobody selected is still someone's evening's
+ * work, and a plan holding one is not blank.
+ */
+export function isBlankPlan(meals: readonly Meal[]): boolean {
+  return meals.every((meal) => allItems(meal).length === 0);
 }
 
 /**
@@ -269,54 +317,52 @@ export function canAddOption(set: OptionSet): boolean {
   return set.options.length < OPTION_LIMITS.options.max;
 }
 
-/** False at two options: the screen disables the button and this says why. */
-export function canRemoveOption(set: OptionSet): boolean {
-  return set.options.length > OPTION_LIMITS.options.min;
+/**
+ * Whether deleting this version would leave a choice behind.
+ *
+ * False at two, where deleting one does not shorten the list — it ends the
+ * question. The screen uses this to say which of the two things the same button
+ * is about to do, and `removeOption` does the folding either way.
+ */
+export function endsTheChoice(set: OptionSet): boolean {
+  return set.options.length <= OPTION_LIMITS.options.min;
 }
 
 /**
- * A set with the two options it needs to be a question, both empty.
+ * Turns the meal someone has already built into its own first version (#H).
  *
- * The ids and the names come from the caller for `mealsFromNames`' reason:
- * this module reads no clock and speaks no Portuguese.
+ * The old entry point made an empty set with two empty options, which asked a
+ * person to understand the idea before they had anything to apply it to. This
+ * one is only offered on a meal that already has food: what it does is say
+ * "what you have is version A", and open an empty B beside it. The meal's fixed
+ * rows move wholesale — after this the meal itself holds nothing, and what is
+ * on the plate is whichever version is selected.
+ *
+ * Ids come from the caller for `mealsFromNames`' reason: this module reads no
+ * clock and generates no randomness. Names do not come at all — both versions
+ * start unnamed and are read from their contents.
  */
-export function newOptionSet(
-  set: { id: Id; name: string },
-  options: readonly { id: Id; name: string }[],
-): OptionSet {
-  const built = options.map((option) => ({ ...option, items: [] }));
-
-  return { ...set, options: built, selectedId: built[0]?.id ?? set.id };
-}
-
-export function addSet(
+export function startOptions(
   meals: readonly Meal[],
   mealId: Id,
-  set: OptionSet,
-): Meal[] {
-  return withMeal(meals, mealId, (meal) =>
-    canAddSet(meal)
-      ? { ...meal, optionSets: [...optionSetsOf(meal), set] }
-      : meal,
-  );
-}
-
-/**
- * Drops a whole decision, and every option in it.
- *
- * Which deletes rows the user typed — but a set is the only place those rows
- * can live, and the alternative, promoting the selected option's rows into the
- * meal's fixed list, would silently make a choice permanent. The screen asks
- * first; this does what it is told.
- */
-export function removeSet(
-  meals: readonly Meal[],
-  mealId: Id,
-  setId: Id,
+  ids: { set: Id; first: Id; second: Id },
 ): Meal[] {
   return withMeal(meals, mealId, (meal) => {
-    const kept = optionSetsOf(meal).filter((set) => set.id !== setId);
-    return kept.length === 0 ? dropSets(meal) : { ...meal, optionSets: kept };
+    if (!canAddSet(meal)) return meal;
+
+    const options: DietOption[] = [
+      { id: ids.first, name: "", items: meal.items },
+      { id: ids.second, name: "", items: [] },
+    ];
+
+    return {
+      ...meal,
+      items: [],
+      optionSets: [
+        ...optionSetsOf(meal),
+        { id: ids.set, name: "", selectedId: ids.first, options },
+      ],
+    };
   });
 }
 
@@ -332,15 +378,6 @@ function dropSets(meal: Meal): Meal {
   return rest;
 }
 
-export function renameSet(
-  meals: readonly Meal[],
-  mealId: Id,
-  setId: Id,
-  name: string,
-): Meal[] {
-  return withSet(meals, mealId, setId, (set) => ({ ...set, name }));
-}
-
 export function addOption(
   meals: readonly Meal[],
   mealId: Id,
@@ -353,12 +390,22 @@ export function addOption(
 }
 
 /**
- * Removes one answer, and moves the selection if it was the one selected.
+ * Deletes one version — and, if that leaves only one, unwraps it (#H).
  *
- * The selection lands on the first surviving option rather than on nothing: a
- * set whose `selectedId` points at a deleted option is a meal that contributes
- * nothing and looks fine, which is the failure this whole module is arranged to
- * avoid.
+ * Refusing was the old answer, with a sentence under a disabled button
+ * explaining that a choice needs two answers. True, and useless: the person
+ * deleting the second-to-last version is not asking to break the rule, they are
+ * saying they no longer want a choice here. So the survivor's rows become the
+ * meal's own rows and the set disappears, which is exactly what the meal looked
+ * like before `startOptions` was ever pressed.
+ *
+ * That is a promotion, and the old code refused to promote — it would "silently
+ * make a choice permanent". It is not silent any more: the screen names the
+ * version it is about to delete and says the other one becomes the meal.
+ *
+ * When more than two remain, the selection lands on the first survivor rather
+ * than on nothing: a set whose `selectedId` points at a deleted option is a
+ * meal that contributes no food and looks fine.
  */
 export function removeOption(
   meals: readonly Meal[],
@@ -366,16 +413,37 @@ export function removeOption(
   setId: Id,
   optionId: Id,
 ): Meal[] {
-  return withSet(meals, mealId, setId, (set) => {
-    if (!canRemoveOption(set)) return set;
+  return withMeal(meals, mealId, (meal) => {
+    const sets = optionSetsOf(meal);
+    const set = sets.find((candidate) => candidate.id === setId);
+    if (set === undefined) return meal;
 
     const options = set.options.filter((option) => option.id !== optionId);
-    if (options.length === set.options.length) return set;
+    if (options.length === set.options.length) return meal;
+
+    if (options.length < OPTION_LIMITS.options.min) {
+      const kept = sets.filter((candidate) => candidate.id !== setId);
+      const unwrapped: Meal = {
+        ...meal,
+        items: [...meal.items, ...(options[0]?.items ?? [])],
+        optionSets: kept,
+      };
+
+      return kept.length === 0 ? dropSets(unwrapped) : unwrapped;
+    }
 
     return {
-      ...set,
-      options,
-      selectedId: set.selectedId === optionId ? options[0].id : set.selectedId,
+      ...meal,
+      optionSets: sets.map((candidate) =>
+        candidate.id === setId
+          ? {
+              ...set,
+              options,
+              selectedId:
+                set.selectedId === optionId ? options[0].id : set.selectedId,
+            }
+          : candidate,
+      ),
     };
   });
 }
@@ -416,11 +484,16 @@ export function selectOption(
 
 type Checked<T> = { value: T } | { error: OptionErrorCode };
 
-/** Trimmed before it is judged, like every other name in this app. */
+/**
+ * Trimmed before it is judged, like every other name in this app.
+ *
+ * An empty name is a value here and not an error (#H). A version is named after
+ * the food in it unless somebody says otherwise, so an empty box is the normal
+ * state and the only thing left to be wrong is a name longer than the chip.
+ */
 export function checkOptionName(raw: string): Checked<string> {
   const name = raw.trim();
 
-  if (name === "") return { error: "required" };
   if (name.length > OPTION_LIMITS.nameLength.max)
     return { error: "nameLength" };
 
@@ -428,13 +501,11 @@ export function checkOptionName(raw: string): Checked<string> {
 }
 
 /**
- * The first thing wrong with a meal's set and option names, if anything is.
+ * The first thing wrong with a meal's version names, if anything is.
  *
  * One code rather than a map of them: unlike the meal list, where every row has
- * a name box that can be wrong on its own, a set's names are edited a few
- * inches apart and the screen prints the reason once under the block. What the
- * user needs is to be stopped from saving a nameless choice — "Opção 2" is a
- * name, an empty box is a question with a blank answer.
+ * a name box that can be wrong on its own, only one version is open for
+ * renaming at a time and the screen prints the reason under that box.
  */
 export function checkMealOptions(meal: Meal): OptionErrorCode | undefined {
   for (const set of optionSetsOf(meal)) {

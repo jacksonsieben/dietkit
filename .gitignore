@@ -36,6 +36,7 @@ Thumbs.db
 # test / coverage
 coverage/
 playwright-report/
+.playwright-mcp/
 test-results/
 
 # local data dumps (TACO working files)

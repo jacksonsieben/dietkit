@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
+import { DismissedNotices } from "@/components/DismissedNotices";
 import { Legend, Shell } from "@/components/nd/kit";
 import { Link } from "@/i18n/navigation";
 import { resolveLocale } from "@/i18n/locale";
@@ -25,8 +26,8 @@ export async function generateMetadata({
  * The home screen used to be a flat list of every route in the app, which is
  * the arrangement you get when nothing has been decided about relative
  * importance. Deciding it produces two piles: the four things touched daily,
- * which are the tab bar, and the eleven consulted occasionally, which are this
- * page. Nothing was deleted — a route that exists still has a way in.
+ * which are the tab bar, and everything else, consulted occasionally, which is
+ * this page. Nothing was deleted — a route that exists still has a way in.
  *
  * Grouped by the question each answers rather than alphabetically, because the
  * user arriving here has a reason ("where do I change my height", "where did
@@ -40,6 +41,9 @@ interface Row {
   label:
     | "profile"
     | "energy"
+    | "foodSearch"
+    | "myFoods"
+    | "groups"
     | "account"
     | "backup"
     | "import"
@@ -50,8 +54,8 @@ interface Row {
 }
 
 const GROUPS: readonly {
-  heading: "targets" | "data" | "legal";
-  lead: "targetsLead" | "dataLead" | "legalLead";
+  heading: "targets" | "foods" | "data" | "legal";
+  lead: "targetsLead" | "foodsLead" | "dataLead" | "legalLead";
   rows: readonly Row[];
 }[] = [
   {
@@ -60,6 +64,23 @@ const GROUPS: readonly {
     rows: [
       { href: "/perfil", label: "profile" },
       { href: "/energia", label: "energy" },
+    ],
+  },
+  /*
+   * The three food screens, which until now nothing linked to.
+   *
+   * They are reachable from inside the planner — the picker opens the search,
+   * a row opens the groups — but only while you are editing a meal, so
+   * "where do I add the whey I bought" had no answer anywhere in the app. A
+   * route that exists needs a way in, and this is the page that says so.
+   */
+  {
+    heading: "foods",
+    lead: "foodsLead",
+    rows: [
+      { href: "/alimentos", label: "foodSearch" },
+      { href: "/alimentos/meus", label: "myFoods" },
+      { href: "/alimentos/grupos", label: "groups" },
     ],
   },
   {
@@ -139,6 +160,14 @@ export default async function MorePage({
             </ul>
           </section>
         ))}
+
+        {/*
+          Last, and usually absent. It is the undo for every "não mostrar de
+          novo" in the app, which is what lets those buttons mean it — see
+          `lib/notices.ts`. A client island on an otherwise static page,
+          because what is hidden lives in IndexedDB.
+        */}
+        <DismissedNotices />
       </Shell>
     </main>
   );

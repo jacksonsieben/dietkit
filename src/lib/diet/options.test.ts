@@ -5,26 +5,24 @@ import type { DietItem, FoodRef, Meal, OptionSet } from "@/lib/storage/types";
 import {
   OPTION_LIMITS,
   addOption,
-  addSet,
   addToContainer,
   allItems,
   canAddOption,
   canAddSet,
-  canRemoveOption,
   checkMealOptions,
   checkOptionName,
   containerItems,
   effectiveItems,
+  endsTheChoice,
   mapMealItems,
-  newOptionSet,
   optionSetsOf,
+  optionSignature,
   removeOption,
-  removeSet,
   renameOption,
-  renameSet,
   selectOption,
   selectedOption,
   siblingItems,
+  startOptions,
   trimOptionNames,
   withContainer,
 } from "./options";
@@ -201,67 +199,57 @@ describe("addToContainer", () => {
   });
 });
 
-describe("newOptionSet", () => {
-  it("selects the first option, so a fresh set is already answerable", () => {
-    const set = newOptionSet({ id: "s", name: "Carboidrato" }, [
-      { id: "o1", name: "A" },
-      { id: "o2", name: "B" },
-    ]);
+describe("startOptions", () => {
+  const ids3 = { set: "s", first: "f", second: "g" } as const;
 
-    expect(set.selectedId).toBe("o1");
-    expect(set.options.map((option) => option.items)).toEqual([[], []]);
+  it("makes what the meal already holds its first version", () => {
+    // The whole argument for the button (#H): the person pressing it has a
+    // breakfast, and what they mean is "this is one of the ways I have it".
+    const [meal] = startOptions([plain], "m1", ids3);
+    const set = meal.optionSets![0];
+
+    expect(meal.items).toEqual([]);
+    expect(set.selectedId).toBe("f");
+    expect(ids(set.options[0].items)).toEqual(["x"]);
+    expect(set.options[1].items).toEqual([]);
+    expect(ids(effectiveItems(meal))).toEqual(["x"]);
   });
-});
 
-describe("addSet", () => {
-  it("gives a meal that had none an `optionSets` list", () => {
-    const set = newOptionSet({ id: "s", name: "n" }, [{ id: "o", name: "A" }]);
-    const [meal] = addSet([plain], "m1", set);
+  it("names neither version, because the chips read the food", () => {
+    const [meal] = startOptions([plain], "m1", ids3);
+    const set = meal.optionSets![0];
+
+    expect([set.name, ...set.options.map((option) => option.name)]).toEqual([
+      "",
+      "",
+      "",
+    ]);
+  });
+
+  it("refuses a second question in one meal", () => {
+    // One per meal (#H): the ceiling is what lets the screen stop saying
+    // "conjunto" at all.
+    expect(canAddSet(breakfast())).toBe(false);
+    const [meal] = startOptions([breakfast()], "m1", ids3);
 
     expect(optionSetsOf(meal)).toHaveLength(1);
-  });
-
-  it("refuses past the ceiling, so a disabled button is telling the truth", () => {
-    const full = breakfast({
-      optionSets: Array.from({ length: OPTION_LIMITS.sets.max }, (_, i) =>
-        newOptionSet({ id: `s${i}`, name: "n" }, [{ id: `o${i}`, name: "A" }]),
-      ),
-    });
-
-    expect(canAddSet(full)).toBe(false);
-    const [meal] = addSet(
-      [full],
-      "m1",
-      newOptionSet({ id: "x", name: "n" }, []),
-    );
-
-    expect(optionSetsOf(meal)).toHaveLength(OPTION_LIMITS.sets.max);
+    expect(ids(meal.items)).toEqual(["fixed"]);
   });
 });
 
-describe("removeSet", () => {
-  it("takes every option in it, including unselected ones", () => {
-    const [meal] = removeSet([breakfast()], "m1", "s1");
+describe("optionSignature", () => {
+  it("takes the first two foods, in plan order", () => {
+    const option = {
+      id: "o",
+      name: "",
+      items: [item("a", bread), item("b", oats), item("c", oil)],
+    };
 
-    expect(ids(allItems(meal))).toEqual(["fixed"]);
+    expect(optionSignature(option)).toEqual([bread, oats]);
   });
 
-  it("leaves no empty `optionSets` key behind", () => {
-    // Otherwise two plans that are the same plan sync as different ones.
-    const [meal] = removeSet([breakfast()], "m1", "s1");
-
-    expect("optionSets" in meal).toBe(false);
-  });
-});
-
-describe("renameSet and renameOption", () => {
-  it("rename without touching the rows", () => {
-    const [renamed] = renameSet([breakfast()], "m1", "s1", "Carbo");
-    const [meal] = renameOption([renamed], "m1", "s1", "o2", "Mingau");
-
-    expect(meal.optionSets![0].name).toBe("Carbo");
-    expect(meal.optionSets![0].options[1].name).toBe("Mingau");
-    expect(ids(allItems(meal))).toEqual(["fixed", "a", "b"]);
+  it("has nothing to say about an empty version", () => {
+    expect(optionSignature({ id: "o", name: "", items: [] })).toEqual([]);
   });
 });
 
@@ -332,9 +320,25 @@ describe("removeOption", () => {
     expect(meal.optionSets![0].selectedId).toBe("o1");
   });
 
-  it("refuses to leave a set with one answer", () => {
-    expect(canRemoveOption(breakfast().optionSets![0])).toBe(false);
+  it("folds the last survivor back into the meal (#H)", () => {
+    // Deleting the second-to-last version is not a rule to enforce, it is
+    // somebody saying they no longer want a choice here.
+    expect(endsTheChoice(breakfast().optionSets![0])).toBe(true);
     const [meal] = removeOption([breakfast()], "m1", "s1", "o2");
+
+    expect(ids(meal.items)).toEqual(["fixed", "a"]);
+    expect("optionSets" in meal).toBe(false);
+  });
+
+  it("keeps the meal's own rows before the ones it folds in", () => {
+    const [meal] = removeOption([breakfast()], "m1", "s1", "o1");
+
+    expect(ids(effectiveItems(meal))).toEqual(["fixed", "b"]);
+  });
+
+  it("still shortens a set that has more than two", () => {
+    expect(endsTheChoice(three.optionSets![0])).toBe(false);
+    const [meal] = removeOption([three], "m1", "s1", "o3");
 
     expect(meal.optionSets![0].options).toHaveLength(2);
   });
@@ -351,8 +355,12 @@ describe("selectOption", () => {
 
 describe("checkOptionName", () => {
   it("trims before it judges", () => {
-    expect(checkOptionName("  ")).toEqual({ error: "required" });
     expect(checkOptionName(" Pão ")).toEqual({ value: "Pão" });
+  });
+
+  it("takes no name at all, which is the normal state (#H)", () => {
+    // An unnamed version is named after the food in it.
+    expect(checkOptionName("  ")).toEqual({ value: "" });
   });
 
   it("refuses a name longer than the box", () => {
@@ -367,17 +375,7 @@ describe("checkMealOptions", () => {
     expect(checkMealOptions(plain)).toBeUndefined();
   });
 
-  it("catches a set whose name was cleared", () => {
-    const meal = breakfast();
-    expect(
-      checkMealOptions({
-        ...meal,
-        optionSets: [{ ...meal.optionSets![0], name: "  " }],
-      }),
-    ).toBe("required");
-  });
-
-  it("catches an option whose name was cleared", () => {
+  it("says nothing about versions nobody named", () => {
     const meal = breakfast();
     const set = meal.optionSets![0];
 
@@ -387,11 +385,12 @@ describe("checkMealOptions", () => {
         optionSets: [
           {
             ...set,
-            options: [{ ...set.options[0], name: "" }, set.options[1]],
+            name: "",
+            options: set.options.map((option) => ({ ...option, name: "" })),
           },
         ],
       }),
-    ).toBe("required");
+    ).toBeUndefined();
   });
 
   it("catches a name longer than the control can show", () => {

@@ -13,6 +13,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   parseFoodQuery,
 } from "@/lib/foods/query";
+import { cookedFirst } from "@/lib/foods/preparation";
 import { mergeListings, searchCustomFoods, type FoodListing } from "@/lib/foods/results";
 import { getRepository } from "@/lib/storage";
 import type { CustomFood, FoodComposition, FoodRef } from "@/lib/storage/types";
@@ -40,6 +41,12 @@ export interface FoodChoice {
   readonly composition?: FoodComposition;
   /** Present for one of the user's foods, so the book can be kept current. */
   readonly custom?: CustomFood;
+  /**
+   * Present for a TACO row: which of the table's groups it was published in,
+   * carried only so the new item can start under a sensible ceiling rather than
+   * able to reach 500 g of anything (see `ceilingFor`). Nothing stores it.
+   */
+  readonly groupSlug?: string;
 }
 
 export function FoodPicker({
@@ -78,7 +85,18 @@ export function FoodPicker({
 
         if (controller.signal.aborted) return;
 
-        setAnswer({ query: asked, listings: mergeListings(custom, taco) });
+        /*
+         * Cooked above raw, before the list is ever drawn.
+         *
+         * TACO publishes most staples twice — "Arroz, tipo 1, cru" at 358 kcal
+         * and "Arroz, tipo 1, cozido" at 128 — and the endpoint, which ranks by
+         * name, hands the two back interleaved. Whoever is filling in a meal
+         * means the one they eat. See `cookedFirst`.
+         */
+        setAnswer({
+          query: asked,
+          listings: cookedFirst(mergeListings(custom, taco)),
+        });
       })();
     }, SEARCH_DEBOUNCE_MS);
 
@@ -151,7 +169,7 @@ export function FoodPicker({
 }
 
 /**
- * One choosable food.
+ * One choosable food, with the numbers that tell it from the row above it.
  *
  * A TACO row whose macros the publication withheld cannot be chosen at all —
  * `compositionFromResult` returns nothing for it — and the row says why instead
@@ -175,20 +193,48 @@ function PickRow({
   const name =
     listing.source === "taco" ? listing.food.description : listing.food.name;
 
+  /*
+   * What the row is actually chosen by.
+   *
+   * The list used to be names alone, which is the one thing that cannot
+   * separate two rows of the same food: "cru" and "cozido" differ by a word at
+   * the end of a long name and by a factor of nearly three in energy. The
+   * energy leads for that reason, and the macros follow because the next
+   * question after "which rice" is "does this fit the meal I am filling".
+   *
+   * Per 100 g, which is the only unit that exists here — the grams are the
+   * solver's answer later, and nothing on this screen knows them yet.
+   */
+  const per100g =
+    listing.source === "custom" ? listing.food.per100g : composition?.per100g;
+
   const usable = listing.source === "custom" || composition !== undefined;
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 px-2 py-1 hover:bg-nd-unlit">
-      <span className="flex flex-wrap items-baseline gap-2 text-sm">
-        {name}
-        {/* A source, not a status: which shelf this food came off. It was
-            blue, which was a second hue in a world that has one. */}
-        {listing.source === "custom" ? (
-          <span className="border border-nd-ink px-1.5 py-0.5 text-[0.625rem] font-medium tracking-[0.12em] uppercase">
-            {t("mine")}
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 py-1 hover:bg-nd-unlit">
+      <div className="flex min-w-40 flex-1 flex-col gap-0.5">
+        <span className="flex flex-wrap items-baseline gap-2 text-sm">
+          {name}
+          {/* A source, not a status: which shelf this food came off. It was
+              blue, which was a second hue in a world that has one. */}
+          {listing.source === "custom" ? (
+            <span className="border border-nd-ink px-1.5 py-0.5 text-[0.625rem] font-medium tracking-[0.12em] uppercase">
+              {t("mine")}
+            </span>
+          ) : null}
+        </span>
+
+        {per100g ? (
+          <span className="text-xs text-nd-dim">
+            {t("per100g", {
+              kcal: per100g.kcal,
+              protein: per100g.proteinG,
+              carb: per100g.carbG,
+              fat: per100g.fatG,
+            })}
           </span>
         ) : null}
-      </span>
+      </div>
 
       {already ? (
         <span className="text-xs text-nd-dim">{t("alreadyAdded")}</span>
@@ -198,7 +244,11 @@ function PickRow({
           onClick={() =>
             onPick(
               listing.source === "taco"
-                ? { ref: listing.ref, composition }
+                ? {
+                    ref: listing.ref,
+                    composition,
+                    groupSlug: listing.food.groupSlug,
+                  }
                 : {
                     ref: listing.ref,
                     servingG: listing.food.servingG,

@@ -6,8 +6,6 @@ import type { Settings, Snapshot, WeightEntry } from "@/lib/storage/types";
 import { fullSnapshot } from "./snapshot.fixture";
 import { backupUrgency, hasEnoughToLose, isBackupDue } from "./reminder";
 
-const NOW = new Date("2026-08-20T12:00:00.000Z");
-
 function weighings(count: number): WeightEntry[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `w-${index}`,
@@ -57,13 +55,13 @@ describe("hasEnoughToLose", () => {
 
 describe("isBackupDue", () => {
   it("stays quiet until there is something worth losing", () => {
-    expect(isBackupDue(store({ weight: weighings(2) }), NEVER_BACKED_UP, NOW)).toBe(
+    expect(isBackupDue(store({ weight: weighings(2) }), NEVER_BACKED_UP)).toBe(
       false,
     );
   });
 
   it("asks once there is", () => {
-    expect(isBackupDue(store({ weight: weighings(5) }), NEVER_BACKED_UP, NOW)).toBe(
+    expect(isBackupDue(store({ weight: weighings(5) }), NEVER_BACKED_UP)).toBe(
       true,
     );
   });
@@ -76,30 +74,34 @@ describe("isBackupDue", () => {
       lastBackupAt: "2026-08-19T23:00:00.000Z",
     };
 
-    expect(isBackupDue(fullSnapshot(), settings, NOW)).toBe(false);
+    expect(isBackupDue(fullSnapshot(), settings)).toBe(false);
   });
 
   it("asks again once something changes after the last backup", () => {
     // The fixture's backup is from the 10th and its last weighing from the 19th.
-    expect(isBackupDue(fullSnapshot(), fullSnapshot().settings, NOW)).toBe(true);
+    expect(isBackupDue(fullSnapshot(), fullSnapshot().settings)).toBe(true);
   });
 
-  it("holds off for a fortnight after being turned down", () => {
+  it("stops for good once the user has put it away", () => {
+    // "Não mostrar de novo" is the whole of the promise: no fortnight, no
+    // second asking on the next change. What keeps that from being a data-loss
+    // trap is that `/mais` can undo it, not that the app quietly ignores it.
     const settings: Settings = {
       ...fullSnapshot().settings,
-      backupRemindedAt: "2026-08-13T12:00:00.000Z",
+      dismissedNotices: ["backup"],
     };
 
-    expect(isBackupDue(fullSnapshot(), settings, NOW)).toBe(false);
+    expect(isBackupDue(fullSnapshot(), settings)).toBe(false);
   });
 
-  it("comes back after the fortnight", () => {
+  it("is not silenced by somebody else's dismissal", () => {
+    // The footer is a different notice with a different cost to hiding it.
     const settings: Settings = {
       ...fullSnapshot().settings,
-      backupRemindedAt: "2026-08-05T12:00:00.000Z",
+      dismissedNotices: ["legal"],
     };
 
-    expect(isBackupDue(fullSnapshot(), settings, NOW)).toBe(true);
+    expect(isBackupDue(fullSnapshot(), settings)).toBe(true);
   });
 
   it("asks when there is data but nothing says when it changed", () => {
@@ -117,7 +119,7 @@ describe("isBackupDue", () => {
       lastBackupAt: "2026-08-19T23:00:00.000Z",
     };
 
-    expect(isBackupDue(store({ diets: undated }), settings, NOW)).toBe(true);
+    expect(isBackupDue(store({ diets: undated }), settings)).toBe(true);
   });
 });
 

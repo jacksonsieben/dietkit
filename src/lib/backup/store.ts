@@ -49,6 +49,12 @@ export async function exportBackup(
  * fact on the ground is that the user is holding a file containing exactly what
  * the device now holds. Restoring and then immediately being told to back up
  * would read as the app not having noticed what just happened.
+ *
+ * The dismissals in the file are left alone, which is the opposite of what used
+ * to happen to the reminder's timestamp — and for the same reason. That was a
+ * fortnight counted from a moment on somebody else's device, so it had nothing
+ * to say here; `dismissedNotices` is the user stating a preference, and it
+ * arrives with their locale and their goal, which nobody would think to reset.
  */
 export async function restoreBackup(
   repository: Repository,
@@ -56,9 +62,5 @@ export async function restoreBackup(
   now: IsoTimestamp,
 ): Promise<void> {
   await repository.importAll(snapshot);
-  await repository.settings.patch({
-    lastBackupAt: now,
-    // The prompt's throttle belongs to a state that no longer exists.
-    backupRemindedAt: undefined,
-  });
+  await repository.settings.patch({ lastBackupAt: now });
 }
