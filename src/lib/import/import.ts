@@ -2,15 +2,8 @@ import { ITEM_LIMITS, newItem } from "@/lib/diet/items";
 import { newPlan } from "@/lib/diet/plan";
 import { GROUP_LIMITS } from "@/lib/diet/groups";
 import { OPTION_LIMITS, allItems, checkOptionName } from "@/lib/diet/options";
-import { basalMetabolicRate } from "@/lib/energy/bmr";
-import { MACRO_GOAL_LIMITS, macroEnergy } from "@/lib/energy/macros";
-import {
-  ACTIVITY_FACTOR_RANGE,
-  totalDailyEnergyExpenditure,
-} from "@/lib/energy/tdee";
+import { macroEnergy, planMacros } from "@/lib/energy/macros";
 import { deriveKcal } from "@/lib/foods/custom";
-import { ACTIVITY_LEVELS } from "@/lib/profile/activity";
-import { PROFILE_LIMITS } from "@/lib/profile/validation";
 import type {
   CustomFood,
   Diet,
@@ -19,16 +12,11 @@ import type {
   FoodComposition,
   FoodRef,
   Id,
-  IsoDate,
   IsoTimestamp,
   MacroGoal,
-  MacroSet,
   Meal,
   OptionSet,
-  Profile,
-  Sex,
   SubstitutionGroup,
-  WeightEntry,
 } from "@/lib/storage/types";
 
 import type {
@@ -53,7 +41,7 @@ import type { PredecessorProfile } from "./profile";
  * silently dropped*. Every approximation below leaves a `ImportNote` behind, so
  * the screen can show a list of what changed rather than a green tick.
  *
- * The four that are worth stating up front, because they are decisions rather
+ * The five that are worth stating up front, because they are decisions rather
  * than arithmetic:
  *
  * - **Only the training day is imported.** The predecessor kept two plans, a
@@ -67,12 +55,23 @@ import type { PredecessorProfile } from "./profile";
  *   carbohydrate and 10% of its fat. A `Meal.share` is a single fraction of the
  *   whole day (#18), so the three splits collapse into the energy-weighted one
  *   and the largest deviation that costs is reported in percentage points.
- * - **The targets come from the coefficients, not from the equation.** The
- *   predecessor derived grams from g/kg coefficients and separately showed a
- *   TDEE-based target, and it knew the two disagreed — its `MacroTotals` has a
- *   `delta_kcal` for exactly that. `Diet.targets` is what the plan was actually
- *   built against, so the coefficients win here and the difference from this
- *   app's own equation (#14, #15) is reported.
+ * - **The file brings the food; this device brings the numbers** (#123). This
+ *   reverses the decision that stood here, and the reversal is the point, so
+ *   the old one is written out rather than deleted: the predecessor derived
+ *   grams from g/kg coefficients and separately showed a TDEE-based target,
+ *   knew the two disagreed — its `MacroTotals` has a `delta_kcal` for exactly
+ *   that — and the import used to keep the coefficients, because they were what
+ *   the portions on the plate had been sized by, and report the gap. That was
+ *   right while an import was a *record* of an old plan. It is wrong now that
+ *   it is how someone starts using this app: the files people still have are
+ *   years old, the weight and the age in them are stale, and a plan built on
+ *   them looks authoritative and is not. So `Diet.targets` comes from the
+ *   device's own profile, weight and goal, down the chain every other plan
+ *   uses — `basalMetabolicRate` → `totalDailyEnergyExpenditure` → `planMacros`,
+ *   the same numbers `/energia` shows — and the import writes nothing personal
+ *   at all: no profile, no weighing, no goal. A device with none of those to
+ *   compute from is refused rather than quietly falling back to the file's
+ *   figures, which would reinstate the very numbers this decision distrusts.
  * - **A food TACO does not publish becomes a custom food** with the old app's
  *   own numbers, which is what `CUSTOM_REASONS` in `foodMap.ts` enumerates.
  * - **Both decisions in a meal come across, as decisions** (#122). The old app
@@ -92,21 +91,8 @@ export const IMPORT_NOTE_CODES = [
   "mealShareFlattened",
   /** Nothing reads a distribution of all zeroes; the meals were split evenly. */
   "distributionEmpty",
-  /** `coeff_carb` has no analogue: this app fills carbohydrate as remainder. */
-  "carbCoefficientKept",
-  /** g/kg of bodyweight became a fixed number of kilocalories. */
-  "fatUnitChanged",
-  /** The plan's own energy against what #14 and #15 would have computed. */
-  "planEnergyDiffers",
-  /** An age became a birth date, which will now age on its own. */
-  "birthDateEstimated",
-  "sexUnrecognised",
-  "activityFactorCustom",
-  "activityIndexOutOfRange",
   /** A stored option index the catalogue has no option for. */
   "selectionOutOfRange",
-  /** A number outside this app's own bounds, brought to the nearest one. */
-  "valueClamped",
   /** The three `MAPPING_NOTES`, per food. */
   "foodCorrected",
   "foodFoundInTaco",
@@ -155,16 +141,29 @@ export interface ImportOptions {
    */
   readonly compositions: ReadonlyMap<number, FoodComposition>;
   readonly names: ImportNames;
-  /** The day the weight is logged on, and the base for the birth date. */
-  readonly today: IsoDate;
+  /** What the plan is sized against — the device's, never the file's (#123). */
+  readonly body: ImportBody;
   readonly now: IsoTimestamp;
   readonly newId: () => Id;
 }
 
-export interface ImportResult {
-  readonly profile: Profile;
-  readonly weight: WeightEntry;
+/**
+ * The body the imported plan is built for.
+ *
+ * Handed in rather than read, because this module takes no I/O:
+ * `loadImportBody` in `store.ts` assembles it from the profile, the weight log
+ * and the goal, and refuses the import when one of the three is missing. The
+ * expenditure arrives already computed so that this and `/energia` cannot drift
+ * into two versions of the same equation.
+ */
+export interface ImportBody {
+  readonly totalDailyEnergyExpenditure: number;
+  /** The latest weighing, which `Diet.basedOnWeightKg` records. */
+  readonly weightKg: number;
   readonly goal: MacroGoal;
+}
+
+export interface ImportResult {
   readonly diet: Diet;
   readonly customFoods: readonly CustomFood[];
   readonly groups: readonly SubstitutionGroup[];
@@ -208,7 +207,7 @@ export function importPlan({
   catalogue,
   compositions,
   names,
-  today,
+  body,
   now,
   newId,
 }: ImportOptions): ImportResult {
@@ -221,85 +220,15 @@ export function importPlan({
     });
   };
 
-  /**
-   * The old file's own bounds are the old app's; these are ours, and the two
-   * do not have to agree. Bringing a value to the nearest bound rather than
-   * refusing the file is the same stance `parseLimit` takes: an import that
-   * fails on one implausible number is an import nobody completes — but a
-   * number that moved is a number the user is told about.
-   */
-  const clamp = (
-    key: string,
-    value: number,
-    range: { min: number; max: number },
-  ) => {
-    const held = Math.min(range.max, Math.max(range.min, value));
-    if (held !== value) note("valueClamped", key, held);
-    return held;
-  };
-
-  const weightKg = clamp(
-    "weight_kg",
-    profile.weightKg,
-    PROFILE_LIMITS.weightKg,
-  );
-  const heightCm = clamp(
-    "height_cm",
-    profile.heightCm,
-    PROFILE_LIMITS.heightCm,
-  );
-  const ageYears = Math.round(
-    clamp("age", profile.age, PROFILE_LIMITS.ageYears),
-  );
-
-  const sex = readSex(profile.sexLabel);
-  if (sex === undefined) note("sexUnrecognised", profile.sexLabel);
-
-  const activityFactor = readActivityFactor(profile, clamp, note);
-
-  note("birthDateEstimated", undefined, ageYears);
-  const stored: Profile = {
-    heightCm,
-    birthDate: birthDateFor(today, ageYears),
-    sex: sex ?? "male",
-    activityFactor,
-    updatedAt: now,
-  };
-
-  const weight: WeightEntry = {
-    id: newId(),
-    date: today,
-    weightKg,
-    recordedAt: now,
-  };
-
-  // The plan's own numbers, straight from the coefficients the old app scaled
-  // its portions with. `kcal` is what the *rounded* grams are worth, on
-  // `MacroPlan.targets`' terms: a MacroSet whose energy disagrees with its own
-  // grams puts a reconciliation error into everything downstream of it.
-  const exact = {
-    proteinG: profile.coeffProtein * weightKg,
-    carbG: profile.coeffCarb * weightKg,
-    fatG: profile.coeffFat * weightKg,
-  };
-  const targets: MacroSet = {
-    proteinG: Math.round(exact.proteinG),
-    carbG: Math.round(exact.carbG),
-    fatG: Math.round(exact.fatG),
-    kcal: 0,
-  };
-  targets.kcal = Math.round(macroEnergy(targets));
-
-  note("carbCoefficientKept", undefined, profile.coeffCarb);
-  reportEnergyGap(
-    { weightKg, heightCm, ageYears, sex: sex ?? "male" },
-    activityFactor,
-    profile,
-    targets,
-    note,
-  );
-
-  const goal = readGoal(profile, weightKg, clamp, note);
+  // This device's targets, not the file's (see the module note). The same call
+  // the energy screen and the home screen make, on the same three inputs, so
+  // the plan this import writes opens showing the numbers `/energia` already
+  // showed — rather than a set of grams from a body the user no longer has.
+  const { targets } = planMacros({
+    totalDailyEnergyExpenditure: body.totalDailyEnergyExpenditure,
+    weightKg: body.weightKg,
+    goal: body.goal,
+  });
 
   const customFoods: CustomFood[] = [];
   const refs = new Map<string, FoodRef>();
@@ -446,16 +375,13 @@ export function importPlan({
       { id: newId(), name: names.diet },
       meals,
       targets,
-      weightKg,
+      body.weightKg,
       now,
     ),
     ...(tacoFoods.length === 0 ? {} : { tacoFoods }),
   };
 
   return {
-    profile: stored,
-    weight,
-    goal,
     diet,
     customFoods,
     groups: groups.map(([, group]) => group),
@@ -464,130 +390,6 @@ export function importPlan({
 }
 
 type Note = (code: ImportNoteCode, subject?: string, value?: number) => void;
-type Clamp = (
-  key: string,
-  value: number,
-  range: { min: number; max: number },
-) => number;
-
-/** "Masculino" / "Feminino", as the old app wrote them and nothing else. */
-function readSex(label: string): Sex | undefined {
-  const folded = label.trim().toLowerCase();
-  if (folded === "masculino") return "male";
-  if (folded === "feminino") return "female";
-  return undefined;
-}
-
-/**
- * An age, as the date it implies.
- *
- * Lossy in one direction that matters: the old app stored a number that stayed
- * 34 forever, and this one stores a day that will make the user 35 by itself.
- * That is the better record — an age typed once is wrong within a year — but
- * it is a change to what the file said, so `birthDateEstimated` is emitted for
- * every import rather than only for the surprising ones. The day-and-month are
- * today's, which is the only part invented here.
- */
-function birthDateFor(today: IsoDate, ageYears: number): IsoDate {
-  const [year, rest] = [today.slice(0, 4), today.slice(4)];
-  return `${Number(year) - ageYears}${rest}`;
-}
-
-function readActivityFactor(
-  profile: PredecessorProfile,
-  clamp: Clamp,
-  note: Note,
-): number {
-  if (profile.useCustomFa) {
-    const factor = clamp("custom_fa", profile.customFa, ACTIVITY_FACTOR_RANGE);
-    note("activityFactorCustom", undefined, factor);
-    return factor;
-  }
-
-  // The two ladders are the same five rungs in the same order — 1.2 to 1.9,
-  // Harris-Benedict's — so the index carries over. An index outside it is a
-  // file from a version that had more of them, and the nearest rung is a
-  // better answer than the middle one.
-  const index = Math.round(profile.activityIdx);
-  const held = Math.min(ACTIVITY_LEVELS.length - 1, Math.max(0, index));
-  if (held !== index) {
-    note("activityIndexOutOfRange", "activity_idx", profile.activityIdx);
-  }
-  return ACTIVITY_LEVELS[held]!.factor;
-}
-
-/**
- * What the old plan's energy comes to, against what this app's own chain would
- * have produced from the same person.
- *
- * The predecessor computed both too, and showed the gap as `delta_kcal`: its
- * coefficients and its Mifflin-St Jeor target were never reconciled. Importing
- * keeps the coefficients, because they are what the portions on the plate were
- * sized by — and reports the gap, because the energy screen (#15) will show the
- * other number the moment the user opens it.
- */
-function reportEnergyGap(
-  person: { weightKg: number; heightCm: number; ageYears: number; sex: Sex },
-  activityFactor: number,
-  profile: PredecessorProfile,
-  targets: MacroSet,
-  note: Note,
-): void {
-  const expenditure = totalDailyEnergyExpenditure(
-    basalMetabolicRate(person),
-    activityFactor,
-  );
-  const gap = Math.round(targets.kcal - (expenditure + profile.kcalAdjustment));
-  if (gap !== 0) note("planEnergyDiffers", undefined, gap);
-}
-
-/**
- * The coefficients as a `MacroGoal`.
- *
- * Two of the three carry over: the adjustment is the same kilocalories with its
- * sign moved into `kind`, and protein is the same g/kg. Fat does not — this app
- * expresses it as a share of the target or as an absolute figure, never per
- * kilogram (see `MacroGoal.fat` for why) — so `coeff_fat` is multiplied out
- * against today's weight and stops following it. That is the one thing an
- * import can do here, and it is reported.
- */
-function readGoal(
-  profile: PredecessorProfile,
-  weightKg: number,
-  clamp: Clamp,
-  note: Note,
-): MacroGoal {
-  const adjustment = profile.kcalAdjustment;
-  const kind = adjustment < 0 ? "lose" : adjustment > 0 ? "gain" : "maintain";
-
-  const fatKcal = clamp(
-    "coeff_fat",
-    Math.round(profile.coeffFat * weightKg * 9),
-    MACRO_GOAL_LIMITS.fatKcal,
-  );
-  note("fatUnitChanged", undefined, fatKcal);
-
-  return {
-    kind,
-    adjustment: {
-      unit: "kcal",
-      value:
-        kind === "maintain"
-          ? 0
-          : clamp(
-              "kcal_adjustment",
-              Math.abs(adjustment),
-              MACRO_GOAL_LIMITS.kcal,
-            ),
-    },
-    proteinGPerKg: clamp(
-      "coeff_protein",
-      profile.coeffProtein,
-      MACRO_GOAL_LIMITS.proteinGPerKg,
-    ),
-    fat: { unit: "kcal", value: fatKcal },
-  };
-}
 
 /**
  * Three splits into one.

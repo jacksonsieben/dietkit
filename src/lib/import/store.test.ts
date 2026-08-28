@@ -13,7 +13,12 @@ import type {
 } from "@/lib/storage/types";
 
 import type { ImportResult } from "./import";
-import { applyImport, fetchCompositions, importConflicts } from "./store";
+import {
+  applyImport,
+  fetchCompositions,
+  importConflicts,
+  loadImportBody,
+} from "./store";
 
 const NOW = "2026-08-19T12:00:00.000Z";
 
@@ -81,9 +86,6 @@ const diet: Diet = {
 };
 
 const result: ImportResult = {
-  profile,
-  weight,
-  goal,
   diet,
   customFoods: [almonds],
   groups: [fruits],
@@ -100,15 +102,11 @@ describe("applyImport", () => {
   it("puts every record the import produced on the device", async () => {
     await applyImport(repository, result);
 
-    await expect(repository.profile.get()).resolves.toEqual(profile);
-    await expect(repository.weight.list()).resolves.toEqual([weight]);
     await expect(repository.diets.list()).resolves.toEqual([diet]);
     await expect(repository.customFoods.list()).resolves.toEqual([almonds]);
     await expect(repository.substitutionGroups.list()).resolves.toEqual([
       fruits,
     ]);
-    const settings = await repository.settings.get();
-    expect(settings.goal).toEqual(goal);
   });
 
   it("writes what the plan points at before the plan itself", async () => {
@@ -141,44 +139,98 @@ describe("applyImport", () => {
     ]);
   });
 
-  it("replaces the profile and the goal, because there is only one of each", async () => {
-    await repository.profile.save({ ...profile, heightCm: 150 });
-    await repository.settings.patch({ goal: { ...goal, kind: "gain" } });
+  it("leaves the profile, the weight log and the goal exactly as they were", async () => {
+    // #123: the file is years old and the device is not. An import that
+    // rewrote either of these would replace a current body with a remembered
+    // one, and nothing on screen afterwards would look wrong.
+    const mine: Profile = { ...profile, heightCm: 150 };
+    const mineGoal: MacroGoal = { ...goal, kind: "gain" };
+    await repository.profile.save(mine);
+    await repository.settings.patch({ goal: mineGoal });
+    await repository.weight.put(weight);
 
     await applyImport(repository, result);
 
-    await expect(repository.profile.get()).resolves.toEqual(profile);
-    expect((await repository.settings.get()).goal).toEqual(goal);
-  });
-
-  it("edits the day rather than stacking a second weight on it", async () => {
-    await repository.weight.put({ ...weight, id: "weight-old", weightKg: 90 });
-
-    await applyImport(repository, result);
-
-    const stored = await repository.weight.list();
-    expect(stored).toHaveLength(1);
-    expect(stored[0]?.weightKg).toBe(82);
+    await expect(repository.profile.get()).resolves.toEqual(mine);
+    expect((await repository.settings.get()).goal).toEqual(mineGoal);
+    await expect(repository.weight.list()).resolves.toEqual([weight]);
   });
 });
 
 describe("importConflicts", () => {
   it("reports an untouched device as having nothing to lose", async () => {
-    await expect(importConflicts(repository)).resolves.toEqual({
-      profile: false,
-      goal: false,
-      diets: 0,
-    });
+    await expect(importConflicts(repository)).resolves.toEqual({ diets: 0 });
   });
 
-  it("reports each of the three separately", async () => {
+  it("counts the plans the imported one is joining", async () => {
     await repository.profile.save(profile);
     await repository.diets.put(diet);
 
-    await expect(importConflicts(repository)).resolves.toEqual({
-      profile: true,
-      goal: false,
-      diets: 1,
+    // The profile is on the device and is *not* a conflict: only the plan count
+    // is, because a plan is the only thing an import adds to.
+    await expect(importConflicts(repository)).resolves.toEqual({ diets: 1 });
+  });
+});
+
+describe("loadImportBody", () => {
+  const today = "2026-08-19";
+
+  it("names the profile as what is missing on a fresh device", async () => {
+    await expect(loadImportBody(repository, today)).resolves.toEqual({
+      status: "missing",
+      needs: "profile",
+    });
+  });
+
+  it("names the weight when the profile is filled but nothing was weighed", async () => {
+    await repository.profile.save(profile);
+
+    await expect(loadImportBody(repository, today)).resolves.toEqual({
+      status: "missing",
+      needs: "weight",
+    });
+  });
+
+  it("names the goal rather than substituting the default one", async () => {
+    // `loadGoal` would hand back `DEFAULT_MACRO_GOAL` here, which is right for
+    // a screen that has to render something. Baking a maintenance preset the
+    // user never chose into an imported plan is not the same thing.
+    await repository.profile.save(profile);
+    await repository.weight.put(weight);
+
+    await expect(loadImportBody(repository, today)).resolves.toEqual({
+      status: "missing",
+      needs: "goal",
+    });
+  });
+
+  it("computes the expenditure from the profile and the latest weighing", async () => {
+    await repository.profile.save(profile);
+    await repository.weight.put(weight);
+    await repository.settings.patch({ goal });
+
+    const state = await loadImportBody(repository, today);
+    expect(state.status).toBe("ready");
+    if (state.status !== "ready") return;
+
+    // Mifflin-St Jeor for 82 kg, 178 cm, 35 years, male: 1762.5 kcal, x1.55.
+    expect(state.body).toEqual({
+      totalDailyEnergyExpenditure: 2731.875,
+      weightKg: 82,
+      goal,
+    });
+  });
+
+  it("refuses a goal the store holds in a shape this version cannot read", async () => {
+    await repository.profile.save(profile);
+    await repository.weight.put(weight);
+    await repository.settings.patch({
+      goal: { kind: "lose" } as unknown as MacroGoal,
+    });
+
+    await expect(loadImportBody(repository, today)).resolves.toEqual({
+      status: "missing",
+      needs: "goal",
     });
   });
 });

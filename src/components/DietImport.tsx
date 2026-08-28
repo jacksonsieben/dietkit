@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 import { FileField } from "@/components/nd/FileField";
 import { Action, ActionButton, Legend, TextLink } from "@/components/nd/kit";
@@ -19,6 +19,7 @@ import {
   applyImport,
   fetchCompositions,
   importConflicts,
+  loadImportBody,
   type ImportConflicts,
 } from "@/lib/import/store";
 import { getRepository } from "@/lib/storage";
@@ -32,10 +33,16 @@ import { getRepository } from "@/lib/storage";
  * The one request it makes is for TACO rows by id — reference data, nothing
  * from the file — and it works without that, badly but honestly.
  *
- * Two steps rather than one. An import replaces the profile and the goal, and
- * the two apps do not compute the same numbers from the same file: the review
- * is where that is said, in a list the user reads before anything is written,
- * rather than in a toast after.
+ * Two steps rather than one. The two apps do not read the same file the same
+ * way, and the review is where that is said — in a list the user reads before
+ * anything is written, rather than in a toast after.
+ *
+ * The file is not allowed to decide the grams (#123). The plan is sized against
+ * this device's profile, weight and goal, so a device without them cannot
+ * import at all: `loadImportBody` is read before the file is even parsed, and
+ * the refusal below names the screen to open. Falling back to the figures in
+ * the file would put a plan built for a three-year-old body on screen looking
+ * exactly like one built for today's.
  */
 
 /**
@@ -55,7 +62,11 @@ type Stage =
   | "saving"
   | "done"
   | "readFailed"
+  | "deviceFailed"
   | "saveFailed";
+
+/** Which of the three records the device is short of. */
+type Needs = "profile" | "weight" | "goal";
 
 interface Review {
   readonly result: ImportResult;
@@ -69,6 +80,7 @@ export function DietImport() {
 
   const [stage, setStage] = useState<Stage>("choosing");
   const [issues, setIssues] = useState<readonly ProfileIssue[]>([]);
+  const [needs, setNeeds] = useState<Needs | undefined>(undefined);
   const [review, setReview] = useState<Review | undefined>(undefined);
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -77,6 +89,23 @@ export function DietImport() {
 
     setStage("reading");
     setReview(undefined);
+    setNeeds(undefined);
+
+    // The device first, before the file is even read: what is missing here is
+    // not something a different file would fix, and finding out after a review
+    // screen full of numbers would be the worst moment to say so.
+    let body;
+    try {
+      body = await loadImportBody(getRepository(), todayIsoDate());
+    } catch {
+      setStage("deviceFailed");
+      return;
+    }
+    if (body.status === "missing") {
+      setNeeds(body.needs);
+      setStage("choosing");
+      return;
+    }
 
     let text: string;
     try {
@@ -111,7 +140,7 @@ export function DietImport() {
           carbSet: t("carbSet"),
           proteinSet: t("proteinSet"),
         },
-        today: todayIsoDate(),
+        body: body.body,
         now: new Date().toISOString(),
         newId: () => crypto.randomUUID(),
       });
@@ -179,6 +208,38 @@ export function DietImport() {
         <p className="text-sm text-nd-red-ink">{t("readError")}</p>
       ) : null}
 
+      {stage === "deviceFailed" ? (
+        <p className="text-sm text-nd-red-ink">{t("deviceError")}</p>
+      ) : null}
+
+      {/* Not an error and not drawn as one: a device with no profile yet is the
+          ordinary way to arrive here. It says which record is missing and links
+          to the screen that takes it, the way the preset screen does. */}
+      {needs === undefined ? null : (
+        <section className="flex flex-col gap-3">
+          <Legend as="h2">{t("needsTitle")}</Legend>
+          <p className="max-w-prose text-sm leading-relaxed">
+            {t("needsLead")}
+          </p>
+          <ul className={LIST}>
+            <li>
+              {t(
+                needs === "goal"
+                  ? "needsGoal"
+                  : needs === "weight"
+                    ? "needsWeight"
+                    : "needsProfile",
+              )}
+            </li>
+          </ul>
+          <div className="flex flex-wrap items-center gap-4">
+            <Action href={needs === "goal" ? "/energia" : "/perfil"}>
+              {t(needs === "goal" ? "needsGoalLink" : "needsProfileLink")}
+            </Action>
+          </div>
+        </section>
+      )}
+
       {/* A file this app refuses is the same kind of event as a macro that
           misses its target, and gets the same left rail: red is never the only
           thing carrying it — the heading and every line below say what is
@@ -210,21 +271,11 @@ export function DietImport() {
 
           <Summary result={review.result} />
 
-          {review.conflicts.profile ||
-          review.conflicts.goal ||
-          review.conflicts.diets > 0 ? (
-            <section className="flex flex-col gap-2 border-l-2 border-nd-red pl-4">
+          {review.conflicts.diets > 0 ? (
+            <section className="flex flex-col gap-2">
               <Legend as="h3">{t("conflictsTitle")}</Legend>
               <ul className={LIST}>
-                {review.conflicts.profile ? (
-                  <li>{t("conflictProfile")}</li>
-                ) : null}
-                {review.conflicts.goal ? <li>{t("conflictGoal")}</li> : null}
-                {review.conflicts.diets > 0 ? (
-                  <li>
-                    {t("conflictDiets", { count: review.conflicts.diets })}
-                  </li>
-                ) : null}
+                <li>{t("conflictDiets", { count: review.conflicts.diets })}</li>
               </ul>
             </section>
           ) : null}
@@ -263,7 +314,6 @@ export function DietImport() {
 
 function Summary({ result }: { result: ImportResult }) {
   const t = useTranslations("Import");
-  const format = useFormatter();
   // Every row, not just today's: what is being imported is the plan, and the
   // versions nobody has selected are as much of it as the ones they have.
   const items = result.diet.meals.reduce(
@@ -293,29 +343,8 @@ function Summary({ result }: { result: ImportResult }) {
       <li>{t("summaryOptions", { sets: sets.length, options })}</li>
       <li>{t("summaryCustomFoods", { count: result.customFoods.length })}</li>
       <li>{t("summaryGroups", { count: result.groups.length })}</li>
-      <li>
-        {t("summaryWeight", {
-          weight: result.weight.weightKg,
-          date: format.dateTime(localDate(result.weight.date), {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          }),
-        })}
-      </li>
     </ul>
   );
-}
-
-/**
- * An `IsoDate` as a `Date` in this device's zone.
- *
- * `new Date("2026-08-19")` is UTC midnight, which in Brazil is the evening of
- * the 18th — the date the entry was logged on would print as the day before.
- */
-function localDate(date: string): Date {
-  const [year, month, day] = date.split("-").map(Number);
-  return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
 }
 
 /**
