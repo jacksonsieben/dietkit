@@ -9,8 +9,7 @@ import {
   optionSetsOf,
   selectedOption,
 } from "@/lib/diet/options";
-import { ageYearsOn } from "@/lib/energy/age";
-import { macroEnergy } from "@/lib/energy/macros";
+import { macroEnergy, planMacros } from "@/lib/energy/macros";
 import type {
   FoodComposition,
   FoodRef,
@@ -25,6 +24,7 @@ import { FOOD_MAP, mappingFor } from "./foodMap";
 import {
   importPlan,
   neededTacoIds,
+  type ImportBody,
   type ImportNote,
   type ImportOptions,
   type ImportResult,
@@ -89,8 +89,25 @@ const NAMES = {
   carbSet: "Carboidrato",
   proteinSet: "Proteína",
 };
-const TODAY = "2026-08-19";
 const NOW = "2026-08-19T12:00:00.000Z";
+
+/**
+ * A body deliberately unlike the one in the file (#123).
+ *
+ * The fixture weighs 82.5 kg and asks for 2.2 g/kg of protein; this device
+ * weighs 88.4 and asks for 2. If any assertion below could pass on either set
+ * of numbers, it would not be testing the thing that changed.
+ */
+const BODY: ImportBody = {
+  totalDailyEnergyExpenditure: 2747,
+  weightKg: 88.4,
+  goal: {
+    kind: "lose",
+    adjustment: { unit: "kcal", value: 500 },
+    proteinGPerKg: 2,
+    fat: { unit: "percent", value: 25 },
+  },
+};
 
 const profileFrom = (edit: Record<string, unknown> = {}) => {
   const parsed = parseProfile({ ...PREDECESSOR_EXPORT, ...edit });
@@ -114,7 +131,7 @@ const run = (
     catalogue: PREDECESSOR_CATALOGUE,
     compositions: COMPOSITIONS,
     names: NAMES,
-    today: TODAY,
+    body: BODY,
     now: NOW,
     newId: counter(),
     ...overrides,
@@ -207,54 +224,70 @@ describe("importing the predecessor's plan", () => {
     expect(noteFor(result, "mealShareFlattened")?.value).toBeGreaterThan(0);
   });
 
-  it("builds the targets from the coefficients that sized the portions", () => {
-    // 2.2, 3.4 and 0.9 g/kg against 82.5 kg — the file's own numbers, not this
-    // app's equation, because they are what the portions were scaled by.
+  it("sizes the plan from this device's body, not from the file's numbers", () => {
+    // 2747 kcal less the 500 kcal cut is 2247; 2 g/kg on 88.4 kg is 177 g of
+    // protein and a quarter of the energy is 62 g of fat, carbohydrate taking
+    // what is left. Written out rather than compared against `planMacros` so
+    // the assertion still means something if that function changes.
     const result = run();
 
     expect(result.diet.targets).toEqual({
-      proteinG: 182,
-      carbG: 281,
-      fatG: 74,
-      kcal: 2518,
+      proteinG: 177,
+      carbG: 245,
+      fatG: 62,
+      kcal: 2246,
     });
-    expect(result.diet.targets.kcal).toBe(
-      Math.round(macroEnergy(result.diet.targets)),
-    );
-    expect(result.diet.basedOnWeightKg).toBe(82.5);
+    expect(result.diet.basedOnWeightKg).toBe(88.4);
   });
 
-  it("reports that the plan's energy is not the one the equation gives", () => {
-    // Mifflin-St Jeor over the fixture is 1772.5 kcal, ×1.55 for the third rung
-    // and −500 for the cut: 2247 against the plan's own 2518. The old app knew
-    // about this gap too — `MacroTotals.delta_kcal` — and showed it.
-    expect(noteFor(run(), "planEnergyDiffers")?.value).toBe(271);
+  it("gives the plan the same targets the energy screen shows", () => {
+    // The claim #123 is actually making: not "some equation" but *this* one,
+    // the one `/energia` and the home screen already run.
+    expect(run().diet.targets).toEqual(planMacros(BODY).targets);
   });
 
-  it("keeps the fat coefficient as kilocalories and says it stopped being g/kg", () => {
+  it("would have imported quite different numbers from the file itself", () => {
+    // 2.2, 3.4 and 0.9 g/kg against the file's own 82.5 kg — 182 g of protein,
+    // 281 of carbohydrate, 74 of fat — is what the import used to write, and
+    // the coefficients are still in the fixture. This is the test that fails if
+    // anything starts reading them again.
     const result = run();
 
-    expect(result.goal.kind).toBe("lose");
-    expect(result.goal.adjustment).toEqual({ unit: "kcal", value: 500 });
-    expect(result.goal.proteinGPerKg).toBe(2.2);
-    expect(result.goal.fat).toEqual({ unit: "kcal", value: 668 });
-    expect(noteFor(result, "fatUnitChanged")?.value).toBe(668);
-    expect(noteFor(result, "carbCoefficientKept")?.value).toBe(3.4);
+    expect(result.diet.targets.proteinG).not.toBe(182);
+    expect(result.diet.targets.carbG).not.toBe(281);
+    expect(result.diet.targets.fatG).not.toBe(74);
   });
 
-  it("makes an age into a birth date that ages on its own", () => {
-    const result = run();
-
-    expect(ageYearsOn(result.profile.birthDate, TODAY)).toBe(34);
-    expect(ageYearsOn(result.profile.birthDate, "2027-08-19")).toBe(35);
-    expect(noteFor(result, "birthDateEstimated")?.value).toBe(34);
+  it("produces nothing about the person, only about the food", () => {
+    // The whole of #123 in one assertion: an import writes a plan, some foods
+    // and some groups. A profile, a weighing or a goal coming back out of here
+    // is a personal record the file is three years out of date about.
+    expect(Object.keys(run()).sort()).toEqual([
+      "customFoods",
+      "diet",
+      "groups",
+      "notes",
+    ]);
   });
 
-  it("logs the weight on the day it was imported rather than in the profile", () => {
-    const result = run();
+  it("stops explaining numbers it no longer imports", () => {
+    // These notes were honest while the file's own figures were being written
+    // to the device. A note about a value nobody imported is worse than no
+    // note: it describes a change that did not happen.
+    const said = codes(run({ edit: { weight_kg: 900, sex_label: "Outro" } }));
 
-    expect(result.weight).toMatchObject({ date: TODAY, weightKg: 82.5 });
-    expect(result.profile).not.toHaveProperty("weightKg");
+    for (const gone of [
+      "carbCoefficientKept",
+      "fatUnitChanged",
+      "planEnergyDiffers",
+      "birthDateEstimated",
+      "sexUnrecognised",
+      "activityFactorCustom",
+      "activityIndexOutOfRange",
+      "valueClamped",
+    ]) {
+      expect(said).not.toContain(gone);
+    }
   });
 
   it("maps a published food to its row and an unpublished one to the user's own", () => {
@@ -398,40 +431,16 @@ describe("importing the predecessor's plan", () => {
     expect(refsIn(result).some((ref) => ref.source === "taco")).toBe(true);
   });
 
-  it("keeps a hand-typed activity factor instead of rounding it to a rung", () => {
-    const result = run({ edit: { use_custom_fa: true, custom_fa: 1.65 } });
+  it("reads a file whose body this app would refuse, because it never uses it", () => {
+    // 900 kg used to be clamped to 400 and logged as a weighing. Now it is a
+    // number nothing reads, and the plan comes out identical — the shares are
+    // ratios of the coefficients, which is the one thing the file still decides.
+    const heavy = run({ edit: { weight_kg: 900 } });
 
-    expect(result.profile.activityFactor).toBe(1.65);
-    expect(noteFor(result, "activityFactorCustom")?.value).toBe(1.65);
-  });
-
-  it("reads the ladder position when there is no custom factor", () => {
-    expect(run().profile.activityFactor).toBe(1.55);
-  });
-
-  it("reports a rung the ladder does not have", () => {
-    const result = run({ edit: { activity_idx: 9 } });
-
-    expect(noteFor(result, "activityIndexOutOfRange")?.value).toBe(9);
-    expect(result.profile.activityFactor).toBe(1.9);
-  });
-
-  it("reports a sex it does not recognise rather than choosing quietly", () => {
-    const result = run({ edit: { sex_label: "Outro" } });
-
-    expect(noteFor(result, "sexUnrecognised")?.subject).toBe("Outro");
-  });
-
-  it("brings a number this app would refuse to its own bound and says so", () => {
-    const result = run({ edit: { weight_kg: 900 } });
-    const clamped = noteFor(result, "valueClamped");
-
-    expect(clamped).toEqual({
-      code: "valueClamped",
-      subject: "weight_kg",
-      value: 400,
-    });
-    expect(result.weight.weightKg).toBe(400);
+    expect(heavy.diet.targets).toEqual(run().diet.targets);
+    expect(heavy.diet.meals.map((meal) => meal.share)).toEqual(
+      run().diet.meals.map((meal) => meal.share),
+    );
   });
 
   it("reports a stored option the catalogue has no option for", () => {

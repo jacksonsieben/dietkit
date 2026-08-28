@@ -48,9 +48,7 @@ describe("import wiring", () => {
     const notes = messages.notes as Record<string, string>;
 
     for (const code of [
-      "sexUnrecognised",
       "selectionOutOfRange",
-      "valueClamped",
       "foodCorrected",
       "foodFoundInTaco",
       "foodOtherCultivar",
@@ -88,6 +86,23 @@ describe("import wiring", () => {
     expect(source).toContain("fetchCompositions(");
   });
 
+  it("asks what this device knows before it opens the file", () => {
+    // #123: a plan is sized from the profile, the weighing and the goal on this
+    // device, so a device without them cannot import at all. Finding that out
+    // after a review screen full of numbers -- numbers that would then have to
+    // be taken back -- is the worst moment to say so, and no other file would
+    // have helped.
+    const source = component();
+
+    expect(source.indexOf("loadImportBody(")).toBeLessThan(
+      source.indexOf("file.text()"),
+    );
+    expect(messages.needsTitle).toBeTypeOf("string");
+    for (const needs of ["needsProfile", "needsWeight", "needsGoal"]) {
+      expect(messages[needs], needs).toBeTypeOf("string");
+    }
+  });
+
   it("writes through the repository rather than reaching for a store", () => {
     const source = component();
 
@@ -121,6 +136,8 @@ describe("import wiring", () => {
     // Importing is a once-ever errand, so it left the home screen for `/mais`
     // when the home screen became the day. It still has a way in, which is the
     // whole of what this test ever claimed.
-    expect(read("src/app/[locale]/mais/page.tsx")).toContain('href: "/importar"');
+    expect(read("src/app/[locale]/mais/page.tsx")).toContain(
+      'href: "/importar"',
+    );
   });
 });

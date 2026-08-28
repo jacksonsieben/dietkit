@@ -1,22 +1,29 @@
 import { compositionFromResult } from "@/lib/diet/composition";
+import { isMacroGoal } from "@/lib/energy/goal";
+import { loadEnergySummary } from "@/lib/energy/summary";
 import type { FoodSearchBody } from "@/lib/foods/endpoint";
 import type { Repository } from "@/lib/storage";
-import type { FoodComposition } from "@/lib/storage/types";
+import type { FoodComposition, IsoDate } from "@/lib/storage/types";
 
-import type { ImportResult } from "./import";
+import type { ImportBody, ImportResult } from "./import";
 
 /**
- * The two sides of the import the pure part cannot do: fetching the TACO rows
- * it needs, and writing what it produced (#22).
+ * The three sides of the import the pure part cannot do: fetching the TACO rows
+ * it needs, reading the body it is built for, and writing what it produced
+ * (#22, #123).
  *
  * `importPlan` is a function from a file to records and takes no I/O, which is
- * what makes it testable at all. That leaves two jobs here, and they are worth
- * their own module for the same reason `plan.ts` and `groupStore.ts` are: what
- * an import overwrites is a decision, not a detail of a screen.
+ * what makes it testable at all. That leaves these jobs here, and they are
+ * worth their own module for the same reason `plan.ts` and `groupStore.ts` are:
+ * what an import reads and what it writes are decisions, not details of a
+ * screen.
  */
 
 /** What the fetch needs of `fetch`, so a test can hand it a function. */
-type FetchLike = (input: string, init?: { signal?: AbortSignal }) => Promise<{
+type FetchLike = (
+  input: string,
+  init?: { signal?: AbortSignal },
+) => Promise<{
   ok: boolean;
   json: () => Promise<unknown>;
 }>;
@@ -60,35 +67,73 @@ export async function fetchCompositions(
   return found;
 }
 
-/** What is already on the device that an import would replace. */
+/**
+ * What the device already holds that the user should hear about first.
+ *
+ * One field, since #123: an import writes a plan, some foods and some groups,
+ * and nothing else. It used to replace the profile and the goal too, which is
+ * what this type existed to warn about — now there is nothing personal to
+ * overwrite, and the only thing left to say is how many plans the new one is
+ * joining. Kept as a record rather than flattened to a number because what an
+ * import touches is exactly the kind of thing that grows again.
+ */
 export interface ImportConflicts {
-  readonly profile: boolean;
-  readonly goal: boolean;
   /** Plans already stored. The import adds one; it never replaces these. */
   readonly diets: number;
 }
 
-/**
- * Read before the confirm step, so the screen can say what is about to change.
- *
- * Asked of the repository rather than assumed from an empty-store default,
- * because the one irreversible thing an import does is overwrite the profile
- * and the goal — and a user who has been using this app for a month and then
- * imports an old file is exactly the person who needs to be told that first.
- */
+/** Read before the confirm step, so the screen can say what is about to change. */
 export async function importConflicts(
   repository: Repository,
 ): Promise<ImportConflicts> {
-  const [profile, settings, diets] = await Promise.all([
-    repository.profile.get(),
+  const diets = await repository.diets.list();
+  return { diets: diets.length };
+}
+
+/**
+ * The body the import will size its plan against, or the screen the user has
+ * to fill first.
+ *
+ * `missing` is a first-class answer here for the same reason it is in
+ * `loadEnergySummary`, and then one reason more: arriving at the import screen
+ * on a brand-new device is not just ordinary, it is the *likely* path — someone
+ * whose only DietKit data is a file from the old app. Refusing them, in words,
+ * with the screen to open, is the whole of #123's user-facing half. The
+ * alternative is falling back to the numbers in the file, which are the numbers
+ * we stopped trusting.
+ *
+ * The goal is read straight rather than through `loadGoal`, which never reports
+ * a missing one: it substitutes `DEFAULT_MACRO_GOAL`, which is right for a
+ * screen that has to show something and wrong here, where a maintenance preset
+ * nobody chose would be silently baked into an imported plan.
+ */
+export type ImportBodyState =
+  | { status: "ready"; body: ImportBody }
+  | { status: "missing"; needs: "profile" | "weight" | "goal" };
+
+export async function loadImportBody(
+  repository: Repository,
+  today: IsoDate,
+): Promise<ImportBodyState> {
+  const [energy, settings] = await Promise.all([
+    loadEnergySummary(repository, today),
     repository.settings.get(),
-    repository.diets.list(),
   ]);
 
+  if (energy.status === "missing") {
+    return { status: "missing", needs: energy.needs };
+  }
+  if (!isMacroGoal(settings.goal)) {
+    return { status: "missing", needs: "goal" };
+  }
+
   return {
-    profile: profile !== undefined,
-    goal: settings.goal !== undefined,
-    diets: diets.length,
+    status: "ready",
+    body: {
+      totalDailyEnergyExpenditure: energy.summary.totalDailyEnergyExpenditure,
+      weightKg: energy.summary.weightKg,
+      goal: settings.goal,
+    },
   };
 }
 
@@ -101,10 +146,11 @@ export async function importConflicts(
  * visible in "meus alimentos", removable by hand — rather than a plan with
  * holes in it.
  *
- * The plan is added, not merged: `diets.put` with a fresh id keeps whatever
- * the user was already working on. The profile and the goal are replaced,
- * because there is only one of each and the file is the user saying which one
- * they mean; `importConflicts` is how they are told before it happens.
+ * The plan is added, not merged: `diets.put` with a fresh id keeps whatever the
+ * user was already working on. Nothing else on the device is touched — no
+ * profile, no weighing, no goal (#123). What the file actually knows is which
+ * foods were on the plate and how they were grouped; the body it also carries
+ * is years out of date, and the device has a current one.
  */
 export async function applyImport(
   repository: Repository,
@@ -118,7 +164,4 @@ export async function applyImport(
   }
 
   await repository.diets.put(result.diet);
-  await repository.weight.put(result.weight);
-  await repository.profile.save(result.profile);
-  await repository.settings.patch({ goal: result.goal });
 }
