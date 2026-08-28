@@ -97,12 +97,14 @@ describe("meal planner wiring", () => {
     expect(write).not.toContain("basedOnWeightKg:");
   });
 
-  it("offers the newest weight rather than applying it", () => {
+  it("offers today's numbers rather than applying them", () => {
     const source = component();
 
-    expect(source).toContain(
-      "weightDrift(loaded.plan, loaded.current.weightKg)",
-    );
+    // The whole profile, not just the scale (#126): a screen that asked
+    // `weightDrift` here would go on missing every plan that fell behind
+    // because the goal changed under it.
+    expect(source).toContain("planDrift(loaded.plan, loaded.current)");
+    expect(source).not.toContain("weightDrift(");
     // The rebuild happens because a button was pressed, not because the screen
     // was opened: no effect and no render-time call may reach `rebasePlan`.
     expect(source).toContain("onClick={rebase}");
@@ -151,6 +153,21 @@ describe("meal planner wiring", () => {
     // Two messages rather than one with a signed number in it: Portuguese needs
     // different words for the two, and "-3 kg" is not a sentence.
     expect(ptBR.Plan.driftUp).not.toBe(ptBR.Plan.driftDown);
+  });
+
+  it("names the macros when the goal is what moved, not the weight", () => {
+    // #126's sentence: with the scale unchanged there is no "you weighed X"
+    // to lead with, so the banner has to say what the targets are now --
+    // otherwise it announces that something changed and never says what.
+    for (const token of [
+      "{protein, number}",
+      "{carb, number}",
+      "{fat, number}",
+    ]) {
+      expect(ptBR.Plan.driftTargets).toContain(token);
+    }
+
+    expect(ptBR.Plan.driftTargets).not.toBe(ptBR.Plan.driftUp);
   });
 
   it("puts the weight it would use on the button", () => {

@@ -748,6 +748,7 @@
     "basedOn": "Calculado para {weight, number} kg.",
     "driftDown": "Você pesava {from, number} kg quando montou esse plano e hoje pesa {to, number} kg — {delta, number} kg a menos. As metas abaixo ainda são as do peso antigo.",
     "driftUp": "Você pesava {from, number} kg quando montou esse plano e hoje pesa {to, number} kg — {delta, number} kg a mais. As metas abaixo ainda são as do peso antigo.",
+    "driftTargets": "As metas do dia mudaram desde que você montou este plano: hoje são {protein, number} g de proteína, {carb, number} g de carboidrato e {fat, number} g de gordura. As refeições abaixo ainda são repartidas pelas metas antigas.",
     "rebase": "Recalcular com {weight, number} kg",
     "looseCeilings": "{count, plural, one {Um alimento deste plano ainda pode chegar a {max, number} g: ele foi escolhido antes de cada tipo de alimento ganhar um limite próprio.} other {# alimentos deste plano ainda podem chegar a {max, number} g: eles foram escolhidos antes de cada tipo de alimento ganhar um limite próprio.}} Hoje o azeite para muito antes disso, e o ovo bem antes de meia dúzia.",
     "tighten": "Ajustar aos limites de cada tipo",
